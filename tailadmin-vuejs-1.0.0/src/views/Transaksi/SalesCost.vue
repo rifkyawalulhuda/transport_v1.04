@@ -79,6 +79,14 @@
             </button>
             <button
               type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
+              :disabled="isImporting"
+              @click="triggerImport"
+            >
+              {{ isImporting ? 'Mengimport...' : 'Import Excel' }}
+            </button>
+            <button
+              type="button"
               class="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
               :disabled="isExporting"
               @click="exportExcel"
@@ -641,7 +649,64 @@
           </div>
         </div>
       </ComponentCard>
+    </div>
 
+    <!-- Hidden File Input -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".xlsx, .xls"
+      class="hidden"
+      @change="handleFileChange"
+    />
+
+    <!-- Import Modal -->
+    <div
+      v-if="showImportModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
+      <div
+        class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800"
+      >
+        <h3 class="mb-4 text-lg font-bold text-gray-900 dark:text-white">
+          Import Sales Cost
+        </h3>
+        
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
+          Silakan download template terlebih dahulu untuk memastikan format data sesuai.
+        </p>
+
+        <div class="flex flex-col gap-3">
+          <button
+            type="button"
+            class="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            :disabled="isDownloadingTemplate"
+            @click="downloadTemplate"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            {{ isDownloadingTemplate ? 'Mengunduh...' : 'Download Template' }}
+          </button>
+
+          <button
+            type="button"
+            class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            @click="selectFile"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            Upload File Excel
+          </button>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+          <button
+            type="button"
+            class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            @click="showImportModal = false"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
     </div>
   </AdminLayout>
 </template>
@@ -720,6 +785,11 @@ const toast = useToast()
 const items = ref<SalesCostItem[]>([])
 const loading = ref(false)
 const isExporting = ref(false)
+const isImporting = ref(false)
+const isDownloadingTemplate = ref(false)
+const showImportModal = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+
 const currentPage = ref(1)
 const pageSize = 15
 const searchColumns = [
@@ -1011,6 +1081,89 @@ const exportExcel = async () => {
     toast.error('Gagal export data.')
   } finally {
     isExporting.value = false
+  }
+}
+
+const triggerImport = () => {
+  showImportModal.value = true
+}
+
+const downloadTemplate = async () => {
+  if (isDownloadingTemplate.value) {
+    return
+  }
+  isDownloadingTemplate.value = true
+  try {
+    const res = await authFetch(`${apiBase}/sales-costs/import/template`)
+    if (!res.ok) {
+      const message = await res.text()
+      throw new Error(message || 'Gagal download template')
+    }
+    
+    const blob = await res.blob()
+    if (!blob || blob.size === 0) {
+      toast.info('Template belum tersedia.')
+      return
+    }
+    const fallbackName = 'Template-Sales-Cost.xlsx'
+    const filename =
+      getFilenameFromHeader(res.headers.get('content-disposition')) || fallbackName
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.setTimeout(() => {
+      window.URL.revokeObjectURL(url)
+    }, 0)
+    toast.success('Template berhasil diunduh.')
+  } catch (error) {
+    console.error(error)
+    toast.error('Gagal mendownload template')
+  } finally {
+    isDownloadingTemplate.value = false
+  }
+}
+
+const selectFile = () => {
+  fileInput.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  // Reset input value so same file can be selected again
+  target.value = ''
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  isImporting.value = true
+  showImportModal.value = false // Close modal during process
+
+  try {
+    const res = await authFetch(`${apiBase}/sales-costs/import`, {
+      method: 'POST',
+      body: formData
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      throw new Error(data.message || 'Gagal import data')
+    }
+
+    toast.success(`Import berhasil: ${data.count} data tersimpan`)
+    await loadData()
+  } catch (error: any) {
+    console.error(error)
+    toast.error(error.message || 'Terjadi kesalahan saat import')
+  } finally {
+    isImporting.value = false
   }
 }
 

@@ -24,7 +24,7 @@
         </p>
 
         <div v-else class="space-y-4">
-          <div class="grid gap-4 sm:grid-cols-4">
+          <div class="grid gap-4 sm:grid-cols-3">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
                 Dibuat oleh

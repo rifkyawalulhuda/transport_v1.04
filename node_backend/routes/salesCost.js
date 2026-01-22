@@ -1,11 +1,14 @@
 const express = require("express");
 const ExcelJS = require("exceljs");
+const multer = require("multer");
 const db = require("../db");
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
 const { logAuditEvent } = require("../services/auditLogger");
 const { createNotification, getActorFromRequest } = require("../services/notificationService");
+const SalesCostDN = require("../models/SalesCostDN");
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 function parseNumber(value) {
   if (value === null || value === undefined) {
@@ -53,6 +56,416 @@ const notifySalesCostChange = async ({ req, type, title, action, identifier, ent
     console.error("Failed to create sales cost notification", error);
   }
 };
+
+router.get("/import/template", authenticateToken, async (req, res) => {
+  try {
+    // 1. Fetch Master Data
+    const [customers] = await db.query("SELECT id_customer, nama_customer FROM customer ORDER BY nama_customer ASC");
+    const [drivers] = await db.query("SELECT id_driver, nama_driver FROM driver ORDER BY nama_driver ASC");
+    const [areas] = await db.query("SELECT id_area, nama_area FROM area ORDER BY nama_area ASC");
+    const [trucks] = await db.query("SELECT id_truck, no_police FROM truck ORDER BY no_police ASC");
+
+    const workbook = new ExcelJS.Workbook();
+
+    // --- SHEET 1: MASTER (HIDDEN) ---
+    const sheetMaster = workbook.addWorksheet("Master");
+    sheetMaster.state = "veryHidden";
+
+    // Headers
+    sheetMaster.columns = [
+      { header: "ID Customer", key: "id_cust" },
+      { header: "Nama Customer", key: "nama_cust" },
+      { header: "Display Customer", key: "display_cust" }, // Col C
+      { header: "ID Driver", key: "id_driver" },
+      { header: "Nama Driver", key: "nama_driver" },
+      { header: "Display Driver", key: "display_driver" }, // Col F
+      { header: "ID Route", key: "id_route" },
+      { header: "Nama Route", key: "nama_route" },
+      { header: "Display Route", key: "display_route" }, // Col I
+      { header: "ID Truck", key: "id_truck" },
+      { header: "No Police", key: "no_police" },
+      { header: "Display Truck", key: "display_truck" } // Col L
+    ];
+
+    const maxRows = Math.max(customers.length, drivers.length, areas.length, trucks.length);
+
+    for (let i = 0; i < maxRows; i++) {
+      const row = {};
+      
+      if (customers[i]) {
+        row.id_cust = customers[i].id_customer;
+        row.nama_cust = customers[i].nama_customer;
+        row.display_cust = `${customers[i].id_customer} - ${customers[i].nama_customer}`;
+      }
+      
+      if (drivers[i]) {
+        row.id_driver = drivers[i].id_driver;
+        row.nama_driver = drivers[i].nama_driver;
+        row.display_driver = `${drivers[i].id_driver} - ${drivers[i].nama_driver}`;
+      }
+
+      if (areas[i]) {
+        row.id_route = areas[i].id_area;
+        row.nama_route = areas[i].nama_area;
+        row.display_route = `${areas[i].id_area} - ${areas[i].nama_area}`;
+      }
+
+      if (trucks[i]) {
+        row.id_truck = trucks[i].id_truck;
+        row.no_police = trucks[i].no_police;
+        row.display_truck = `${trucks[i].id_truck} - ${trucks[i].no_police}`;
+      }
+      
+      sheetMaster.addRow(row);
+    }
+
+    // Defined Names (Workbook Scope)
+    // C2:C<last>
+    // Note: definedNames.add might accept range as string
+    const addName = (name, range) => {
+        // ExcelJS expects (location, name)
+        if (workbook.definedNames && typeof workbook.definedNames.add === 'function') {
+            workbook.definedNames.add(range, name);
+        }
+    };
+
+    if (customers.length > 0) {
+      addName("CUSTOMER_LIST", `Master!$C$2:$C$${customers.length + 1}`);
+    }
+    if (drivers.length > 0) {
+      addName("DRIVER_LIST", `Master!$F$2:$F$${drivers.length + 1}`);
+    }
+    if (areas.length > 0) {
+      addName("ROUTE_LIST", `Master!$I$2:$I$${areas.length + 1}`);
+    }
+    if (trucks.length > 0) {
+      addName("TRUCK_LIST", `Master!$L$2:$L$${trucks.length + 1}`);
+    }
+
+    // --- SHEET 2: SalesCost ---
+    const sheetSales = workbook.addWorksheet("SalesCost");
+    
+    // Headers
+    const salesHeaders = [
+      "Temp ID",
+      "Tgl Order (YYYY-MM-DD)",
+      "Truck (ID - No Police)",
+      "Driver (ID - Nama)",
+      "Route (ID - Nama)",
+      "Customer (ID - Nama)",
+      "Delivery Order (YYYY-MM-DD)",
+      "Arrival Order (YYYY-MM-DD)",
+      "Bills",
+      "Lift On",
+      "Lift Off",
+      "Container Depot",
+      "No PO",
+      "No Aju",
+      "No Container",
+      "Tax",
+      "Admin Charge",
+      "Materai",
+      "Trip",
+      "Jenis Trip",
+      "Container Size",
+      "Price",
+      "Container Repair",
+      "Demurrage Chargers",
+      "Detention Chargers",
+      "Extend Gate Pass",
+      "Additional Cost",
+      "Ops Cost",
+      "ID Print"
+    ];
+    
+    sheetSales.addRow(salesHeaders);
+    
+    // Data Validation (Rows 2-1000)
+    for (let r = 2; r <= 1000; r++) {
+      // Truck: Col C (3)
+      sheetSales.getCell(`C${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['TRUCK_LIST'],
+        showErrorMessage: true,
+        errorTitle: 'Invalid Input',
+        error: 'Select from dropdown'
+      };
+
+      // Driver: Col D (4)
+      sheetSales.getCell(`D${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['DRIVER_LIST'],
+        showErrorMessage: true,
+        errorTitle: 'Invalid Input',
+        error: 'Select from dropdown'
+      };
+
+      // Route: Col E (5)
+      sheetSales.getCell(`E${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['ROUTE_LIST'],
+        showErrorMessage: true,
+        errorTitle: 'Invalid Input',
+        error: 'Select from dropdown'
+      };
+
+      // Customer: Col F (6)
+      sheetSales.getCell(`F${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['CUSTOMER_LIST'],
+        showErrorMessage: true,
+        errorTitle: 'Invalid Input',
+        error: 'Select from dropdown'
+      };
+    }
+    
+    // Style Header
+    const headerRow = sheetSales.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFFF00" }
+    };
+    sheetSales.columns.forEach(col => { col.width = 25; });
+
+    // --- SHEET 3: DNList ---
+    const sheetDN = workbook.addWorksheet("DNList");
+    const dnHeaders = [
+      "Temp ID", // Link to SalesCost
+      "No DN",
+      "Pickup Alamat",
+      "Drop Alamat",
+      "Qty",
+      "PKG (IBC/CTN/PIL/DRM)",
+      "G.W",
+      "No Container",
+      "No Aju",
+      "Remarks"
+    ];
+    sheetDN.addRow(dnHeaders);
+    
+    // PKG Validation
+    for (let r = 2; r <= 5000; r++) {
+      sheetDN.getCell(`F${r}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['"IBC,CTN,PIL,DRM"'],
+        showErrorMessage: true
+      };
+    }
+
+    const dnHeaderRow = sheetDN.getRow(1);
+    dnHeaderRow.font = { bold: true };
+    dnHeaderRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFFF00" }
+    };
+    sheetDN.columns.forEach(col => { col.width = 20; });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", 'attachment; filename="Template-Sales-Cost.xlsx"');
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error("Error generating template:", error);
+    res.status(500).json({ message: "Failed to generate template" });
+  }
+});
+
+router.post("/import", authenticateToken, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+
+    const sheetSales = workbook.getWorksheet("SalesCost");
+    const sheetDN = workbook.getWorksheet("DNList");
+
+    if (!sheetSales) {
+      return res.status(400).json({ message: "Sheet 'SalesCost' not found" });
+    }
+
+    const parseId = (str, fieldName) => {
+      if (!str) return null;
+      if (typeof str === 'number') return str;
+      const parts = String(str).split(' - ');
+      if (parts.length < 2) {
+        // If exact match fails, try to see if it's just ID (fallback)
+        const id = parseInt(str);
+        if (!isNaN(id) && id > 0) return id;
+        throw new Error(`Invalid format for ${fieldName}: "${str}". Expected "ID - Name"`);
+      }
+      const id = parseInt(parts[0].trim());
+      if (isNaN(id) || id <= 0) {
+        throw new Error(`Invalid ID for ${fieldName}: "${parts[0]}"`);
+      }
+      return id;
+    };
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      const salesMap = new Map(); // TempID -> Inserted ID
+      const salesRows = [];
+
+      sheetSales.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+        
+        // Skip empty rows (check Temp ID and Tgl Order)
+        if (!row.getCell(1).value && !row.getCell(2).value) return;
+
+        salesRows.push({
+          rowNumber,
+          tempId: row.getCell(1).value,
+          tglOrder: row.getCell(2).value,
+          truckStr: row.getCell(3).value,
+          driverStr: row.getCell(4).value,
+          routeStr: row.getCell(5).value,
+          custStr: row.getCell(6).value,
+          deliveryOrder: row.getCell(7).value,
+          arrivalOrder: row.getCell(8).value,
+          bills: row.getCell(9).value,
+          liftOn: row.getCell(10).value,
+          liftOf: row.getCell(11).value,
+          containerDepot: row.getCell(12).value,
+          noPo: row.getCell(13).value,
+          noAju: row.getCell(14).value,
+          noContainer: row.getCell(15).value,
+          tax: row.getCell(16).value,
+          adminCharge: row.getCell(17).value,
+          materai: row.getCell(18).value,
+          trip: row.getCell(19).value,
+          jenisTrip: row.getCell(20).value,
+          containerSize: row.getCell(21).value,
+          price: row.getCell(22).value,
+          containerRepair: row.getCell(23).value,
+          demurrage: row.getCell(24).value,
+          detention: row.getCell(25).value,
+          extendGate: row.getCell(26).value,
+          addCost: row.getCell(27).value,
+          opsCost: row.getCell(28).value,
+          idPrint: row.getCell(29).value,
+        });
+      });
+
+      for (const row of salesRows) {
+        // Parse IDs
+        const idTruck = parseId(row.truckStr, `Row ${row.rowNumber} Truck`);
+        const idDriver = parseId(row.driverStr, `Row ${row.rowNumber} Driver`);
+        const idArea = parseId(row.routeStr, `Row ${row.rowNumber} Route`);
+        const idCustomer = parseId(row.custStr, `Row ${row.rowNumber} Customer`);
+
+        // Calculate
+        const liftOn = parseNumber(row.liftOn);
+        const liftOf = parseNumber(row.liftOf);
+        const containerRepair = parseNumber(row.containerRepair);
+        const demurrage = parseNumber(row.demurrage);
+        const detention = parseNumber(row.detention);
+        const extendGate = parseNumber(row.extendGate);
+        const opsCost = parseNumber(row.opsCost);
+        const addCost = parseNumber(row.addCost);
+        const price = parseNumber(row.price);
+
+        const total = containerRepair + demurrage + detention + extendGate + opsCost + addCost + liftOn + liftOf;
+        const margin = price - total;
+
+        const [res] = await connection.query(
+          `INSERT INTO sales_cost (
+             tgl_order, id_truck, id_driver, id_area, id_customer, id_admin,
+             delivery_order, arrival_order, bills, lift_on, lift_of, container_depot,
+             no_po, no_aju, no_container, tax, admin_charge, materai,
+             trip, jenis_trip, container_size, price, container_repair,
+             demurrage_chargers, detention_chargers, extend_gate_pass,
+             additional_cost, ops_cost, total, margin, id_print
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            row.tglOrder || null, idTruck, idDriver, idArea, idCustomer, req.user.id_admin,
+            row.deliveryOrder || null, row.arrivalOrder || null, row.bills || "", liftOn, liftOf, row.containerDepot || "",
+            row.noPo || "", row.noAju || "", row.noContainer || "", row.tax || "", row.adminCharge || 0, row.materai || 0,
+            row.trip || "", row.jenisTrip || "", row.containerSize || "", price, containerRepair,
+            demurrage, detention, extendGate, addCost, opsCost, total, margin, row.idPrint || ""
+          ]
+        );
+
+        if (row.tempId) {
+            salesMap.set(String(row.tempId), res.insertId);
+        }
+      }
+
+      // Process DNList
+      if (sheetDN) {
+        const dnItems = [];
+        sheetDN.eachRow((row, rowNumber) => {
+           if (rowNumber === 1) return;
+           const tempId = row.getCell(1).value;
+           if (!tempId) return;
+
+           const salesCostId = salesMap.get(String(tempId));
+           if (!salesCostId) return; // Skip if no parent found
+           
+           dnItems.push({
+             salesCostId,
+             no_dn: row.getCell(2).value ? String(row.getCell(2).value) : "",
+             pickup_alamat: row.getCell(3).value ? String(row.getCell(3).value) : "",
+             drop_alamat: row.getCell(4).value ? String(row.getCell(4).value) : "",
+             qty: row.getCell(5).value ? String(row.getCell(5).value) : "",
+             pkg: row.getCell(6).value ? String(row.getCell(6).value) : "",
+             gw: row.getCell(7).value ? String(row.getCell(7).value) : "",
+             no_container: row.getCell(8).value ? String(row.getCell(8).value) : "",
+             no_aju: row.getCell(9).value ? String(row.getCell(9).value) : "",
+             remarks: row.getCell(10).value ? String(row.getCell(10).value) : ""
+           });
+        });
+
+        // Group and Upsert
+        const dnBySales = {};
+        for (const item of dnItems) {
+            if (!dnBySales[item.salesCostId]) {
+                dnBySales[item.salesCostId] = [];
+            }
+            const { salesCostId, ...dnData } = item;
+            dnBySales[salesCostId].push(dnData);
+        }
+
+        for (const scId in dnBySales) {
+            await SalesCostDN.findOneAndUpdate(
+                { salesCostId: Number(scId) },
+                { items: dnBySales[scId] },
+                { upsert: true, new: true }
+            );
+        }
+      }
+
+      await connection.commit();
+      res.json({ message: "Import successful", count: salesRows.length });
+
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error("Import error:", error);
+    res.status(500).json({ message: error.message || "Import failed" });
+  }
+});
 
 router.get("/", async (req, res) => {
   try {
@@ -368,6 +781,7 @@ router.get("/export", authenticateToken, async (req, res) => {
     // Definisi Kolom DN List
     sheetDN.columns = [
       { header: "ID Sales Cost", key: "id_sales_cost", width: 12 },
+      { header: "Delivery Order", key: "delivery_order", width: 16 }, // NEW
       { header: "No. SPK", key: "no_spk", width: 18 },
       { header: "No. PO", key: "no_po", width: 16 },
       { header: "No. Police", key: "no_police", width: 14 },
@@ -431,6 +845,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       const parentSPK = parent ? `${parent.id_sales_cost} /SPK/CLC` : "";
       const parentPolice = parent ? (parent.no_police || "") : "";
       const parentCustomer = parent ? (parent.nama_customer || "") : "";
+      const parentDeliveryOrder = parent ? formatDate(parent.delivery_order) : "";
       
       // Jenis Kendaraan Logic
       let parentVehicle = parent ? (parent.jenis_kendaraan || "") : "";
@@ -447,6 +862,7 @@ router.get("/export", authenticateToken, async (req, res) => {
 
       const row = sheetDN.addRow({
         id_sales_cost: item.salesCostId,
+        delivery_order: parentDeliveryOrder,
         no_spk: parentSPK,
         no_po: parentNoPO,
         no_police: parentPolice,
@@ -814,8 +1230,6 @@ router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
-const SalesCostDN = require("../models/SalesCostDN");
 
 router.get("/:id/dn", authenticateToken, async (req, res) => {
   try {

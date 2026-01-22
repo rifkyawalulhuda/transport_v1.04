@@ -346,7 +346,7 @@
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div class="grid gap-4 sm:grid-cols-2">
             <div class="lg:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Container Depot</label
