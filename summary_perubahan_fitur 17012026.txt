@@ -1,0 +1,92 @@
+SUMMARY PERUBAHAN & FITUR (PHP LEGACY → VUE + NODE MIGRATION)
+
+1.  Migrasi UI & UX
+
+-   Seluruh halaman dimigrasikan dari PHP legacy ke Vue JS (TailAdmin
+    theme).
+-   Konsistensi desain dark theme dan komponen reusable.
+
+2.  Pagination & Pencarian
+
+-   Pagination dibatasi (misalnya 5 halaman visible + continue).
+-   Field pencarian global & per kolom.
+-   Date filter menggunakan date picker (Tanggal Mulai & Akhir).
+
+3.  Form Input Sales Cost
+
+-   Dropdown searchable (select + search digabung).
+-   Date picker untuk Delivery Order & Arrival.
+-   Checkbox “Cetak setelah simpan”.
+-   Setelah klik Simpan, otomatis redirect ke halaman cetak.
+
+4.  Edit Sales Cost
+
+-   Semua field sama dengan halaman input.
+-   Role-based edit:
+    -   Admin: selalu bisa edit.
+    -   User: read-only jika transaksi sudah masuk bulan berikutnya.
+
+5.  Role & Akses
+
+-   Menu Master hanya tampil untuk admin.
+-   Tombol Hapus hanya tampil untuk admin.
+-   Backend tetap validasi role (security).
+
+6.  Dialog & Notifikasi
+
+-   Semua confirm/alert diganti dengan dialog Vue custom.
+-   Konfirmasi Hapus:
+    -   Variant danger.
+    -   Tombol merah “Ya, hapus”.
+-   Notifikasi sukses/gagal menggunakan Toast (top-right, TailAdmin
+    style).
+
+7.  Logout
+
+-   Logout memakai modal konfirmasi Vue.
+-   Tidak lagi pakai confirm browser.
+
+8.  Export Excel
+
+-   Export data Sales Cost via backend (Node).
+-   Mengikuti filter aktif.
+-   Mengikuti struktur legacy cetak_excel.php.
+-   Semua field input Sales Cost ikut diexport.
+-   Kolom angka:
+    -   Numeric (tanpa “Rp”).
+    -   Format ribuan (#,##0).
+-   Streaming XLSX (exceljs) untuk data besar.
+
+9.  Cetak PDF
+
+-   Rebuild cetak PDF menggunakan Vue.
+-   Layout & tampilan 1:1 dengan legacy.
+-   Paksa 1 halaman A4 landscape.
+-   Tidak overflow & tidak ikut mencetak Vue Devtools.
+
+10. Import Excel
+
+-   Import master data via backend Node (tanpa Apache/XAMPP).
+-   Validasi file & error handling.
+-   Perbaikan CORS & response agar tidak “Failed to fetch”.
+
+11. Auth & Login
+
+-   Login Vue terhubung ke backend Node.
+-   JWT digunakan untuk auth.
+-   JWT_SECRET diatur via .env.
+-   Session PHP digantikan JWT.
+
+12. Audit User
+
+-   id_admin otomatis tersimpan ke sales_cost dari JWT.
+-   Mapping nik_admin → id_admin.
+-   Tidak diambil dari frontend payload.
+
+13. Keamanan Tambahan
+
+-   Delete Sales Cost hanya untuk admin.
+-   Backend validasi role & tanggal.
+-   Frontend hanya UX layer (backend tetap source of truth).
+
+END OF SUMMARY

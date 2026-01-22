@@ -1,0 +1,8 @@
+Membuat role baru 'mekanik' untuk user (Dana, Harry Sabar) dengan hanya diberi ijin untuk melihat Halaman "Transaksi Repair" saja
+> ubah database trucking.admin di database MySQL,
+> Notifikasi hanya terbatas pada Edit & Hapus di Halaman Transaksi Repair
+
+
+Membuat list halaman untuk control dokumen legal Truck
+
+Membuat list halaman untuk control dokumen legal supir

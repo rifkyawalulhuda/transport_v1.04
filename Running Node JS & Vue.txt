@@ -1,0 +1,4 @@
+cd c:\xampp\htdocs\transport_v1.03\tailadmin-vuejs-1.0.0> npm run dev
+
+cd C:\xampp\htdocs\transport_v1.03\node_backend
+>npm start
