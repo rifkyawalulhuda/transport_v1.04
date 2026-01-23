@@ -53,13 +53,7 @@
 
       <!-- Data Table Section -->
       <ComponentCard title="Daftar Data Truck">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
-          <RouterLink
-            to="/data-transport/data-truck/create"
-            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
-          >
-            Tambah Data Truck
-          </RouterLink>
+        <div class="mb-4 flex flex-col items-start justify-end gap-3 sm:flex-row">
           <p class="text-sm text-gray-500 dark:text-gray-400">
             Total: {{ filteredItems.length }} data
           </p>
@@ -111,24 +105,18 @@
                   </td>
                   <td class="px-5 py-3 text-right text-sm sm:px-6">
                     <div class="flex items-center justify-center gap-2">
-                      <RouterLink
-                        :to="`/data-transport/data-truck/detail/${item._id}`"
+                       <RouterLink
+                        :to="`/data-transport/data-truck/detail/${item.truck_no}`"
                         class="rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
                       >
                         Detail
                       </RouterLink>
                       <RouterLink
-                        :to="`/data-transport/data-truck/edit/${item._id}`"
+                        :to="`/data-transport/data-truck/edit/${item.truck_no}`"
                         class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
                       >
                         Edit
                       </RouterLink>
-                      <button
-                        @click="confirmDelete(item._id)"
-                        class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-400"
-                      >
-                        Hapus
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -151,6 +139,24 @@
             >
               Sebelumnya
             </button>
+            <div class="flex items-center gap-1">
+              <template v-for="(item, index) in paginationItems" :key="item.key ?? index">
+                <button
+                  v-if="item.type === 'page'"
+                  type="button"
+                  class="rounded-md border px-3 py-1 text-xs font-medium"
+                  :class="
+                    item.value === currentPage
+                      ? 'border-brand-500 bg-brand-500 text-white'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'
+                  "
+                  @click="goToPage(item.value)"
+                >
+                  {{ item.value }}
+                </button>
+                <span v-else class="px-2 text-xs text-gray-400">...</span>
+              </template>
+            </div>
             <button
               type="button"
               class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -169,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
@@ -215,6 +221,51 @@ const pagedItems = computed(() => {
   return filteredItems.value.slice(start, start + pageSize)
 })
 
+const paginationItems = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const maxVisible = 5
+
+  if (total <= maxVisible + 2) {
+    return Array.from({ length: total }, (_, index) => ({
+      type: 'page',
+      value: index + 1,
+      key: `page-${index + 1}`
+    }))
+  }
+
+  const half = Math.floor(maxVisible / 2)
+  let start = Math.max(1, current - half)
+  let end = start + maxVisible - 1
+
+  if (end > total) {
+    end = total
+    start = end - maxVisible + 1
+  }
+
+  const items = []
+
+  if (start > 1) {
+    items.push({ type: 'page', value: 1, key: 'page-1' })
+    if (start > 2) {
+      items.push({ type: 'ellipsis', key: 'ellipsis-start' })
+    }
+  }
+
+  for (let page = start; page <= end; page += 1) {
+    items.push({ type: 'page', value: page, key: `page-${page}` })
+  }
+
+  if (end < total) {
+    if (end < total - 1) {
+      items.push({ type: 'ellipsis', key: 'ellipsis-end' })
+    }
+    items.push({ type: 'page', value: total, key: `page-${total}` })
+  }
+
+  return items
+})
+
 const formatDate = (dateString) => {
   if (!dateString) return '-'
   return new Date(dateString).toLocaleDateString('id-ID')
@@ -254,22 +305,14 @@ const goToPage = (page) => {
   }
 }
 
-const confirmDelete = async (id) => {
-  if (confirm('Are you sure you want to delete this item?')) {
-    try {
-      const response = await fetch(`${API_BASE}/data-trucks/${id}`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) throw new Error('Failed to delete')
-      toast.success('Deleted successfully')
-      fetchData()
-    } catch (error) {
-      toast.error(error.message)
-    }
-  }
-}
 
 onMounted(() => {
   fetchData()
+})
+
+watch(totalPages, (value) => {
+  if (currentPage.value > value) {
+    currentPage.value = value
+  }
 })
 </script>

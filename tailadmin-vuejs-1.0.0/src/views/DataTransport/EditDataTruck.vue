@@ -27,20 +27,12 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Truck No <span class="text-red-500">*</span></label>
-                <SearchableSelect
+                <input
                   v-model="form.truck_no"
-                  :options="truckOptions"
-                  value-key="no_police"
-                  :label-formatter="formatTruckLabel"
-                  :search-keys="['no_police', 'jenis_kendaraan']"
-                  placeholder="-Pilih-"
-                  search-placeholder="Cari no polisi atau jenis kendaraan"
-                  :async-search="asyncSearchTrucks"
-                  :disabled="loading"
+                  type="text"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 cursor-not-allowed"
+                  readonly
                 />
-                <p v-if="errors.truck_no" class="mt-1 text-xs text-error-600">
-                  {{ errors.truck_no }}
-                </p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No Asset</label>
@@ -48,15 +40,15 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Merk</label>
-                <input v-model="form.merk" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                <input v-model="form.merk" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 cursor-not-allowed" readonly />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-                <input v-model="form.type" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                <input v-model="form.type" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 cursor-not-allowed" readonly />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
-                <input v-model="form.model" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                <input v-model="form.model" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 cursor-not-allowed" readonly />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tahun Pembuatan</label>
@@ -224,24 +216,17 @@ const formatDateForInput = (dateString) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const response = await fetch(`${API_BASE}/data-trucks/${route.params.id}`)
+    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${route.params.id}`)
     if (!response.ok) throw new Error('Failed to load data')
     const item = await response.json()
     
     Object.keys(form).forEach((key) => {
       if (['iuran_aptrindo', 'masa_berlaku_stnk', 'masa_berlaku_pajak_stnk', 'masa_berlaku_keur_head_truck', 'masa_berlaku_uji_emisi'].includes(key)) {
-        form[key] = formatDateForInput(item[key])
+        form[key] = item[key] ? formatDateForInput(item[key]) : ''
       } else {
         form[key] = item[key] || ''
       }
     })
-
-    if (form.truck_no) {
-      const seed = await asyncSearchTrucks(form.truck_no)
-      if (!Array.isArray(seed) || seed.length === 0) {
-        truckOptions.value = [{ no_police: form.truck_no, jenis_kendaraan: '' }]
-      }
-    }
   } catch (error) {
     formError.value = error.message
     toast.error('Failed to load data')
@@ -262,7 +247,7 @@ const handleSubmit = async () => {
   formError.value = ''
 
   try {
-    const response = await fetch(`${API_BASE}/data-trucks/${route.params.id}`, {
+    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${form.truck_no}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

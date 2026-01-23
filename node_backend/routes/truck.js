@@ -1,4 +1,5 @@
 const express = require("express");
+const DataTruck = require("../models/DataTruck");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
 const { createNotification, getActorFromRequest } = require("../services/notificationService");
@@ -144,6 +145,16 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     ]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Truck not found" });
+    }
+
+    // Sync with MongoDB DataTruck: Remove operational data if it exists
+    const noPolice = existingRows[0]?.no_police;
+    if (noPolice) {
+      try {
+        await DataTruck.findOneAndDelete({ truck_no: noPolice });
+      } catch (mongoErr) {
+        console.error("Failed to delete MongoDB DataTruck entry", mongoErr);
+      }
     }
     const identifier = existingRows[0]?.no_police || `ID ${id}`;
     await notifyMasterChange({
