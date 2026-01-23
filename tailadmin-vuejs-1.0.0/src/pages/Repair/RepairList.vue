@@ -113,26 +113,285 @@
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">No</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No. Police
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('no_police')"
+                  >
+                    <div class="flex items-center gap-1">
+                      No. Police
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'no_police' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'no_police' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Maker
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('merk_mobil')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Maker
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'merk_mobil' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'merk_mobil' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Model
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('model')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Model
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'model' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'model' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Tanggal Kerusakan
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('tgl_kerusakan')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Tanggal Kerusakan
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'tgl_kerusakan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'tgl_kerusakan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Tanggal Maintenance
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('jadwal_berkala')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Tanggal Maintenance
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'jadwal_berkala' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'jadwal_berkala' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No. SPK Perbaikan
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('no_spk_perbaikan')"
+                  >
+                    <div class="flex items-center gap-1">
+                      No. SPK Perbaikan
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'no_spk_perbaikan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'no_spk_perbaikan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6">
-                    Biaya Perbaikan
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('biaya_perbaikan')"
+                  >
+                    <div class="flex items-center justify-end gap-1">
+                      Biaya Perbaikan
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'biaya_perbaikan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'biaya_perbaikan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
@@ -315,6 +574,42 @@ const searchPlaceholder = computed(() => {
   return active?.placeholder || 'Cari transaksi...'
 })
 
+const sortColumn = ref<keyof RepairItem | ''>('id_repair')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+
+const toggleSort = (column: keyof RepairItem) => {
+  if (sortColumn.value === column) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = column
+    sortOrder.value = 'asc'
+  }
+}
+
+const sortedItems = computed(() => {
+  if (!sortColumn.value) {
+    return items.value
+  }
+
+  return [...items.value].sort((a, b) => {
+    const aValue = a[sortColumn.value as keyof RepairItem]
+    const bValue = b[sortColumn.value as keyof RepairItem]
+
+    if (aValue === bValue) return 0
+    if (aValue === null || aValue === undefined) return 1
+    if (bValue === null || bValue === undefined) return -1
+
+    let comparison = 0
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      comparison = aValue - bValue
+    } else {
+      comparison = String(aValue).localeCompare(String(bValue))
+    }
+
+    return sortOrder.value === 'asc' ? comparison : -comparison
+  })
+})
+
 const totalPages = computed(() => {
   if (totalCount.value === 0) {
     return 1
@@ -424,7 +719,7 @@ const loadData = async () => {
 
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize
-  return items.value.slice(start, start + pageSize)
+  return sortedItems.value.slice(start, start + pageSize)
 })
 
 const goToPage = (page: number) => {

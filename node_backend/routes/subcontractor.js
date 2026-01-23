@@ -121,10 +121,11 @@ function buildFilters(query) {
 
 router.get("/", async (req, res) => {
   try {
+    const isPaginated = req.query.page !== undefined || req.query.pageSize !== undefined;
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const pageSize = Math.min(
       Math.max(parseInt(req.query.pageSize, 10) || 15, 1),
-      100
+      1000 // Increased max limit
     );
 
     const { conditions, params } = buildFilters(req.query);
@@ -143,10 +144,15 @@ router.get("/", async (req, res) => {
     const total = countRows[0]?.total || 0;
 
     const offset = (page - 1) * pageSize;
-    const [rows] = await db.query(
-      `SELECT sub_contractor.id_subcontractor, sub_contractor.order_date, sub_contractor.delivery_date, sub_contractor.arrival_date, sub_contractor.no_surat_jalan, sub_contractor.sales, sub_contractor.gross_profit, sub_contractor.trip, sub_contractor.truck, sub_contractor.jenis_kendaraan, sub_contractor.tonase, sub_contractor.tujuan_pengiriman, sub_contractor.driver, sub_contractor.cost, sub_contractor.no_invoice, sub_contractor.billing_customer, customer.nama_customer, warehouse.kode_warehouse, warehouse.nm_warehouse, subcont.nama_subcont ${baseSql} ORDER BY sub_contractor.id_subcontractor DESC LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
-    );
+    let sql = `SELECT sub_contractor.id_subcontractor, sub_contractor.order_date, sub_contractor.delivery_date, sub_contractor.arrival_date, sub_contractor.no_surat_jalan, sub_contractor.sales, sub_contractor.gross_profit, sub_contractor.trip, sub_contractor.truck, sub_contractor.jenis_kendaraan, sub_contractor.tonase, sub_contractor.tujuan_pengiriman, sub_contractor.driver, sub_contractor.cost, sub_contractor.no_invoice, sub_contractor.billing_customer, customer.nama_customer, warehouse.kode_warehouse, warehouse.nm_warehouse, subcont.nama_subcont ${baseSql} ORDER BY sub_contractor.id_subcontractor DESC`;
+
+    const queryParams = [...params];
+    if (isPaginated && req.query.pageSize !== 'all') {
+      sql += " LIMIT ? OFFSET ?";
+      queryParams.push(pageSize, offset);
+    }
+
+    const [rows] = await db.query(sql, queryParams);
 
     res.json({
       data: rows,

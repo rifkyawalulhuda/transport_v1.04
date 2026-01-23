@@ -111,26 +111,285 @@
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">No</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Tanggal Order
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('order_date')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Tanggal Order
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'order_date' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'order_date' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Subcont
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('nama_subcont')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Nama Subcont
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'nama_subcont' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'nama_subcont' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Customer
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('nama_customer')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Nama Customer
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'nama_customer' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'nama_customer' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Warehouse
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('kode_warehouse')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Warehouse
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'kode_warehouse' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'kode_warehouse' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nomor Surat Jalan
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('no_surat_jalan')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Nomor Surat Jalan
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'no_surat_jalan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'no_surat_jalan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6">
-                    Sales
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('sales')"
+                  >
+                    <div class="flex items-center justify-end gap-1">
+                      Sales
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'sales' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'sales' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
-                  <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6">
-                    Gross Profit
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('gross_profit')"
+                  >
+                    <div class="flex items-center justify-end gap-1">
+                      Gross Profit
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'gross_profit' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'gross_profit' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
                   </th>
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
@@ -138,7 +397,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
-                <tr v-for="(item, index) in items" :key="item.id_subcontractor">
+                <tr v-for="(item, index) in pagedItems" :key="item.id_subcontractor">
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ (currentPage - 1) * pageSize + index + 1 }}
                   </td>
@@ -315,11 +574,52 @@ const searchPlaceholder = computed(() => {
   return active?.placeholder || 'Cari transaksi...'
 })
 
+const sortColumn = ref<keyof SubcontractorItem | ''>('id_subcontractor')
+const sortOrder = ref<'asc' | 'desc'>('desc')
+
+const toggleSort = (column: keyof SubcontractorItem) => {
+  if (sortColumn.value === column) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = column
+    sortOrder.value = 'asc'
+  }
+}
+
+const sortedItems = computed(() => {
+  if (!sortColumn.value) {
+    return items.value
+  }
+
+  return [...items.value].sort((a, b) => {
+    const aValue = a[sortColumn.value as keyof SubcontractorItem]
+    const bValue = b[sortColumn.value as keyof SubcontractorItem]
+
+    if (aValue === bValue) return 0
+    if (aValue === null || aValue === undefined) return 1
+    if (bValue === null || bValue === undefined) return -1
+
+    let comparison = 0
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      comparison = aValue - bValue
+    } else {
+      comparison = String(aValue).localeCompare(String(bValue))
+    }
+
+    return sortOrder.value === 'asc' ? comparison : -comparison
+  })
+})
+
+const pagedItems = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return sortedItems.value.slice(start, start + pageSize)
+})
+
 const totalPages = computed(() => {
-  if (totalCount.value === 0) {
+  if (items.value.length === 0) {
     return 1
   }
-  return Math.ceil(totalCount.value / pageSize)
+  return Math.ceil(items.value.length / pageSize)
 })
 
 const paginationItems = computed<PaginationItem[]>(() => {
@@ -382,8 +682,9 @@ const openDatePicker = (event: Event) => {
 
 const buildFilterParams = () => {
   const params: Record<string, string | number> = {
-    page: currentPage.value,
-    pageSize
+    // page: currentPage.value, // Remove server-side pagination
+    // pageSize
+    limit: 1000 // Load more for client-side sorting
   }
   if (filters.startDate) {
     params.start_date = filters.startDate
@@ -427,7 +728,7 @@ const goToPage = (page: number) => {
     return
   }
   currentPage.value = page
-  loadData()
+  // loadData() // Remove loadData from here as we use client-side pagination
 }
 
 const resetFilter = () => {
