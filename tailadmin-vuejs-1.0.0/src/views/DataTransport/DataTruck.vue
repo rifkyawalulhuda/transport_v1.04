@@ -33,19 +33,29 @@
               />
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <button
-              type="submit"
-              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
-            >
-              Tampilkan
-            </button>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <button
+                type="submit"
+                class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+              >
+                Tampilkan
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @click="resetFilter"
+              >
+                Reset
+              </button>
+            </div>
             <button
               type="button"
-              class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              @click="resetFilter"
+              @click="exportToExcel"
+              class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
             >
-              Reset
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export to Excel
             </button>
           </div>
         </form>
@@ -65,11 +75,66 @@
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">No</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Truck No / Asset</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Merk / Type / Model</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Tahun / Silinder</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Masa Berlaku STNK</th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Masa Berlaku KIR</th>
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
+                    @click="toggleSort('truck_no')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Truck No / Asset
+                      <span class="flex flex-col">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'truck_no' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'truck_no' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
+                    @click="toggleSort('merk')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Merk / Type / Model
+                      <span class="flex flex-col">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'merk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'merk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
+                    @click="toggleSort('tahun_pembuatan')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Tahun / Silinder
+                      <span class="flex flex-col">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'tahun_pembuatan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'tahun_pembuatan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
+                    @click="toggleSort('masa_berlaku_stnk')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Masa Berlaku STNK
+                      <span class="flex flex-col">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_stnk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_stnk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                      </span>
+                    </div>
+                  </th>
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
+                    @click="toggleSort('masa_berlaku_keur_head_truck')"
+                  >
+                    <div class="flex items-center gap-1">
+                      Masa Berlaku KIR
+                      <span class="flex flex-col">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_keur_head_truck' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_keur_head_truck' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                      </span>
+                    </div>
+                  </th>
                   <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
@@ -195,6 +260,18 @@ const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = 10
 
+const sortColumn = ref('updatedAt')
+const sortOrder = ref('desc')
+
+const toggleSort = (column) => {
+  if (sortColumn.value === column) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = column
+    sortOrder.value = 'asc'
+  }
+}
+
 const filteredItems = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   if (!keyword) return items.value
@@ -211,14 +288,40 @@ const filteredItems = computed(() => {
   })
 })
 
+const sortedItems = computed(() => {
+  const result = [...filteredItems.value]
+  const col = sortColumn.value
+  const order = sortOrder.value
+
+  result.sort((a, b) => {
+    let valA = a[col]
+    let valB = b[col]
+
+    // Handle nested fields or display fields if necessary
+    // But for now simple fields are enough
+
+    if (valA === null || valA === undefined) valA = ''
+    if (valB === null || valB === undefined) valB = ''
+
+    if (typeof valA === 'string') valA = valA.toLowerCase()
+    if (typeof valB === 'string') valB = valB.toLowerCase()
+
+    if (valA < valB) return order === 'asc' ? -1 : 1
+    if (valA > valB) return order === 'asc' ? 1 : -1
+    return 0
+  })
+
+  return result
+})
+
 const totalPages = computed(() => {
-  if (filteredItems.value.length === 0) return 1
-  return Math.ceil(filteredItems.value.length / pageSize)
+  if (sortedItems.value.length === 0) return 1
+  return Math.ceil(sortedItems.value.length / pageSize)
 })
 
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize
-  return filteredItems.value.slice(start, start + pageSize)
+  return sortedItems.value.slice(start, start + pageSize)
 })
 
 const paginationItems = computed(() => {
@@ -297,6 +400,15 @@ const resetFilter = () => {
   searchInput.value = ''
   searchKeyword.value = ''
   currentPage.value = 1
+}
+
+const exportToExcel = () => {
+  try {
+    window.open(`${API_BASE}/data-trucks/export`, '_blank')
+  } catch (error) {
+    console.error(error)
+    toast.error('Gagal export data')
+  }
 }
 
 const goToPage = (page) => {
