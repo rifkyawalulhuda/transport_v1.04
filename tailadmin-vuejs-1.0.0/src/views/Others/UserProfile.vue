@@ -64,6 +64,18 @@
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400">ID</p>
             <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ displayId }}</p>
           </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Email</p>
+            <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ displayEmail }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Nomor Telp</p>
+            <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ displayTelp }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Jabatan</p>
+            <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ displayJabatan }}</p>
+          </div>
         </div>
       </ComponentCard>
     </div>
@@ -91,6 +103,26 @@
           <input
             v-model="editName"
             type="text"
+            class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+            Email
+          </label>
+          <input
+            v-model="editEmail"
+            type="email"
+            class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+            Nomor Telp
+          </label>
+          <input
+            v-model="editTelp"
+            type="tel"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
           />
         </div>
@@ -131,6 +163,9 @@ type ProfileUser = {
   nik_admin: string
   nama_admin: string
   level: string
+  email: string | null
+  nomor_telp: string | null
+  jabatan: string | null
   gambar: string | null
 }
 
@@ -142,6 +177,8 @@ const toast = useToast()
 const baseUrl = API_ORIGIN
 const isEditOpen = ref(false)
 const editName = ref('')
+const editEmail = ref('')
+const editTelp = ref('')
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref('')
 const isSaving = ref(false)
@@ -151,6 +188,9 @@ const displayName = computed(() => user.value?.nama_admin || '-')
 const displayRole = computed(() => user.value?.level || '-')
 const displayNik = computed(() => user.value?.nik_admin || '-')
 const displayId = computed(() => (user.value?.id_admin ? String(user.value.id_admin) : ''))
+const displayEmail = computed(() => user.value?.email || '-')
+const displayTelp = computed(() => user.value?.nomor_telp || '-')
+const displayJabatan = computed(() => user.value?.jabatan || '-')
 
 const avatarSrc = computed(() => {
   const gambar = user.value?.gambar
@@ -162,6 +202,8 @@ const previewSrc = computed(() => previewUrl.value || avatarSrc.value)
 
 const openEdit = () => {
   editName.value = user.value?.nama_admin || ''
+  editEmail.value = user.value?.email || ''
+  editTelp.value = user.value?.nomor_telp || ''
   selectedFile.value = null
   previewUrl.value = ''
   if (fileInputRef.value) {
@@ -202,6 +244,8 @@ const saveProfile = async () => {
   try {
     const formData = new FormData()
     formData.append('nama_admin', name)
+    formData.append('email', editEmail.value.trim())
+    formData.append('nomor_telp', editTelp.value.trim())
     if (selectedFile.value) {
       formData.append('gambar', selectedFile.value)
     }

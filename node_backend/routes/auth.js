@@ -101,8 +101,8 @@ router.get("/me", authenticateToken, async (req, res) => {
     }
 
     const query = idAdmin
-      ? "SELECT id_admin, nik_admin, nama_admin, level, gambar FROM admin WHERE id_admin = ? LIMIT 1"
-      : "SELECT id_admin, nik_admin, nama_admin, level, gambar FROM admin WHERE nik_admin = ? LIMIT 1";
+      ? "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ? LIMIT 1"
+      : "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE nik_admin = ? LIMIT 1";
     const [rows] = await db.query(query, [idAdmin || nikAdmin]);
 
     if (rows.length === 0) {
@@ -133,6 +133,12 @@ router.put("/me", authenticateToken, (req, res) => {
         typeof req.body.nama_admin === "string"
           ? req.body.nama_admin.trim()
           : "";
+      const email =
+        typeof req.body.email === "string" ? req.body.email.trim() : "";
+      const nomorTelp =
+        typeof req.body.nomor_telp === "string"
+          ? req.body.nomor_telp.trim()
+          : "";
 
       if (!idAdmin && !nikAdmin) {
         return res.status(400).json({ message: "User tidak ditemukan" });
@@ -143,8 +149,8 @@ router.put("/me", authenticateToken, (req, res) => {
       }
 
       const lookupQuery = idAdmin
-        ? "SELECT id_admin, nik_admin, nama_admin, level, gambar FROM admin WHERE id_admin = ? LIMIT 1"
-        : "SELECT id_admin, nik_admin, nama_admin, level, gambar FROM admin WHERE nik_admin = ? LIMIT 1";
+        ? "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ? LIMIT 1"
+        : "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE nik_admin = ? LIMIT 1";
       const [rows] = await db.query(lookupQuery, [idAdmin || nikAdmin]);
 
       if (rows.length === 0) {
@@ -160,14 +166,14 @@ router.put("/me", authenticateToken, (req, res) => {
 
       if (req.file) {
         await db.query(
-          "UPDATE admin SET nama_admin = ?, gambar = ? WHERE id_admin = ?",
-          [namaAdmin, updatedImage, existing.id_admin]
+          "UPDATE admin SET nama_admin = ?, email = ?, nomor_telp = ?, gambar = ? WHERE id_admin = ?",
+          [namaAdmin, email, nomorTelp, updatedImage, existing.id_admin]
         );
       } else {
-        await db.query("UPDATE admin SET nama_admin = ? WHERE id_admin = ?", [
-          namaAdmin,
-          existing.id_admin
-        ]);
+        await db.query(
+          "UPDATE admin SET nama_admin = ?, email = ?, nomor_telp = ? WHERE id_admin = ?",
+          [namaAdmin, email, nomorTelp, existing.id_admin]
+        );
       }
 
       if (req.file) {
@@ -183,7 +189,7 @@ router.put("/me", authenticateToken, (req, res) => {
       }
 
       const [updatedRows] = await db.query(
-        "SELECT id_admin, nik_admin, nama_admin, level, gambar FROM admin WHERE id_admin = ? LIMIT 1",
+        "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ? LIMIT 1",
         [existing.id_admin]
       );
 
