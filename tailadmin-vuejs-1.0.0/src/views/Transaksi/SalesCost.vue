@@ -780,7 +780,7 @@ type PaginationItem =
 const currentPageTitle = ref('Sales Cost')
 const user = ref(authService.getUser())
 const isAdmin = computed(() => user.value?.level === 'admin')
-const { confirm } = useDialog()
+const { confirm, alert } = useDialog()
 const toast = useToast()
 const items = ref<SalesCostItem[]>([])
 const loading = ref(false)
@@ -1157,7 +1157,32 @@ const handleFileChange = async (event: Event) => {
       throw new Error(data.message || 'Gagal import data')
     }
 
-    toast.success(`Import berhasil: ${data.count} data tersimpan`)
+    const failures = Array.isArray(data.failures) ? data.failures : []
+    const successCount = Number(data.successCountSalesCost ?? data.count ?? 0)
+    const failCount = Number(data.failCountSalesCost ?? failures.length ?? 0)
+
+    if (failCount > 0) {
+      const hasContainerRequired = failures.some(
+        (failure) => failure?.reasonCode === 'CONTAINER_SIZE_REQUIRED'
+      )
+      if (hasContainerRequired) {
+        toast.error('Tolong Masukan Container Size')
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(`Import berhasil: ${successCount} data tersimpan`)
+    } else if (failCount > 0) {
+      toast.warning('Import selesai dengan kegagalan. Silakan cek data Anda.')
+    } else {
+      toast.info('Tidak ada data yang diimport.')
+    }
+    await alert({
+      title: 'Hasil Import',
+      message: `Berhasil: ${successCount}\nGagal: ${failCount}`,
+      variant: failCount > 0 ? 'warning' : 'success',
+      okText: 'OK'
+    })
     await loadData()
   } catch (error: any) {
     console.error(error)

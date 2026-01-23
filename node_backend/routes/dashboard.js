@@ -35,7 +35,10 @@ router.get("/truck-monthly-avg", authenticateToken, async (req, res) => {
     );
     const data = rows.map((row) => {
       const transactionCount = Number(row.transaction_count) || 0;
-      const percent = transactionCount > 0 ? (21 / transactionCount) * 100 : 0;
+      const percent =
+        transactionCount > 0
+          ? Math.round((transactionCount / 21) * 100)
+          : 0;
       return {
         id_truck: Number(row.id_truck),
         no_police: row.no_police,
@@ -43,7 +46,14 @@ router.get("/truck-monthly-avg", authenticateToken, async (req, res) => {
         percent
       };
     });
-    res.json(data);
+    const avgPercent =
+      data.length > 0
+        ? Math.round(
+            data.reduce((sum, item) => sum + (Number(item.percent) || 0), 0) /
+              data.length
+          )
+        : 0;
+    res.json({ items: data, avg_percent: avgPercent });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });

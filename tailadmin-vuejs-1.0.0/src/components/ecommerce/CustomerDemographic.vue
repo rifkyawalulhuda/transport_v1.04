@@ -4,9 +4,14 @@
   >
     <div class="flex items-center justify-between gap-4">
       <div>
-        <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Truck Transaction Average
-        </h3>
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">
+            Truck Transaction Average
+          </h3>
+          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">
+            {{ avgPercent }}%
+          </span>
+        </div>
         <p class="mt-1 text-gray-500 text-theme-sm dark:text-gray-400">
           Based on Delivery Order per month
         </p>
@@ -150,6 +155,7 @@ const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 5 + in
 
 const loading = ref(false)
 const rows = ref<TruckMonthlyRow[]>([])
+const avgPercent = ref(0)
 const pageSize = 5
 const currentPage = ref(1)
 
@@ -178,10 +184,17 @@ const fetchMonthlyAverage = async () => {
       throw new Error(message || 'Gagal memuat data transaksi truk.')
     }
     const data = await res.json()
-    rows.value = Array.isArray(data) ? data : []
+    if (data && Array.isArray(data.items)) {
+      rows.value = data.items
+      avgPercent.value = Number(data.avg_percent) || 0
+    } else {
+      rows.value = Array.isArray(data) ? data : []
+      avgPercent.value = 0
+    }
   } catch (error: any) {
     toast.error(error?.message || 'Gagal memuat data transaksi truk.')
     rows.value = []
+    avgPercent.value = 0
   } finally {
     loading.value = false
   }

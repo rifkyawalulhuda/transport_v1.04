@@ -46,4 +46,8 @@
 13. Ubah policy powershell ke Administrator
 	<> Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
+14. Tambah kolom DB trucking.admin di samping kanan kolom 'level' -> 
+	1. 'email' varchar(30)
+	2. 'nomor_telp' int(15)
+	3. 'jabatan' char(30)
 
