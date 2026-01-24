@@ -40,6 +40,8 @@ export const getMenuGroups = (userLevel) => {
           name: 'Data Transport',
           subItems: [
             { name: 'Data Truck', path: '/data-transport/data-truck', pro: false },
+            { name: 'Data Chasis', path: '/data-transport/data-chasis', pro: false },
+            { name: 'Data Supir', path: '/data-transport/data-supir', pro: false },
           ],
         },
         {

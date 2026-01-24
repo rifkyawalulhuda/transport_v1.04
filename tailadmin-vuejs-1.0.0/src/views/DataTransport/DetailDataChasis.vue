@@ -2,13 +2,13 @@
   <AdminLayout>
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
-      <ComponentCard title="Rincian Data Truck">
+      <ComponentCard title="Rincian Data Chasis">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Detail Data Truck
+            Detail Data Chasis
           </div>
           <RouterLink
-            to="/data-transport/data-truck"
+            to="/data-transport/data-chasis"
             class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
           >
             Kembali
@@ -22,7 +22,7 @@
           {{ formError }}
         </p>
         <p v-else-if="loading" class="text-sm text-gray-500 dark:text-gray-400">
-          Memuat detail data truck...
+          Memuat detail data chasis...
         </p>
 
         <div v-else class="space-y-6">
@@ -30,49 +30,38 @@
             <h4
               class="mb-4 border-b pb-2 text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
             >
-              Identitas Kendaraan
+              Identitas Chasis
             </h4>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Truck No
+                  Chasis No
                 </label>
                 <input
                   type="text"
-                  :value="formatText(detail.truck_no)"
+                  :value="formatText(detail.chasis_no)"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  No Asset
+                  Asset No
                 </label>
                 <input
                   type="text"
-                  :value="formatText(detail.no_asset)"
+                  :value="formatText(detail.asset_no)"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Tahun Pembuatan
+                  Maker/Merk
                 </label>
                 <input
                   type="text"
-                  :value="formatText(detail.tahun_pembuatan)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Merk
-                </label>
-                <input
-                  type="text"
-                  :value="formatText(detail.merk)"
+                  :value="formatText(detail.maker_merk)"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
@@ -90,44 +79,22 @@
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Model
+                  Year
                 </label>
                 <input
                   type="text"
-                  :value="formatText(detail.model)"
+                  :value="formatText(detail.year)"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
               </div>
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Isi Silinder (cc)
+                  Size
                 </label>
                 <input
                   type="text"
-                  :value="formatText(detail.isi_silinder)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Nomor Rangka
-                </label>
-                <input
-                  type="text"
-                  :value="formatText(detail.nomor_rangka)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Nomor Mesin
-                </label>
-                <input
-                  type="text"
-                  :value="formatText(detail.nomor_mesin)"
+                  :value="formatText(detail.size)"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
@@ -139,102 +106,17 @@
             <h4
               class="mb-4 border-b pb-2 text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
             >
-              Dokumen Legalitas
+              Keur Chassis
             </h4>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">No STNK</label>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Masa Berlaku Keur Chassis</label>
                 <input
                   type="text"
-                  :value="formatText(detail.no_stnk)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Masa Berlaku STNK</label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.masa_berlaku_stnk)"
+                  :value="formatDate(detail.masa_berlaku_keur_chassis)"
                   :class="[
                     'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
-                    getDateStatusClass(detail.masa_berlaku_stnk),
-                  ]"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Masa Berlaku Pajak STNK</label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.masa_berlaku_pajak_stnk)"
-                  :class="[
-                    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
-                    getDateStatusClass(detail.masa_berlaku_pajak_stnk),
-                  ]"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">No BPKB</label>
-                <input
-                  type="text"
-                  :value="formatText(detail.no_bpkb)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Iuran Aptrindo</label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.iuran_aptrindo)"
-                  :class="[
-                    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
-                    getDateStatusClass(detail.iuran_aptrindo),
-                  ]"
-                  readonly
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h4
-              class="mb-4 border-b pb-2 text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-            >
-              KIR & Uji Emisi
-            </h4>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">No Keur Head Truck</label>
-                <input
-                  type="text"
-                  :value="formatText(detail.no_keur_head_truck)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Masa Berlaku Keur</label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.masa_berlaku_keur_head_truck)"
-                  :class="[
-                    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
-                    getDateStatusClass(detail.masa_berlaku_keur_head_truck),
-                  ]"
-                  readonly
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Masa Berlaku Uji Emisi</label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.masa_berlaku_uji_emisi)"
-                  :class="[
-                    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200',
-                    getDateStatusClass(detail.masa_berlaku_uji_emisi),
+                    getDateStatusClass(detail.masa_berlaku_keur_chassis),
                   ]"
                   readonly
                 />
@@ -308,7 +190,7 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import { API_BASE, API_ORIGIN } from '@/config/api'
 
-const currentPageTitle = ref('Detail Data Truck')
+const currentPageTitle = ref('Detail Data Chasis')
 const route = useRoute()
 const loading = ref(true)
 const formError = ref('')
@@ -342,25 +224,15 @@ const formatDate = (value) => {
   }).format(date)
 }
 
-const docUrl = (filename) => `${API_ORIGIN}/doc-data-truck/${filename}`
+const docUrl = (filename) => `${API_ORIGIN}/doc-data-chasis/${filename}`
 
 const docName = (doc) => doc?.original_name || doc?.filename || '-'
 
 const docLabel = (type) => {
-  switch (type) {
-    case 'dok_stnk':
-      return 'STNK'
-    case 'dok_bpkb':
-      return 'BPKB'
-    case 'dok_keur':
-      return 'Keur'
-    case 'dok_uji_emisi':
-      return 'Uji Emisi'
-    case 'dok_lain':
-      return 'Dok Lain-lain'
-    default:
-      return '-'
+  if (type === 'dok_keur') {
+    return 'Keur'
   }
+  return '-'
 }
 
 const parseDateValue = (value) => {
@@ -432,32 +304,28 @@ const getDateStatusClass = (dateValue) => {
 const loadDetail = async () => {
   const idParam = resolveIdParam()
   if (!idParam) {
-    formError.value = 'ID data truck tidak ditemukan.'
+    formError.value = 'ID data chasis tidak ditemukan.'
     loading.value = false
     return
   }
   loading.value = true
   formError.value = ''
   try {
-    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${idParam}`)
+    const response = await fetch(`${API_BASE}/data-chasis/${idParam}`)
     if (!response.ok) {
       const json = await response.json().catch(() => ({}))
-      throw new Error(json.message || 'Gagal memuat detail data truck.')
+      throw new Error(json.message || 'Gagal memuat detail data chasis.')
     }
     detail.value = await response.json()
     if (Array.isArray(detail.value?.dokumen)) {
       docs.value = detail.value.dokumen
+    } else if (detail.value?.dok_keur) {
+      docs.value = [{ doc_type: 'dok_keur', filename: detail.value.dok_keur, original_name: detail.value.dok_keur }]
     } else {
-      const legacyDocs = []
-      if (detail.value?.dok_stnk) legacyDocs.push({ doc_type: 'dok_stnk', filename: detail.value.dok_stnk, original_name: detail.value.dok_stnk })
-      if (detail.value?.dok_bpkb) legacyDocs.push({ doc_type: 'dok_bpkb', filename: detail.value.dok_bpkb, original_name: detail.value.dok_bpkb })
-      if (detail.value?.dok_keur) legacyDocs.push({ doc_type: 'dok_keur', filename: detail.value.dok_keur, original_name: detail.value.dok_keur })
-      if (detail.value?.dok_uji_emisi) legacyDocs.push({ doc_type: 'dok_uji_emisi', filename: detail.value.dok_uji_emisi, original_name: detail.value.dok_uji_emisi })
-      if (detail.value?.dok_lain) legacyDocs.push({ doc_type: 'dok_lain', filename: detail.value.dok_lain, original_name: detail.value.dok_lain })
-      docs.value = legacyDocs
+      docs.value = []
     }
   } catch (error) {
-    formError.value = error instanceof Error ? error.message : 'Gagal memuat detail data truck.'
+    formError.value = error instanceof Error ? error.message : 'Gagal memuat detail data chasis.'
   } finally {
     loading.value = false
   }
@@ -467,4 +335,3 @@ onMounted(() => {
   loadDetail()
 })
 </script>
-

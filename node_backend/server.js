@@ -19,6 +19,8 @@ const masterImportRouter = require("./routes/masterImport");
 const authRouter = require("./routes/auth");
 const notificationsRouter = require("./routes/notifications");
 const dataTruckRouter = require("./routes/dataTruck");
+const dataChasisRouter = require("./routes/dataChasis");
+const dataSupirRouter = require("./routes/dataSupir");
 
 const app = express();
 
@@ -34,6 +36,18 @@ app.use(
 app.options("*", cors());
 app.use(express.json());
 app.use("/img", express.static(path.join(__dirname, "img")));
+app.use(
+  "/doc-data-truck",
+  express.static(path.join(__dirname, "upload", "doc-data-truck"))
+);
+app.use(
+  "/doc-data-chasis",
+  express.static(path.join(__dirname, "upload", "doc-data-chasis"))
+);
+app.use(
+  "/doc-supir",
+  express.static(path.join(__dirname, "upload", "doc-supir"))
+);
 
 const mongoUri = process.env.MONGO_URI;
 if (mongoUri) {
@@ -64,6 +78,8 @@ app.use("/api/master", masterImportRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/data-trucks", dataTruckRouter);
+app.use("/api/data-chasis", dataChasisRouter);
+app.use("/api/data-supir", dataSupirRouter);
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";

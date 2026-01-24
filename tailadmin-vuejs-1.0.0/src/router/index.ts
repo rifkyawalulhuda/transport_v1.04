@@ -237,6 +237,70 @@ const router = createRouter({
       },
     },
     {
+      path: '/data-transport/data-chasis',
+      name: 'Data Chasis',
+      component: () => import('../views/DataTransport/DataChasis.vue'),
+      meta: {
+        title: 'Data Transport: Data Chasis',
+      },
+    },
+    {
+      path: '/data-transport/data-chasis/create',
+      name: 'Create Data Chasis',
+      component: () => import('../views/DataTransport/InputDataChasis.vue'),
+      meta: {
+        title: 'Data Transport: Create Data Chasis',
+      },
+    },
+    {
+      path: '/data-transport/data-chasis/edit/:id',
+      name: 'Edit Data Chasis',
+      component: () => import('../views/DataTransport/EditDataChasis.vue'),
+      meta: {
+        title: 'Data Transport: Edit Data Chasis',
+      },
+    },
+    {
+      path: '/data-transport/data-chasis/detail/:id',
+      name: 'Detail Data Chasis',
+      component: () => import('../views/DataTransport/DetailDataChasis.vue'),
+      meta: {
+        title: 'Data Transport: Detail Data Chasis',
+      },
+    },
+    {
+      path: '/data-transport/data-supir',
+      name: 'Data Supir',
+      component: () => import('../views/DataTransport/DataSupir.vue'),
+      meta: {
+        title: 'Data Transport: Data Supir',
+      },
+    },
+    {
+      path: '/data-transport/data-supir/create',
+      name: 'Create Data Supir',
+      component: () => import('../views/DataTransport/InputDataSupir.vue'),
+      meta: {
+        title: 'Data Transport: Create Data Supir',
+      },
+    },
+    {
+      path: '/data-transport/data-supir/edit/:id',
+      name: 'Edit Data Supir',
+      component: () => import('../views/DataTransport/EditDataSupir.vue'),
+      meta: {
+        title: 'Data Transport: Edit Data Supir',
+      },
+    },
+    {
+      path: '/data-transport/data-supir/detail/:id',
+      name: 'Detail Data Supir',
+      component: () => import('../views/DataTransport/DetailDataSupir.vue'),
+      meta: {
+        title: 'Data Transport: Detail Data Supir',
+      },
+    },
+    {
       path: '/line-chart',
       name: 'Line Chart',
       component: () => import('../views/Chart/LineChart/LineChart.vue'),

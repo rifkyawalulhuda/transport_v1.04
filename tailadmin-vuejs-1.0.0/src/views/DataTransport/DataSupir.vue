@@ -15,10 +15,15 @@
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               >
                 <option value="all">Semua Kolom</option>
-                <option value="truck_no">Truck No</option>
-                <option value="merk">Merk</option>
-                <option value="type">Type</option>
-                <option value="tahun_pembuatan">Tahun</option>
+                <option value="no_polisi">No. Police</option>
+                <option value="nik">NIK</option>
+                <option value="nama_driver">Nama Driver</option>
+                <option value="no_telp">No. Telp</option>
+                <option value="no_ktp">No. KTP</option>
+                <option value="alamat">Alamat</option>
+                <option value="jenis_lisensi">Jenis Lisensi/Sertifikat</option>
+                <option value="nomor">Nomor</option>
+                <option value="keterangan">Keterangan</option>
               </select>
             </div>
             <div class="sm:col-span-3">
@@ -28,7 +33,7 @@
               <input
                 v-model="searchInput"
                 type="text"
-                placeholder="Cari data truck..."
+                placeholder="Cari data supir..."
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               />
             </div>
@@ -62,7 +67,7 @@
       </ComponentCard>
 
       <!-- Data Table Section -->
-      <ComponentCard title="Daftar Data Truck">
+      <ComponentCard title="Daftar Data Supir">
         <div class="mb-4 flex flex-col items-start justify-end gap-3 sm:flex-row">
           <p class="text-sm text-gray-500 dark:text-gray-400">
             Total: {{ filteredItems.length }} data
@@ -75,110 +80,87 @@
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">No</th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('truck_no')"
+                    @click="toggleSort('nama_driver')"
                   >
                     <div class="flex items-center gap-1">
-                      Truck No / Asset
+                      Nama Driver / No. Police
                       <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'truck_no' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'truck_no' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'nama_driver' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'nama_driver' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('merk')"
+                    @click="toggleSort('nik')"
                   >
                     <div class="flex items-center gap-1">
-                      Merk / Type / Model
+                      NIK
                       <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'merk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'merk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'nik' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'nik' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
                       </span>
                     </div>
                   </th>
-                  <th 
-                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('tahun_pembuatan')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Tahun / Silinder
-                      <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'tahun_pembuatan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'tahun_pembuatan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th 
-                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('masa_berlaku_stnk')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Masa Berlaku STNK
-                      <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_stnk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_stnk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th 
-                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('masa_berlaku_keur_head_truck')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Masa Berlaku KIR
-                      <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_keur_head_truck' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_keur_head_truck' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
-                      </span>
-                    </div>
-                  </th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">No. Telp / No. KTP</th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Alamat</th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Jenis Lisensi / Nomor</th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Masa Berlaku</th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Keterangan</th>
                   <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
                 <tr v-if="loading">
-                  <td colspan="7" class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6">Loading...</td>
+                  <td colspan="9" class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6">Loading...</td>
                 </tr>
                 <tr v-else-if="filteredItems.length === 0">
-                  <td colspan="7" class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6">Tidak ada data</td>
+                  <td colspan="9" class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6">Tidak ada data</td>
                 </tr>
-                <tr v-else v-for="(item, index) in pagedItems" :key="item._id" class="border-t border-gray-100 dark:border-gray-800">
+                <tr v-else v-for="(item, index) in pagedItems" :key="item._id ?? item.no_polisi" class="border-t border-gray-100 dark:border-gray-800">
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ (currentPage - 1) * pageSize + index + 1 }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div class="font-medium">{{ item.truck_no }}</div>
-                    <div class="text-xs text-gray-500">{{ item.no_asset }}</div>
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ formatText(item.nama_driver) }}</div>
+                    <div class="text-xs text-gray-500">{{ item.no_polisi }}</div>
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div>{{ item.merk }}</div>
-                    <div class="text-xs text-gray-500">{{ item.type }} - {{ item.model }}</div>
+                    {{ formatText(item.nik) }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div>{{ item.tahun_pembuatan }}</div>
-                    <div class="text-xs text-gray-500">{{ item.isi_silinder }} cc</div>
+                    <div>{{ formatText(item.no_telp) }}</div>
+                    <div class="text-xs text-gray-500">{{ formatText(item.no_ktp) }}</div>
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div>{{ formatDate(item.masa_berlaku_stnk) }}</div>
-                    <div class="text-xs text-gray-500">Pajak: {{ formatDate(item.masa_berlaku_pajak_stnk) }}</div>
+                    {{ formatText(item.alamat) }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    {{ formatDate(item.masa_berlaku_keur_head_truck) }}
+                    <div>{{ formatText(primaryLisensi(item)?.jenis_lisensi) }}</div>
+                    <div class="text-xs text-gray-500">
+                      {{ formatText(primaryLisensi(item)?.nomor) }}
+                      <span v-if="licenseCount(item) > 1">+{{ licenseCount(item) - 1 }} lain</span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                    {{ formatDate(primaryLisensi(item)?.masa_berlaku) }}
+                  </td>
+                  <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                    {{ formatText(primaryLisensi(item)?.keterangan) }}
                   </td>
                   <td class="px-5 py-3 text-right text-sm sm:px-6">
                     <div class="flex items-center justify-center gap-2">
-                       <RouterLink
-                        :to="`/data-transport/data-truck/detail/${item.truck_no}`"
+                      <RouterLink
+                        :to="`/data-transport/data-supir/detail/${item.no_polisi}`"
                         class="rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
                       >
                         Detail
                       </RouterLink>
                       <RouterLink
                         v-if="canEdit"
-                        :to="`/data-transport/data-truck/edit/${item.truck_no}`"
+                        :to="`/data-transport/data-supir/edit/${item.no_polisi}`"
                         class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
                       >
                         Edit
@@ -250,7 +232,7 @@ import { useToast } from '@/composables/useToast'
 import { API_BASE } from '@/config/api'
 import { useAuthUser } from '@/services/auth'
 
-const pageTitle = 'Data Transport: Data Truck'
+const pageTitle = 'Data Transport: Data Supir'
 const toast = useToast()
 const authUser = useAuthUser()
 const items = ref([])
@@ -278,19 +260,67 @@ const toggleSort = (column) => {
   }
 }
 
+const formatText = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+  return String(value)
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) {
+    return String(dateString)
+  }
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
+
+const licenseCount = (item) => {
+  if (!item || !Array.isArray(item.lisensi)) return 0
+  return item.lisensi.length
+}
+
+const primaryLisensi = (item) => {
+  if (!item || !Array.isArray(item.lisensi) || item.lisensi.length === 0) {
+    return null
+  }
+  return item.lisensi[0]
+}
+
+const matchesLicenseField = (lisensiList, keyword, field) => {
+  if (!Array.isArray(lisensiList)) return false
+  return lisensiList.some((lis) => {
+    const value = lis ? lis[field] : ''
+    return String(value || '').toLowerCase().includes(keyword)
+  })
+}
+
 const filteredItems = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   if (!keyword) return items.value
-  
-  return items.value.filter(item => {
+
+  return items.value.filter((item) => {
     if (searchColumn.value === 'all') {
-      return Object.values(item).some(val => 
+      const baseMatch = Object.values(item).some((val) =>
         String(val).toLowerCase().includes(keyword)
       )
-    } else {
-      const val = item[searchColumn.value]
-      return val && String(val).toLowerCase().includes(keyword)
+      if (baseMatch) return true
+      return matchesLicenseField(item.lisensi, keyword, 'jenis_lisensi') ||
+        matchesLicenseField(item.lisensi, keyword, 'nomor') ||
+        matchesLicenseField(item.lisensi, keyword, 'keterangan')
     }
+
+    if (['jenis_lisensi', 'nomor', 'keterangan'].includes(searchColumn.value)) {
+      return matchesLicenseField(item.lisensi, keyword, searchColumn.value)
+    }
+
+    const val = item[searchColumn.value]
+    return val && String(val).toLowerCase().includes(keyword)
   })
 })
 
@@ -302,9 +332,6 @@ const sortedItems = computed(() => {
   result.sort((a, b) => {
     let valA = a[col]
     let valB = b[col]
-
-    // Handle nested fields or display fields if necessary
-    // But for now simple fields are enough
 
     if (valA === null || valA === undefined) valA = ''
     if (valB === null || valB === undefined) valB = ''
@@ -339,7 +366,7 @@ const paginationItems = computed(() => {
     return Array.from({ length: total }, (_, index) => ({
       type: 'page',
       value: index + 1,
-      key: `page-${index + 1}`
+      key: `page-${index + 1}`,
     }))
   }
 
@@ -375,19 +402,12 @@ const paginationItems = computed(() => {
   return items
 })
 
-const formatDate = (dateString) => {
-  if (!dateString) return '-'
-  return new Date(dateString).toLocaleDateString('id-ID')
-}
-
 const fetchData = async () => {
   loading.value = true
   try {
-    let url = `${API_BASE}/data-trucks`
-    const response = await fetch(url)
+    const response = await fetch(`${API_BASE}/data-supir`)
     if (!response.ok) throw new Error('Failed to fetch data')
     items.value = await response.json()
-    // Client-side search is handled by computed property
   } catch (error) {
     console.error(error)
     toast.error('Failed to load data')
@@ -410,7 +430,7 @@ const resetFilter = () => {
 
 const exportToExcel = () => {
   try {
-    window.open(`${API_BASE}/data-trucks/export`, '_blank')
+    window.open(`${API_BASE}/data-supir/export`, '_blank')
   } catch (error) {
     console.error(error)
     toast.error('Gagal export data')
@@ -422,7 +442,6 @@ const goToPage = (page) => {
     currentPage.value = page
   }
 }
-
 
 onMounted(() => {
   fetchData()

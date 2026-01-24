@@ -18,7 +18,23 @@ const dataTruckSchema = new mongoose.Schema({
   no_keur_head_truck: { type: String, default: '' },
   masa_berlaku_keur_head_truck: { type: Date, default: null },
   masa_berlaku_uji_emisi: { type: Date, default: null },
-  keterangan: { type: String, default: '' }
+  keterangan: { type: String, default: '' },
+  dok_stnk: { type: String, default: '' },
+  dok_bpkb: { type: String, default: '' },
+  dok_keur: { type: String, default: '' },
+  dok_uji_emisi: { type: String, default: '' },
+  dok_lain: { type: String, default: '' },
+  dokumen: {
+    type: [
+      {
+        doc_type: { type: String, default: '' },
+        filename: { type: String, default: '' },
+        original_name: { type: String, default: '' },
+        uploaded_at: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('DataTruck', dataTruckSchema);

@@ -15,10 +15,13 @@
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               >
                 <option value="all">Semua Kolom</option>
-                <option value="truck_no">Truck No</option>
-                <option value="merk">Merk</option>
+                <option value="chasis_no">Chasis No</option>
+                <option value="maker_merk">Maker/Merk</option>
                 <option value="type">Type</option>
-                <option value="tahun_pembuatan">Tahun</option>
+                <option value="year">Year</option>
+                <option value="asset_no">Asset No</option>
+                <option value="size">Size</option>
+                <option value="keterangan">Keterangan</option>
               </select>
             </div>
             <div class="sm:col-span-3">
@@ -28,7 +31,7 @@
               <input
                 v-model="searchInput"
                 type="text"
-                placeholder="Cari data truck..."
+                placeholder="Cari data chasis..."
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               />
             </div>
@@ -62,8 +65,15 @@
       </ComponentCard>
 
       <!-- Data Table Section -->
-      <ComponentCard title="Daftar Data Truck">
-        <div class="mb-4 flex flex-col items-start justify-end gap-3 sm:flex-row">
+      <ComponentCard title="Daftar Data Chasis">
+        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <RouterLink
+            v-if="canAdd"
+            to="/data-transport/data-chasis/create"
+            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+          >
+            Tambah Data
+          </RouterLink>
           <p class="text-sm text-gray-500 dark:text-gray-400">
             Total: {{ filteredItems.length }} data
           </p>
@@ -75,66 +85,55 @@
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">No</th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('truck_no')"
+                    @click="toggleSort('chasis_no')"
                   >
                     <div class="flex items-center gap-1">
-                      Truck No / Asset
+                      Chasis No / Asset
                       <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'truck_no' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'truck_no' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'chasis_no' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'chasis_no' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('merk')"
+                    @click="toggleSort('maker_merk')"
                   >
                     <div class="flex items-center gap-1">
-                      Merk / Type / Model
+                      Maker / Type
                       <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'merk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'merk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'maker_merk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'maker_merk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('tahun_pembuatan')"
+                    @click="toggleSort('year')"
                   >
                     <div class="flex items-center gap-1">
-                      Tahun / Silinder
+                      Year / Size
                       <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'tahun_pembuatan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'tahun_pembuatan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'year' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'year' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('masa_berlaku_stnk')"
+                    @click="toggleSort('masa_berlaku_keur_chassis')"
                   >
                     <div class="flex items-center gap-1">
-                      Masa Berlaku STNK
+                      Masa Berlaku Keur
                       <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_stnk' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_stnk' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_keur_chassis' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_keur_chassis' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
                       </span>
                     </div>
                   </th>
-                  <th 
-                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider"
-                    @click="toggleSort('masa_berlaku_keur_head_truck')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Masa Berlaku KIR
-                      <span class="flex flex-col">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-colors" :class="sortColumn === 'masa_berlaku_keur_head_truck' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m18 15-6-6-6 6"/></svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="-mt-1 transition-colors" :class="sortColumn === 'masa_berlaku_keur_head_truck' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"><path d="m6 9 6 6 6-6"/></svg>
-                      </span>
-                    </div>
-                  </th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Keterangan</th>
                   <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6 uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
@@ -150,39 +149,47 @@
                     {{ (currentPage - 1) * pageSize + index + 1 }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div class="font-medium">{{ item.truck_no }}</div>
-                    <div class="text-xs text-gray-500">{{ item.no_asset }}</div>
+                    <div class="font-medium">{{ item.chasis_no }}</div>
+                    <div class="text-xs text-gray-500">{{ item.asset_no }}</div>
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div>{{ item.merk }}</div>
-                    <div class="text-xs text-gray-500">{{ item.type }} - {{ item.model }}</div>
+                    <div>{{ item.maker_merk }}</div>
+                    <div class="text-xs text-gray-500">{{ item.type }}</div>
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div>{{ item.tahun_pembuatan }}</div>
-                    <div class="text-xs text-gray-500">{{ item.isi_silinder }} cc</div>
+                    <div>{{ item.year }}</div>
+                    <div class="text-xs text-gray-500">{{ item.size }}</div>
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    <div>{{ formatDate(item.masa_berlaku_stnk) }}</div>
-                    <div class="text-xs text-gray-500">Pajak: {{ formatDate(item.masa_berlaku_pajak_stnk) }}</div>
+                    {{ formatDate(item.masa_berlaku_keur_chassis) }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    {{ formatDate(item.masa_berlaku_keur_head_truck) }}
+                    {{ formatText(item.keterangan) }}
                   </td>
                   <td class="px-5 py-3 text-right text-sm sm:px-6">
                     <div class="flex items-center justify-center gap-2">
-                       <RouterLink
-                        :to="`/data-transport/data-truck/detail/${item.truck_no}`"
+                      <RouterLink
+                        :to="`/data-transport/data-chasis/detail/${item._id}`"
                         class="rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
                       >
                         Detail
                       </RouterLink>
                       <RouterLink
                         v-if="canEdit"
-                        :to="`/data-transport/data-truck/edit/${item.truck_no}`"
+                        :to="`/data-transport/data-chasis/edit/${item._id}`"
                         class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
                       >
                         Edit
                       </RouterLink>
+                      <button
+                        v-if="canDelete"
+                        type="button"
+                        :disabled="deletingId === item._id"
+                        class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-error-500/15 dark:text-error-400"
+                        @click="remove(item)"
+                      >
+                        Hapus
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -247,14 +254,17 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import ToastHost from '@/components/common/ToastHost.vue'
 import { useToast } from '@/composables/useToast'
-import { API_BASE } from '@/config/api'
+import { useDialog } from '@/composables/useDialog'
 import { useAuthUser } from '@/services/auth'
+import { API_BASE } from '@/config/api'
 
-const pageTitle = 'Data Transport: Data Truck'
+const pageTitle = 'Data Transport: Data Chasis'
 const toast = useToast()
+const { confirm } = useDialog()
 const authUser = useAuthUser()
 const items = ref([])
 const loading = ref(false)
+const deletingId = ref(null)
 const searchColumn = ref('all')
 const searchInput = ref('')
 const searchKeyword = ref('')
@@ -266,9 +276,6 @@ const pageSize = 10
 const sortColumn = ref('updatedAt')
 const sortOrder = ref('desc')
 
-const userRole = computed(() => authUser.value?.level || '')
-const canEdit = computed(() => userRole.value === 'admin' || userRole.value === 'user')
-
 const toggleSort = (column) => {
   if (sortColumn.value === column) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -278,13 +285,25 @@ const toggleSort = (column) => {
   }
 }
 
+const formatText = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+  return String(value)
+}
+
+const userRole = computed(() => authUser.value?.level || '')
+const canAdd = computed(() => userRole.value === 'admin' || userRole.value === 'user')
+const canEdit = computed(() => userRole.value === 'admin' || userRole.value === 'user')
+const canDelete = computed(() => userRole.value === 'admin')
+
 const filteredItems = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   if (!keyword) return items.value
-  
-  return items.value.filter(item => {
+
+  return items.value.filter((item) => {
     if (searchColumn.value === 'all') {
-      return Object.values(item).some(val => 
+      return Object.values(item).some((val) =>
         String(val).toLowerCase().includes(keyword)
       )
     } else {
@@ -302,9 +321,6 @@ const sortedItems = computed(() => {
   result.sort((a, b) => {
     let valA = a[col]
     let valB = b[col]
-
-    // Handle nested fields or display fields if necessary
-    // But for now simple fields are enough
 
     if (valA === null || valA === undefined) valA = ''
     if (valB === null || valB === undefined) valB = ''
@@ -339,7 +355,7 @@ const paginationItems = computed(() => {
     return Array.from({ length: total }, (_, index) => ({
       type: 'page',
       value: index + 1,
-      key: `page-${index + 1}`
+      key: `page-${index + 1}`,
     }))
   }
 
@@ -383,16 +399,48 @@ const formatDate = (dateString) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    let url = `${API_BASE}/data-trucks`
-    const response = await fetch(url)
+    const response = await fetch(`${API_BASE}/data-chasis`)
     if (!response.ok) throw new Error('Failed to fetch data')
     items.value = await response.json()
-    // Client-side search is handled by computed property
   } catch (error) {
     console.error(error)
     toast.error('Failed to load data')
   } finally {
     loading.value = false
+  }
+}
+
+const remove = async (item) => {
+  if (deletingId.value) {
+    return
+  }
+  const ok = await confirm({
+    title: 'Konfirmasi Hapus',
+    message:
+      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    confirmText: 'Ya, hapus',
+    cancelText: 'Batal',
+    variant: 'danger',
+  })
+  if (!ok) {
+    return
+  }
+  try {
+    deletingId.value = item._id
+    const response = await fetch(`${API_BASE}/data-chasis/${item._id}`, {
+      method: 'DELETE',
+    })
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}))
+      throw new Error(json.message || 'Gagal menghapus data.')
+    }
+    toast.success('Data berhasil dihapus')
+    await fetchData()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Gagal menghapus data.'
+    toast.error(message)
+  } finally {
+    deletingId.value = null
   }
 }
 
@@ -410,7 +458,7 @@ const resetFilter = () => {
 
 const exportToExcel = () => {
   try {
-    window.open(`${API_BASE}/data-trucks/export`, '_blank')
+    window.open(`${API_BASE}/data-chasis/export`, '_blank')
   } catch (error) {
     console.error(error)
     toast.error('Gagal export data')
@@ -422,7 +470,6 @@ const goToPage = (page) => {
     currentPage.value = page
   }
 }
-
 
 onMounted(() => {
   fetchData()
