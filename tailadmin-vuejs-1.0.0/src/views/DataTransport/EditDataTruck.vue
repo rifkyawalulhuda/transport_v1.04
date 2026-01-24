@@ -424,34 +424,48 @@ const formatDateForInput = (dateString) => {
   return new Date(dateString).toISOString().split('T')[0]
 }
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${route.params.id}`)
-    if (!response.ok) throw new Error('Failed to load data')
-    const item = await response.json()
-    
-    Object.keys(form).forEach((key) => {
+  const loadData = async () => {
+    loading.value = true
+    const encodedId = encodeURIComponent(String(route.params.id))
+    try {
+      const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${encodedId}`)
+      if (!response.ok) throw new Error('Failed to load data')
+      const item = await response.json()
+      
+      Object.keys(form).forEach((key) => {
       if (['iuran_aptrindo', 'masa_berlaku_stnk', 'masa_berlaku_pajak_stnk', 'masa_berlaku_keur_head_truck', 'masa_berlaku_uji_emisi'].includes(key)) {
         form[key] = item[key] ? formatDateForInput(item[key]) : ''
       } else {
         form[key] = item[key] || ''
       }
     })
-    if (Array.isArray(item.dokumen) && item.dokumen.length > 0) {
-      docs.value = item.dokumen
-    } else {
-      const legacyDocs = []
-      if (item.dok_stnk) legacyDocs.push({ doc_type: 'dok_stnk', filename: item.dok_stnk, original_name: item.dok_stnk })
-      if (item.dok_bpkb) legacyDocs.push({ doc_type: 'dok_bpkb', filename: item.dok_bpkb, original_name: item.dok_bpkb })
-      if (item.dok_keur) legacyDocs.push({ doc_type: 'dok_keur', filename: item.dok_keur, original_name: item.dok_keur })
-      if (item.dok_uji_emisi) legacyDocs.push({ doc_type: 'dok_uji_emisi', filename: item.dok_uji_emisi, original_name: item.dok_uji_emisi })
-      if (item.dok_lain) legacyDocs.push({ doc_type: 'dok_lain', filename: item.dok_lain, original_name: item.dok_lain })
-      docs.value = legacyDocs
-    }
-  } catch (error) {
-    formError.value = error.message
-    toast.error('Failed to load data')
+      try {
+        const docsResponse = await fetch(`${API_BASE}/data-trucks/by-truck-no/${encodedId}/documents`)
+        if (docsResponse.ok) {
+          const payload = await docsResponse.json()
+          if (Array.isArray(payload?.documents)) {
+            docs.value = payload.documents
+            return
+          }
+        }
+      } catch (error) {
+        console.error(error)
+      }
+
+      if (Array.isArray(item.dokumen) && item.dokumen.length > 0) {
+        docs.value = item.dokumen
+      } else {
+        const legacyDocs = []
+        if (item.dok_stnk) legacyDocs.push({ doc_type: 'dok_stnk', filename: item.dok_stnk, original_name: item.dok_stnk })
+        if (item.dok_bpkb) legacyDocs.push({ doc_type: 'dok_bpkb', filename: item.dok_bpkb, original_name: item.dok_bpkb })
+        if (item.dok_keur) legacyDocs.push({ doc_type: 'dok_keur', filename: item.dok_keur, original_name: item.dok_keur })
+        if (item.dok_uji_emisi) legacyDocs.push({ doc_type: 'dok_uji_emisi', filename: item.dok_uji_emisi, original_name: item.dok_uji_emisi })
+        if (item.dok_lain) legacyDocs.push({ doc_type: 'dok_lain', filename: item.dok_lain, original_name: item.dok_lain })
+        docs.value = legacyDocs
+      }
+    } catch (error) {
+      formError.value = error.message
+      toast.error('Failed to load data')
   } finally {
     loading.value = false
   }
@@ -533,13 +547,21 @@ const handleUploadDocuments = async () => {
 
   uploadingDocs.value = true
   try {
-    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${form.truck_no}/documents`, {
+    const encodedTruckNo = encodeURIComponent(String(form.truck_no))
+    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${encodedTruckNo}/documents`, {
       method: 'POST',
       body: formData,
     })
     if (!response.ok) {
-      const json = await response.json().catch(() => ({}))
-      throw new Error(json.message || 'Upload gagal')
+      let message = ''
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const json = await response.json().catch(() => ({}))
+        message = json.message || ''
+      } else {
+        message = await response.text().catch(() => '')
+      }
+      throw new Error(message || 'Upload gagal')
     }
     const updated = await response.json()
     docs.value = Array.isArray(updated.dokumen) ? updated.dokumen : docs.value
@@ -548,7 +570,8 @@ const handleUploadDocuments = async () => {
     })
     toast.success('Dokumen berhasil diunggah')
   } catch (error) {
-    toast.error(error.message)
+    const message = error instanceof Error ? error.message : 'Upload gagal'
+    toast.error(message)
   } finally {
     uploadingDocs.value = false
   }

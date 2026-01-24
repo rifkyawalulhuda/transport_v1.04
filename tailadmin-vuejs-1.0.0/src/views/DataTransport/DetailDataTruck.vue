@@ -436,15 +436,29 @@ const loadDetail = async () => {
     loading.value = false
     return
   }
+  const encodedId = encodeURIComponent(String(idParam))
   loading.value = true
   formError.value = ''
   try {
-    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${idParam}`)
+    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${encodedId}`)
     if (!response.ok) {
       const json = await response.json().catch(() => ({}))
       throw new Error(json.message || 'Gagal memuat detail data truck.')
     }
     detail.value = await response.json()
+    try {
+      const docsResponse = await fetch(`${API_BASE}/data-trucks/by-truck-no/${encodedId}/documents`)
+      if (docsResponse.ok) {
+        const payload = await docsResponse.json()
+        if (Array.isArray(payload?.documents)) {
+          docs.value = payload.documents
+          return
+        }
+      }
+    } catch (error) {
+      console.error(error)
+    }
+
     if (Array.isArray(detail.value?.dokumen)) {
       docs.value = detail.value.dokumen
     } else {

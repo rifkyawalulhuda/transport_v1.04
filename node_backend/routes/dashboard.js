@@ -534,6 +534,20 @@ router.get("/expiry-alerts", authenticateToken, async (req, res) => {
       return String(a.dueDate).localeCompare(String(b.dueDate));
     });
 
+    const upcoming = items.slice(0, 5).map((item) => ({
+      entityType: item.entityType,
+      entityId: item.entityId,
+      title: item.title,
+      subtitle: item.subtitle || "",
+      fieldLabel: item.fieldLabel,
+      dueDate: item.dueDate,
+      status: item.status,
+      daysLeft: item.daysLeft,
+      routeName: item.routeName,
+      routeParams: item.routeParams || {},
+      routePath: item.routePath
+    }));
+
     const counts = items.reduce(
       (acc, item) => {
         if (item.status === "red") {
@@ -566,6 +580,15 @@ router.get("/expiry-alerts", authenticateToken, async (req, res) => {
       bucket.total += 1;
     });
 
+    const redRatio = counts.total ? counts.red / counts.total : 0;
+    const redPercent = Math.round(redRatio * 100);
+    let level = "LOW";
+    if (redRatio >= 0.6) {
+      level = "HIGH";
+    } else if (redRatio >= 0.3) {
+      level = "MEDIUM";
+    }
+
     res.json({
       meta: {
         days,
@@ -574,6 +597,12 @@ router.get("/expiry-alerts", authenticateToken, async (req, res) => {
       },
       counts,
       breakdown,
+      upcoming,
+      risk: {
+        level,
+        redRatio,
+        redPercent
+      },
       items: limit === 0 ? items : items.slice(0, limit)
     });
   } catch (err) {

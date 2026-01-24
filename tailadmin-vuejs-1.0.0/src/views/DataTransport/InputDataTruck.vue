@@ -442,20 +442,29 @@ const handleUploadDocuments = async () => {
 
   uploadingDocs.value = true
   try {
-    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${form.truck_no}/documents`, {
+    const encodedTruckNo = encodeURIComponent(String(form.truck_no))
+    const response = await fetch(`${API_BASE}/data-trucks/by-truck-no/${encodedTruckNo}/documents`, {
       method: 'POST',
       body: formData,
     })
     if (!response.ok) {
-      const json = await response.json().catch(() => ({}))
-      throw new Error(json.message || 'Upload gagal')
+      let message = ''
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const json = await response.json().catch(() => ({}))
+        message = json.message || ''
+      } else {
+        message = await response.text().catch(() => '')
+      }
+      throw new Error(message || 'Upload gagal')
     }
     Object.keys(selectedFiles).forEach((key) => {
       selectedFiles[key] = []
     })
     toast.success('Dokumen berhasil diunggah')
   } catch (error) {
-    toast.error(error.message)
+    const message = error instanceof Error ? error.message : 'Upload gagal'
+    toast.error(message)
   } finally {
     uploadingDocs.value = false
   }

@@ -15,12 +15,12 @@
         <span
           class="rounded-full bg-error-50 px-2 py-1 text-error-600 dark:bg-error-500/15 dark:text-error-400"
         >
-          Merah: {{ counts.red }}
+          Expired: {{ counts.red }}
         </span>
         <span
           class="rounded-full bg-warning-50 px-2 py-1 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400"
         >
-          Kuning: {{ counts.yellow }}
+          Update: {{ counts.yellow }}
         </span>
         <button
           type="button"
@@ -69,7 +69,7 @@
               : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'"
             @click="setStatusFilter('red')"
           >
-            Merah
+            Expired
           </button>
           <button
             type="button"
@@ -79,7 +79,7 @@
               : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'"
             @click="setStatusFilter('yellow')"
           >
-            Kuning
+            Update
           </button>
         </div>
         <div
@@ -209,7 +209,7 @@
                   Composition
                 </span>
                 <span class="text-gray-500 dark:text-gray-400">
-                  Merah {{ redPctLabel }}% • Kuning {{ yellowPctLabel }}%
+                  Expired {{ redPctLabel }}% • Update {{ yellowPctLabel }}%
                 </span>
               </div>
               <div class="mt-2 h-4 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
@@ -227,11 +227,11 @@
               <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                 <div class="flex items-center gap-1">
                   <span class="h-2 w-2 rounded-full bg-red-500 dark:bg-red-400"></span>
-                  Merah ({{ counts.red }})
+                  Expired ({{ counts.red }})
                 </div>
                 <div class="flex items-center gap-1">
                   <span class="h-2 w-2 rounded-full bg-amber-400 dark:bg-amber-300"></span>
-                  Kuning ({{ counts.yellow }})
+                  Update ({{ counts.yellow }})
                 </div>
               </div>
             </div>
@@ -280,6 +280,124 @@
             Filter hanya mempengaruhi daftar.
           </p>
         </div>
+
+        <div
+          class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                Upcoming Expiry
+              </h4>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Prioritas 5 terdekat
+              </p>
+            </div>
+          </div>
+          <div
+            class="mt-3 max-h-[260px] overflow-auto custom-scrollbar"
+          >
+            <div
+              v-if="upcoming.length === 0"
+              class="rounded-lg border border-dashed border-gray-200 p-4 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400"
+            >
+              Tidak ada expiry mendekati jatuh tempo.
+            </div>
+            <div v-else class="space-y-1">
+              <button
+                v-for="item in upcoming"
+                :key="`${item.entityType}-${item.entityId}-${item.fieldLabel}-${item.dueDate}`"
+                type="button"
+                class="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                @click="goToDetail(item)"
+              >
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                    {{ item.title }}
+                  </p>
+                  <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                    {{ item.fieldLabel }}
+                  </p>
+                  <p
+                    v-if="item.subtitle"
+                    class="text-[11px] text-gray-400 dark:text-gray-500"
+                  >
+                    {{ item.subtitle }}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs font-medium text-gray-700 dark:text-gray-200">
+                    {{ formatDueDate(item.dueDate) }}
+                  </p>
+                  <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                    {{ formatDaysLeft(item) }}
+                  </p>
+                  <span
+                    :class="statusClass(item.status)"
+                    class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  >
+                    {{ statusLabel(item.status) }}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+        >
+          <div>
+            <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Quick Actions
+            </h4>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Akses cepat data transport.
+            </p>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              @click="goToRoute('/data-transport/data-truck')"
+            >
+              Data Truck
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              @click="goToRoute('/data-transport/data-chasis')"
+            >
+              Data Chasis
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              @click="goToRoute('/data-transport/data-supir')"
+            >
+              Data Supir
+            </button>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+            <div class="flex items-center justify-between">
+              <div>
+                <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Risk Level
+                </h5>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Red: {{ risk.redPercent }}%
+                </p>
+              </div>
+              <span
+                :class="riskBadgeClass"
+                class="rounded-full px-2 py-1 text-xs font-semibold"
+              >
+                {{ risk.level }}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -298,6 +416,20 @@ type ExpiryAlertItem = {
   title: string
   subtitle?: string
   fieldKey: string
+  fieldLabel: string
+  dueDate: string
+  status: 'red' | 'yellow'
+  daysLeft: number
+  routeName?: string
+  routeParams?: Record<string, unknown>
+  routePath?: string
+}
+
+type ExpiryAlertUpcoming = {
+  entityType: 'truck' | 'chasis' | 'driver'
+  entityId: string | number
+  title: string
+  subtitle?: string
   fieldLabel: string
   dueDate: string
   status: 'red' | 'yellow'
@@ -331,12 +463,19 @@ type ExpiryAlertResponse = {
     total: number
   }
   breakdown?: Partial<ExpiryAlertBreakdown>
+  upcoming?: ExpiryAlertUpcoming[]
+  risk?: {
+    level?: 'HIGH' | 'MEDIUM' | 'LOW'
+    redRatio?: number
+    redPercent?: number
+  }
   items?: ExpiryAlertItem[]
 }
 
 const router = useRouter()
 const toast = useToast()
 const items = ref<ExpiryAlertItem[]>([])
+const upcoming = ref<ExpiryAlertUpcoming[]>([])
 const loading = ref(false)
 const counts = reactive({ red: 0, yellow: 0, total: 0 })
 const meta = reactive({ days: 30, limit: 10, generated_at: '' })
@@ -350,6 +489,7 @@ const breakdown = reactive<ExpiryAlertBreakdown>({
 })
 const breakdownEstimated = ref(false)
 const statusFilter = ref<'all' | 'red' | 'yellow'>('all')
+const risk = reactive({ level: 'LOW', redRatio: 0, redPercent: 0 })
 
 const dateFormatter = new Intl.DateTimeFormat('id-ID', {
   day: '2-digit',
@@ -380,7 +520,7 @@ const formatDueDate = (value: string) => {
   return dateFormatter.format(date)
 }
 
-const formatDaysLeft = (item: ExpiryAlertItem) => {
+const formatDaysLeft = (item: { status: 'red' | 'yellow'; daysLeft: number }) => {
   if (item.status === 'red') {
     return `Lewat ${Math.abs(Number(item.daysLeft) || 0)} hari`
   }
@@ -388,7 +528,7 @@ const formatDaysLeft = (item: ExpiryAlertItem) => {
 }
 
 const statusLabel = (status: ExpiryAlertItem['status']) =>
-  status === 'red' ? 'Merah' : 'Kuning'
+  status === 'red' ? 'Expired' : 'Update'
 
 const statusClass = (status: ExpiryAlertItem['status']) => {
   if (status === 'red') {
@@ -437,7 +577,7 @@ const computeBreakdownFromItems = (list: ExpiryAlertItem[]) => {
   return result
 }
 
-const goToDetail = async (item: ExpiryAlertItem) => {
+const goToDetail = async (item: { routeName?: string; routeParams?: Record<string, unknown>; routePath?: string }) => {
   let routed = false
   if (item.routeName) {
     try {
@@ -463,6 +603,15 @@ const goToDetail = async (item: ExpiryAlertItem) => {
   }
 }
 
+const goToRoute = async (path: string) => {
+  try {
+    await router.push(path)
+  } catch (error) {
+    console.error(error)
+    toast.error('Tujuan tidak ditemukan.')
+  }
+}
+
 const fetchAlerts = async () => {
   loading.value = true
   try {
@@ -482,12 +631,38 @@ const fetchAlerts = async () => {
     counts.red = Number(data?.counts?.red) || 0
     counts.yellow = Number(data?.counts?.yellow) || 0
     counts.total = Number(data?.counts?.total) || 0
+    const nextUpcoming = Array.isArray(data?.upcoming)
+      ? data.upcoming
+      : nextItems.slice(0, 5).map((item) => ({
+          entityType: item.entityType,
+          entityId: item.entityId,
+          title: item.title,
+          subtitle: item.subtitle,
+          fieldLabel: item.fieldLabel,
+          dueDate: item.dueDate,
+          status: item.status,
+          daysLeft: item.daysLeft,
+          routeName: item.routeName,
+          routeParams: item.routeParams,
+          routePath: item.routePath
+        }))
+    upcoming.value = nextUpcoming
     if (data?.breakdown && typeof data.breakdown === 'object') {
       applyBreakdown(data.breakdown)
       breakdownEstimated.value = false
     } else {
       applyBreakdown(computeBreakdownFromItems(nextItems))
       breakdownEstimated.value = true
+    }
+    if (data?.risk) {
+      risk.level = data.risk.level || 'LOW'
+      risk.redRatio = Number(data.risk.redRatio) || 0
+      risk.redPercent = Number(data.risk.redPercent) || 0
+    } else {
+      const redRatio = counts.total ? counts.red / counts.total : 0
+      risk.redRatio = redRatio
+      risk.redPercent = Math.round(redRatio * 100)
+      risk.level = redRatio >= 0.6 ? 'HIGH' : redRatio >= 0.3 ? 'MEDIUM' : 'LOW'
     }
     if (data?.meta) {
       meta.days = Number(data.meta.days) || meta.days
@@ -496,11 +671,15 @@ const fetchAlerts = async () => {
     }
   } catch (error: any) {
     items.value = []
+    upcoming.value = []
     counts.red = 0
     counts.yellow = 0
     counts.total = 0
     applyBreakdown()
     breakdownEstimated.value = false
+    risk.level = 'LOW'
+    risk.redRatio = 0
+    risk.redPercent = 0
     toast.error(error?.message || 'Gagal memuat expiry alerts.')
   } finally {
     loading.value = false
@@ -546,9 +725,19 @@ const categoryRows = computed(() => {
       label: row.label,
       redPct: redPctValue,
       yellowPct: yellowPctValue,
-      labelText: total === 0 ? '0' : `Merah ${red} • Kuning ${yellow}`
+      labelText: total === 0 ? '0' : `Expired ${red} • Update ${yellow}`
     }
   })
+})
+
+const riskBadgeClass = computed(() => {
+  if (risk.level === 'HIGH') {
+    return 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400'
+  }
+  if (risk.level === 'MEDIUM') {
+    return 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'
+  }
+  return 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400'
 })
 
 const filteredItems = computed(() => {
