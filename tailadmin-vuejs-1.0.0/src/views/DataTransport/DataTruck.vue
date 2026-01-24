@@ -177,7 +177,6 @@
                         Detail
                       </RouterLink>
                       <RouterLink
-                        v-if="canEdit"
                         :to="`/data-transport/data-truck/edit/${item.truck_no}`"
                         class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
                       >
@@ -248,11 +247,9 @@ import ComponentCard from '@/components/common/ComponentCard.vue'
 import ToastHost from '@/components/common/ToastHost.vue'
 import { useToast } from '@/composables/useToast'
 import { API_BASE } from '@/config/api'
-import { useAuthUser } from '@/services/auth'
 
 const pageTitle = 'Data Transport: Data Truck'
 const toast = useToast()
-const authUser = useAuthUser()
 const items = ref([])
 const loading = ref(false)
 const searchColumn = ref('all')
@@ -265,9 +262,6 @@ const pageSize = 10
 
 const sortColumn = ref('updatedAt')
 const sortOrder = ref('desc')
-
-const userRole = computed(() => authUser.value?.level || '')
-const canEdit = computed(() => userRole.value === 'admin' || userRole.value === 'user')
 
 const toggleSort = (column) => {
   if (sortColumn.value === column) {

@@ -1,47 +1,8 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
 const router = express.Router();
 const DataTruck = require('../models/DataTruck');
 const db = require('../db'); // MySQL connection
 const xlsx = require('xlsx');
-
-const uploadDir = path.resolve(__dirname, '..', 'upload', 'doc-data-truck');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const truckNo = req.params.truck_no || 'unknown';
-    const timestamp = Date.now();
-    cb(null, `truck_${truckNo}_${file.fieldname}_${timestamp}${ext}`);
-  }
-});
-
-const allowedMimeTypes = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf'
-];
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      cb(new Error('Format file tidak didukung'));
-      return;
-    }
-    cb(null, true);
-  }
-});
 
 // 1. GET export data trucks to Excel (MOVE TO TOP to prevent :id conflict)
 router.get('/export', async (req, res) => {
@@ -126,15 +87,9 @@ router.get('/', async (req, res) => {
         no_keur_head_truck: operational.no_keur_head_truck || '',
         masa_berlaku_keur_head_truck: operational.masa_berlaku_keur_head_truck || null,
         masa_berlaku_uji_emisi: operational.masa_berlaku_uji_emisi || null,
-      keterangan: operational.keterangan || '',
-      dok_stnk: operational.dok_stnk || '',
-      dok_bpkb: operational.dok_bpkb || '',
-      dok_keur: operational.dok_keur || '',
-      dok_uji_emisi: operational.dok_uji_emisi || '',
-      dok_lain: operational.dok_lain || '',
-      dokumen: operational.dokumen || [],
-      updatedAt: operational.updatedAt || null
-    };
+        keterangan: operational.keterangan || '',
+        updatedAt: operational.updatedAt || null
+      };
     });
 
     let finalItems = mergedTrucks;
@@ -214,13 +169,7 @@ router.get('/by-truck-no/:truck_no', async (req, res) => {
       no_keur_head_truck: operational.no_keur_head_truck || '',
       masa_berlaku_keur_head_truck: operational.masa_berlaku_keur_head_truck || null,
       masa_berlaku_uji_emisi: operational.masa_berlaku_uji_emisi || null,
-      keterangan: operational.keterangan || '',
-      dok_stnk: operational.dok_stnk || '',
-      dok_bpkb: operational.dok_bpkb || '',
-      dok_keur: operational.dok_keur || '',
-      dok_uji_emisi: operational.dok_uji_emisi || '',
-      dok_lain: operational.dok_lain || '',
-      dokumen: operational.dokumen || []
+      keterangan: operational.keterangan || ''
     };
     res.json(merged);
   } catch (error) {
@@ -259,140 +208,7 @@ router.put('/by-truck-no/:truck_no', async (req, res) => {
   }
 });
 
-const allowedDocFields = [
-  'dok_stnk',
-  'dok_bpkb',
-  'dok_keur',
-  'dok_uji_emisi',
-  'dok_lain'
-];
-
-// 7. POST upload document files for data truck
-router.post(
-  '/by-truck-no/:truck_no/documents',
-  (req, res) => {
-    upload.any()(req, res, async (err) => {
-      if (err) {
-        const message =
-          err.code === 'LIMIT_FILE_SIZE'
-            ? 'Ukuran Maksimal adalah 2MB'
-            : err.message || 'Upload gagal';
-        return res.status(400).json({ message });
-      }
-      try {
-        const { truck_no } = req.params;
-        const files = Array.isArray(req.files) ? req.files : [];
-        const filtered = files.filter((file) => allowedDocFields.includes(file.fieldname));
-        if (filtered.length === 0) {
-          return res.status(400).json({ message: 'Tidak ada file yang diunggah.' });
-        }
-
-        const existing = await DataTruck.findOne({ truck_no });
-        const existingDocs = Array.isArray(existing?.dokumen)
-          ? existing.dokumen
-          : [];
-        const countByType = existingDocs.reduce((acc, doc) => {
-          acc[doc.doc_type] = (acc[doc.doc_type] || 0) + 1;
-          return acc;
-        }, {});
-
-        const incomingCountByType = filtered.reduce((acc, file) => {
-          acc[file.fieldname] = (acc[file.fieldname] || 0) + 1;
-          return acc;
-        }, {});
-
-        const overLimit = Object.keys(incomingCountByType).find((field) => {
-          const current = countByType[field] || 0;
-          return current + incomingCountByType[field] > 3;
-        });
-
-        if (overLimit) {
-          filtered.forEach((file) => {
-            const filePath = path.join(uploadDir, file.filename);
-            fs.unlink(filePath, () => {});
-          });
-          return res.status(400).json({ message: 'Maksimal 3 file per kolom.' });
-        }
-
-        const newDocs = filtered.map((file) => ({
-          doc_type: file.fieldname,
-          filename: file.filename,
-          original_name: file.originalname,
-          uploaded_at: new Date(),
-        }));
-
-        const legacyUpdate = {};
-        newDocs.forEach((doc) => {
-          legacyUpdate[doc.doc_type] = doc.filename;
-        });
-
-        const updatedDataTruck = await DataTruck.findOneAndUpdate(
-          { truck_no },
-          {
-            $push: { dokumen: { $each: newDocs } },
-            $set: legacyUpdate,
-            $setOnInsert: { truck_no },
-          },
-          { new: true, upsert: true }
-        );
-        res.json(updatedDataTruck);
-      } catch (error) {
-        res.status(500).json({ message: error.message });
-      }
-    });
-  }
-);
-
-// 8. DELETE document file for data truck
-router.delete('/by-truck-no/:truck_no/documents/:filename', async (req, res) => {
-  try {
-    const { truck_no, filename } = req.params;
-    const existing = await DataTruck.findOne({ truck_no });
-    if (!existing) {
-      return res.status(404).json({ message: 'Data Truck tidak ditemukan.' });
-    }
-    const docs = Array.isArray(existing.dokumen) ? existing.dokumen : [];
-    const docItem = docs.find((doc) => doc.filename === filename);
-    if (!docItem) {
-      return res.status(404).json({ message: 'Dokumen tidak ditemukan.' });
-    }
-
-    const filePath = path.join(uploadDir, filename);
-    fs.unlink(filePath, () => {});
-
-    const updated = await DataTruck.findOneAndUpdate(
-      { truck_no },
-      { $pull: { dokumen: { filename } } },
-      { new: true }
-    );
-
-    const remainingDocs = Array.isArray(updated?.dokumen) ? updated.dokumen : [];
-    const latestByType = {};
-    remainingDocs.forEach((doc) => {
-      const prev = latestByType[doc.doc_type];
-      if (!prev || new Date(doc.uploaded_at) > new Date(prev.uploaded_at)) {
-        latestByType[doc.doc_type] = doc;
-      }
-    });
-
-    const legacyUpdate = {};
-    allowedDocFields.forEach((field) => {
-      legacyUpdate[field] = latestByType[field]?.filename || '';
-    });
-
-    const finalDoc = await DataTruck.findOneAndUpdate(
-      { truck_no },
-      { $set: legacyUpdate },
-      { new: true }
-    );
-
-    res.json(finalDoc);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// 9. PUT update data truck by ID
+// 7. PUT update data truck by ID
 router.put('/:id', async (req, res) => {
   try {
     const updatedDataTruck = await DataTruck.findByIdAndUpdate(
