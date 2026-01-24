@@ -173,15 +173,18 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-end gap-2">
+        <div class="flex items-center justify-center gap-2">
           <slot name="actions">
+            <br>
+            <div class="mt-5 flex items-center justify-center">
             <button
               type="submit"
               :disabled="isDisabled"
-              class="inline-flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
+              class="inline-flex w-80 items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
             >
               {{ submitLabel }}
             </button>
+            </div>
           </slot>
         </div>
       </fieldset>

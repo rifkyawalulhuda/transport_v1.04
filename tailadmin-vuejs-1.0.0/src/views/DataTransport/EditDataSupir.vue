@@ -188,6 +188,7 @@ const isSubmitting = ref(false)
 const formError = ref('')
 
 const form = reactive({
+  id_driver: '',
   no_polisi: '',
   nik: '',
   lisensi: [],
@@ -376,7 +377,7 @@ const handleUploadRowFile = async (row) => {
   const formData = new FormData()
   formData.append('dok_file', row.file)
   try {
-    const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${form.no_polisi}/lisensi/${row._id}/document`, {
+    const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${form.id_driver}/lisensi/${row._id}/document`, {
       method: 'POST',
       body: formData,
     })
@@ -395,7 +396,7 @@ const handleUploadRowFile = async (row) => {
   }
 }
 
-const uploadLisensiFile = async (noPolisi, lisensiId, row) => {
+const uploadLisensiFile = async (idDriver, lisensiId, row) => {
   if (!row?.file || !lisensiId) return
   const maxSize = 2 * 1024 * 1024
   if (row.file.size > maxSize) {
@@ -404,7 +405,7 @@ const uploadLisensiFile = async (noPolisi, lisensiId, row) => {
   }
   const formData = new FormData()
   formData.append('dok_file', row.file)
-  const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${noPolisi}/lisensi/${lisensiId}/document`, {
+  const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${idDriver}/lisensi/${lisensiId}/document`, {
     method: 'POST',
     body: formData,
   })
@@ -427,7 +428,7 @@ const handleDeleteRowFile = async (row) => {
   })
   if (!ok) return
   try {
-    const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${form.no_polisi}/lisensi/${row._id}/document`, {
+    const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${form.id_driver}/lisensi/${row._id}/document`, {
       method: 'DELETE',
     })
     if (!response.ok) {
@@ -447,10 +448,11 @@ const handleDeleteRowFile = async (row) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${route.params.id}`)
+    const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${route.params.id}`)
     if (!response.ok) throw new Error('Failed to load data')
     const item = await response.json()
 
+    form.id_driver = item.id_driver || ''
     form.no_polisi = item.no_polisi || ''
     form.nik = item.nik || ''
     display.nama_driver = item.nama_driver || ''
@@ -483,7 +485,7 @@ const loadData = async () => {
 }
 
 const handleSubmit = async () => {
-  if (!form.no_polisi) {
+  if (!form.id_driver) {
     toast.warning('Periksa input Anda')
     return
   }
@@ -496,7 +498,7 @@ const handleSubmit = async () => {
       nik: form.nik,
       lisensi: normalizeLisensi(form.lisensi),
     }
-    const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${form.no_polisi}`, {
+    const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${form.id_driver}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -524,7 +526,7 @@ const handleSubmit = async () => {
       for (const item of rowsWithFile) {
         const lisensiId = json?.lisensi?.[item.index]?._id || item.row._id
         if (!lisensiId) continue
-        const updated = await uploadLisensiFile(form.no_polisi, lisensiId, item.row)
+        const updated = await uploadLisensiFile(form.id_driver, lisensiId, item.row)
         const updatedRow = updated?.lisensi?.find((lis) => lis._id === lisensiId)
         if (updatedRow) {
           item.row.dok_file = updatedRow.dok_file || item.row.dok_file

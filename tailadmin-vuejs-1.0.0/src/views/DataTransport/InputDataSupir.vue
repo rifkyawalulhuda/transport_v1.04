@@ -27,9 +27,9 @@
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. Police <span class="text-red-500">*</span></label>
                 <SearchableSelect
-                  v-model="form.no_polisi"
+                  v-model="form.id_driver"
                   :options="driverOptions"
-                  value-key="no_polisi"
+                  value-key="id_driver"
                   :label-formatter="formatDriverLabel"
                   :search-keys="['no_polisi', 'nama_driver']"
                   placeholder="-Pilih-"
@@ -213,7 +213,7 @@ const asyncSearchDrivers = async (query) => {
 }
 
 const form = reactive({
-  no_polisi: '',
+  id_driver: '',
   nik: '',
   lisensi: [
     {
@@ -333,9 +333,11 @@ const updateDisplay = (selected) => {
 }
 
 watch(
-  () => form.no_polisi,
+  () => form.id_driver,
   (value) => {
-    const selected = driverOptions.value.find((item) => item.no_polisi === value)
+    const selected = driverOptions.value.find(
+      (item) => String(item.id_driver) === String(value)
+    )
     updateDisplay(selected)
   }
 )
@@ -363,7 +365,7 @@ const handleRowFileChange = (event, row) => {
 
 const docUrl = (filename) => `${API_ORIGIN}/doc-supir/${filename}`
 
-const uploadLisensiFile = async (noPolisi, lisensiId, row) => {
+const uploadLisensiFile = async (idDriver, lisensiId, row) => {
   if (!row?.file) return
   const maxSize = 2 * 1024 * 1024
   if (row.file.size > maxSize) {
@@ -372,7 +374,7 @@ const uploadLisensiFile = async (noPolisi, lisensiId, row) => {
   }
   const formData = new FormData()
   formData.append('dok_file', row.file)
-  const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${noPolisi}/lisensi/${lisensiId}/document`, {
+  const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${idDriver}/lisensi/${lisensiId}/document`, {
     method: 'POST',
     body: formData,
   })
@@ -386,7 +388,7 @@ const uploadLisensiFile = async (noPolisi, lisensiId, row) => {
 
 const handleSubmit = async () => {
   errors.no_polisi = ''
-  if (!form.no_polisi) {
+  if (!form.id_driver) {
     errors.no_polisi = 'No. Police wajib dipilih.'
     toast.warning('Periksa input Anda')
     return
@@ -397,7 +399,7 @@ const handleSubmit = async () => {
 
   try {
     const payload = {
-      no_polisi: form.no_polisi,
+      id_driver: form.id_driver,
       nik: form.nik,
       lisensi: normalizeLisensi(form.lisensi),
     }
@@ -424,7 +426,7 @@ const handleSubmit = async () => {
       for (const item of rowsWithFile) {
         const lisensiId = saved?.lisensi?.[item.index]?._id
         if (!lisensiId) continue
-        const updated = await uploadLisensiFile(saved.no_polisi, lisensiId, item.row)
+        const updated = await uploadLisensiFile(saved.id_driver || form.id_driver, lisensiId, item.row)
         if (updated?.lisensi?.[item.index]) {
           item.row.dok_file = updated.lisensi[item.index].dok_file || ''
           item.row.dok_original = updated.lisensi[item.index].dok_original || ''

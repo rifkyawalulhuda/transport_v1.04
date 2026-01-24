@@ -279,7 +279,7 @@ const loadDetail = async () => {
   loading.value = true
   formError.value = ''
   try {
-    const response = await fetch(`${API_BASE}/data-supir/by-no-polisi/${idParam}`)
+    const response = await fetch(`${API_BASE}/data-supir/by-id-driver/${idParam}`)
     if (!response.ok) {
       const json = await response.json().catch(() => ({}))
       throw new Error(json.message || 'Gagal memuat detail data supir.')

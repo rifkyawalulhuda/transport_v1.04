@@ -11,6 +11,7 @@ const lisensiSchema = new mongoose.Schema({
 
 const dataSupirSchema = new mongoose.Schema(
   {
+    id_driver: { type: Number, index: true },
     no_polisi: { type: String, required: true },
     nik: { type: String, default: '' },
     lisensi: { type: [lisensiSchema], default: [] },

@@ -63,9 +63,12 @@
             <div class="col-span-12 xl:col-span-7">
               <recent-orders />
             </div>
+
           </div>
         </div>
       </div>
+
+      <expiry-alerts />
 
       <div
         class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
@@ -268,6 +271,7 @@ import MonthlyTarget from '../components/ecommerce/MonthlySale.vue'
 import MonthlySale from '../components/ecommerce/MonthlyTarget.vue'
 import CustomerDemographic from '../components/ecommerce/CustomerDemographic.vue'
 import RecentOrders from '../components/ecommerce/RecentOrders.vue'
+import ExpiryAlerts from '../components/ecommerce/ExpiryAlerts.vue'
 import VueApexCharts from 'vue3-apexcharts'
 import { API_BASE } from '@/config/api'
 import { authFetch } from '@/services/auth'

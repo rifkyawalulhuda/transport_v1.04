@@ -119,7 +119,7 @@
                 <tr v-else-if="filteredItems.length === 0">
                   <td colspan="9" class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6">Tidak ada data</td>
                 </tr>
-                <tr v-else v-for="(item, index) in pagedItems" :key="item._id ?? item.no_polisi" class="border-t border-gray-100 dark:border-gray-800">
+                <tr v-else v-for="(item, index) in pagedItems" :key="item.id_driver ?? item._id ?? item.no_polisi" class="border-t border-gray-100 dark:border-gray-800">
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ (currentPage - 1) * pageSize + index + 1 }}
                   </td>
@@ -153,14 +153,14 @@
                   <td class="px-5 py-3 text-right text-sm sm:px-6">
                     <div class="flex items-center justify-center gap-2">
                       <RouterLink
-                        :to="`/data-transport/data-supir/detail/${item.no_polisi}`"
+                        :to="`/data-transport/data-supir/detail/${item.id_driver}`"
                         class="rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
                       >
                         Detail
                       </RouterLink>
                       <RouterLink
                         v-if="canEdit"
-                        :to="`/data-transport/data-supir/edit/${item.no_polisi}`"
+                        :to="`/data-transport/data-supir/edit/${item.id_driver}`"
                         class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
                       >
                         Edit

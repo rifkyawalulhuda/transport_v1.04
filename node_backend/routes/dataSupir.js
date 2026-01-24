@@ -18,10 +18,10 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const noPolisi = req.params.no_polisi || 'unknown';
+    const driverKey = req.params.id_driver || req.params.no_polisi || 'unknown';
     const lisensiId = req.params.lisensi_id || 'unknown';
     const timestamp = Date.now();
-    cb(null, `supir_${noPolisi}_${lisensiId}_${timestamp}${ext}`);
+    cb(null, `supir_${driverKey}_${lisensiId}_${timestamp}${ext}`);
   }
 });
 
@@ -50,6 +50,25 @@ const formatDate = (date) => {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('id-ID');
 };
 
+const normalizeIdDriver = (value) => {
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const buildDataSupirIndex = (items) => {
+  const byId = new Map();
+  const byNoPolisi = new Map();
+  items.forEach((item) => {
+    if (item?.id_driver !== null && item?.id_driver !== undefined) {
+      byId.set(String(item.id_driver), item);
+    }
+    if (item?.no_polisi && !byNoPolisi.has(item.no_polisi)) {
+      byNoPolisi.set(item.no_polisi, item);
+    }
+  });
+  return { byId, byNoPolisi };
+};
+
 // 1. GET export data supir to Excel (MOVE TO TOP to prevent :id conflict)
 router.get('/export', async (req, res) => {
   try {
@@ -57,12 +76,14 @@ router.get('/export', async (req, res) => {
       'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver'
     );
     const mongoDataSupir = await DataSupir.find({});
+    const { byId, byNoPolisi } = buildDataSupirIndex(mongoDataSupir);
 
     const rows = [];
     mysqlDrivers.forEach((master) => {
-      const operational = mongoDataSupir.find(
-        (m) => m.no_polisi === master.no_polisi
-      ) || {};
+      const operational =
+        byId.get(String(master.id_driver)) ||
+        byNoPolisi.get(master.no_polisi) ||
+        {};
       const lisensi = Array.isArray(operational.lisensi)
         ? operational.lisensi
         : [];
@@ -134,13 +155,16 @@ router.get('/', async (req, res) => {
       'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver'
     );
     const mongoDataSupir = await DataSupir.find({});
+    const { byId, byNoPolisi } = buildDataSupirIndex(mongoDataSupir);
 
     const mergedDrivers = mysqlDrivers.map((master) => {
-      const operational = mongoDataSupir.find(
-        (m) => m.no_polisi === master.no_polisi
-      ) || {};
+      const operational =
+        byId.get(String(master.id_driver)) ||
+        byNoPolisi.get(master.no_polisi) ||
+        {};
       return {
         _id: operational._id || null,
+        id_driver: master.id_driver,
         no_polisi: master.no_polisi,
         nik: operational.nik || '',
         nama_driver: master.nama_driver || '',
@@ -206,23 +230,37 @@ router.get('/search-mysql-drivers', async (req, res) => {
   }
 });
 
-// 4. GET single data supir by no_polisi (merged with Master info)
-router.get('/by-no-polisi/:no_polisi', async (req, res) => {
+// 4. GET single data supir by id_driver (merged with Master info)
+router.get('/by-id-driver/:id_driver', async (req, res) => {
   try {
-    const { no_polisi } = req.params;
+    const idDriver = normalizeIdDriver(req.params.id_driver);
+    if (idDriver === null) {
+      return res.status(400).json({ message: 'ID Driver tidak valid.' });
+    }
     const [mysqlRows] = await db.query(
-      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE no_polisi = ? LIMIT 1',
-      [no_polisi]
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE id_driver = ? LIMIT 1',
+      [idDriver]
     );
     if (mysqlRows.length === 0) {
       return res.status(404).json({ message: 'Driver not found in Master' });
     }
     const master = mysqlRows[0];
-    let operational = await DataSupir.findOne({ no_polisi });
+    let operational = await DataSupir.findOne({ id_driver: master.id_driver });
+
+    if (!operational) {
+      const [samePlateRows] = await db.query(
+        'SELECT id_driver FROM driver WHERE no_polisi = ?',
+        [master.no_polisi]
+      );
+      if (samePlateRows.length <= 1) {
+        operational = await DataSupir.findOne({ no_polisi: master.no_polisi });
+      }
+    }
     if (!operational) operational = {};
 
     const merged = {
       _id: operational._id || null,
+      id_driver: master.id_driver,
       no_polisi: master.no_polisi,
       nik: operational.nik || '',
       nama_driver: master.nama_driver || '',
@@ -237,10 +275,84 @@ router.get('/by-no-polisi/:no_polisi', async (req, res) => {
   }
 });
 
-// 5. POST create new data supir
-router.post('/', async (req, res) => {
-  const dataSupir = new DataSupir(req.body);
+// 5. GET single data supir by no_polisi (merged with Master info)
+router.get('/by-no-polisi/:no_polisi', async (req, res) => {
   try {
+    const { no_polisi } = req.params;
+    const [mysqlRows] = await db.query(
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE no_polisi = ?',
+      [no_polisi]
+    );
+    if (mysqlRows.length === 0) {
+      return res.status(404).json({ message: 'Driver not found in Master' });
+    }
+    if (mysqlRows.length > 1) {
+      return res.status(409).json({
+        message: 'No. Police digunakan lebih dari satu driver. Gunakan ID Driver.',
+      });
+    }
+    const master = mysqlRows[0];
+    let operational = await DataSupir.findOne({ id_driver: master.id_driver });
+    if (!operational) {
+      operational = await DataSupir.findOne({ no_polisi });
+    }
+    if (!operational) operational = {};
+
+    const merged = {
+      _id: operational._id || null,
+      id_driver: master.id_driver,
+      no_polisi: master.no_polisi,
+      nik: operational.nik || '',
+      nama_driver: master.nama_driver || '',
+      no_telp: master.no_telp || '',
+      no_ktp: master.no_ktp || '',
+      alamat: master.alamat || '',
+      lisensi: operational.lisensi || [],
+    };
+    res.json(merged);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 6. POST create new data supir
+router.post('/', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const idDriver = normalizeIdDriver(body.id_driver);
+    const noPolisi = body.no_polisi ? String(body.no_polisi).trim() : '';
+    let master = null;
+
+    if (idDriver !== null) {
+      const [rows] = await db.query(
+        'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE id_driver = ? LIMIT 1',
+        [idDriver]
+      );
+      master = rows[0] || null;
+    } else if (noPolisi) {
+      const [rows] = await db.query(
+        'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE no_polisi = ?',
+        [noPolisi]
+      );
+      if (rows.length > 1) {
+        return res.status(409).json({
+          message: 'No. Police digunakan lebih dari satu driver. Gunakan ID Driver.',
+        });
+      }
+      master = rows[0] || null;
+    }
+
+    if (!master) {
+      return res.status(404).json({ message: 'Driver not found in Master' });
+    }
+
+    const dataSupir = new DataSupir({
+      id_driver: master.id_driver,
+      no_polisi: master.no_polisi,
+      nik: body.nik || '',
+      lisensi: Array.isArray(body.lisensi) ? body.lisensi : [],
+    });
+
     const newDataSupir = await dataSupir.save();
     res.status(201).json(newDataSupir);
   } catch (error) {
@@ -248,29 +360,106 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 6. PUT update data supir by no_polisi (Upsert)
-router.put('/by-no-polisi/:no_polisi', async (req, res) => {
+// 7. PUT update data supir by id_driver (Upsert)
+router.put('/by-id-driver/:id_driver', async (req, res) => {
   try {
-    const { no_polisi } = req.params;
-    const updateData = req.body;
+    const idDriver = normalizeIdDriver(req.params.id_driver);
+    if (idDriver === null) {
+      return res.status(400).json({ message: 'ID Driver tidak valid.' });
+    }
+    const [mysqlRows] = await db.query(
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE id_driver = ? LIMIT 1',
+      [idDriver]
+    );
+    if (mysqlRows.length === 0) {
+      return res.status(404).json({ message: 'Driver not found in Master' });
+    }
+    const master = mysqlRows[0];
+    const updateData = req.body || {};
+    delete updateData.id_driver;
     delete updateData.no_polisi;
     delete updateData.nama_driver;
     delete updateData.no_telp;
     delete updateData.no_ktp;
     delete updateData.alamat;
-    const updatedDataSupir = await DataSupir.findOneAndUpdate(
-      { no_polisi },
-      { ...updateData, no_polisi },
-      { new: true, upsert: true }
+
+    let updatedDataSupir = await DataSupir.findOneAndUpdate(
+      { id_driver: master.id_driver },
+      { ...updateData, id_driver: master.id_driver, no_polisi: master.no_polisi },
+      { new: true }
     );
+
+    if (!updatedDataSupir) {
+      const [samePlateRows] = await db.query(
+        'SELECT id_driver FROM driver WHERE no_polisi = ?',
+        [master.no_polisi]
+      );
+      if (samePlateRows.length <= 1) {
+        updatedDataSupir = await DataSupir.findOneAndUpdate(
+          { no_polisi: master.no_polisi },
+          { ...updateData, id_driver: master.id_driver, no_polisi: master.no_polisi },
+          { new: true, upsert: true }
+        );
+      } else {
+        updatedDataSupir = await DataSupir.findOneAndUpdate(
+          { id_driver: master.id_driver },
+          { ...updateData, id_driver: master.id_driver, no_polisi: master.no_polisi },
+          { new: true, upsert: true }
+        );
+      }
+    }
     res.json(updatedDataSupir);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
 
-// 7. POST upload lisensi document
-router.post('/by-no-polisi/:no_polisi/lisensi/:lisensi_id/document', (req, res) => {
+// 8. PUT update data supir by no_polisi (Upsert)
+router.put('/by-no-polisi/:no_polisi', async (req, res) => {
+  try {
+    const { no_polisi } = req.params;
+    const [mysqlRows] = await db.query(
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE no_polisi = ?',
+      [no_polisi]
+    );
+    if (mysqlRows.length === 0) {
+      return res.status(404).json({ message: 'Driver not found in Master' });
+    }
+    if (mysqlRows.length > 1) {
+      return res.status(409).json({
+        message: 'No. Police digunakan lebih dari satu driver. Gunakan ID Driver.',
+      });
+    }
+    const master = mysqlRows[0];
+    const updateData = req.body || {};
+    delete updateData.id_driver;
+    delete updateData.no_polisi;
+    delete updateData.nama_driver;
+    delete updateData.no_telp;
+    delete updateData.no_ktp;
+    delete updateData.alamat;
+
+    let updatedDataSupir = await DataSupir.findOneAndUpdate(
+      { id_driver: master.id_driver },
+      { ...updateData, id_driver: master.id_driver, no_polisi: master.no_polisi },
+      { new: true }
+    );
+
+    if (!updatedDataSupir) {
+      updatedDataSupir = await DataSupir.findOneAndUpdate(
+        { no_polisi: master.no_polisi },
+        { ...updateData, id_driver: master.id_driver, no_polisi: master.no_polisi },
+        { new: true, upsert: true }
+      );
+    }
+    res.json(updatedDataSupir);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// 9. POST upload lisensi document
+router.post('/by-id-driver/:id_driver/lisensi/:lisensi_id/document', (req, res) => {
   upload.single('dok_file')(req, res, async (err) => {
     if (err) {
       const message =
@@ -280,12 +469,33 @@ router.post('/by-no-polisi/:no_polisi/lisensi/:lisensi_id/document', (req, res) 
       return res.status(400).json({ message });
     }
     try {
-      const { no_polisi, lisensi_id } = req.params;
+      const { id_driver, lisensi_id } = req.params;
       if (!req.file) {
         return res.status(400).json({ message: 'Tidak ada file yang diunggah.' });
       }
 
-      const supir = await DataSupir.findOne({ no_polisi });
+      const idDriver = normalizeIdDriver(id_driver);
+      if (idDriver === null) {
+        return res.status(400).json({ message: 'ID Driver tidak valid.' });
+      }
+
+      let supir = await DataSupir.findOne({ id_driver: idDriver });
+      if (!supir) {
+        const [mysqlRows] = await db.query(
+          'SELECT no_polisi FROM driver WHERE id_driver = ? LIMIT 1',
+          [idDriver]
+        );
+        if (mysqlRows.length > 0) {
+          const [samePlateRows] = await db.query(
+            'SELECT id_driver FROM driver WHERE no_polisi = ?',
+            [mysqlRows[0].no_polisi]
+          );
+          if (samePlateRows.length <= 1) {
+            supir = await DataSupir.findOne({ no_polisi: mysqlRows[0].no_polisi });
+          }
+        }
+      }
+
       if (!supir) {
         return res.status(404).json({ message: 'Data Supir tidak ditemukan.' });
       }
@@ -310,11 +520,123 @@ router.post('/by-no-polisi/:no_polisi/lisensi/:lisensi_id/document', (req, res) 
   });
 });
 
-// 8. DELETE lisensi document
+router.post('/by-no-polisi/:no_polisi/lisensi/:lisensi_id/document', (req, res) => {
+  upload.single('dok_file')(req, res, async (err) => {
+    if (err) {
+      const message =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'Ukuran Maksimal adalah 2MB'
+          : err.message || 'Upload gagal';
+      return res.status(400).json({ message });
+    }
+    try {
+      const { no_polisi, lisensi_id } = req.params;
+      if (!req.file) {
+        return res.status(400).json({ message: 'Tidak ada file yang diunggah.' });
+      }
+
+      const [mysqlRows] = await db.query(
+        'SELECT id_driver FROM driver WHERE no_polisi = ?',
+        [no_polisi]
+      );
+      if (mysqlRows.length === 0) {
+        return res.status(404).json({ message: 'Driver not found in Master' });
+      }
+      if (mysqlRows.length > 1) {
+        return res.status(409).json({
+          message: 'No. Police digunakan lebih dari satu driver. Gunakan ID Driver.',
+        });
+      }
+
+      const supir = await DataSupir.findOne({
+        id_driver: mysqlRows[0]?.id_driver,
+      }) || (await DataSupir.findOne({ no_polisi }));
+      if (!supir) {
+        return res.status(404).json({ message: 'Data Supir tidak ditemukan.' });
+      }
+      const lisensi = supir.lisensi.id(lisensi_id);
+      if (!lisensi) {
+        return res.status(404).json({ message: 'Lisensi tidak ditemukan.' });
+      }
+      if (lisensi.dok_file) {
+        const filePath = path.join(uploadDir, req.file.filename);
+        fs.unlink(filePath, () => {});
+        return res.status(400).json({ message: 'Dokumen sudah ada untuk lisensi ini.' });
+      }
+
+      lisensi.dok_file = req.file.filename;
+      lisensi.dok_original = req.file.originalname;
+      await supir.save();
+
+      res.json(supir);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+});
+
+// 10. DELETE lisensi document
+router.delete('/by-id-driver/:id_driver/lisensi/:lisensi_id/document', async (req, res) => {
+  try {
+    const { id_driver, lisensi_id } = req.params;
+    const idDriver = normalizeIdDriver(id_driver);
+    if (idDriver === null) {
+      return res.status(400).json({ message: 'ID Driver tidak valid.' });
+    }
+    let supir = await DataSupir.findOne({ id_driver: idDriver });
+    if (!supir) {
+      const [mysqlRows] = await db.query(
+        'SELECT no_polisi FROM driver WHERE id_driver = ? LIMIT 1',
+        [idDriver]
+      );
+      if (mysqlRows.length > 0) {
+        const [samePlateRows] = await db.query(
+          'SELECT id_driver FROM driver WHERE no_polisi = ?',
+          [mysqlRows[0].no_polisi]
+        );
+        if (samePlateRows.length <= 1) {
+          supir = await DataSupir.findOne({ no_polisi: mysqlRows[0].no_polisi });
+        }
+      }
+    }
+    if (!supir) {
+      return res.status(404).json({ message: 'Data Supir tidak ditemukan.' });
+    }
+    const lisensi = supir.lisensi.id(lisensi_id);
+    if (!lisensi) {
+      return res.status(404).json({ message: 'Lisensi tidak ditemukan.' });
+    }
+    if (lisensi.dok_file) {
+      const filePath = path.join(uploadDir, lisensi.dok_file);
+      fs.unlink(filePath, () => {});
+    }
+    lisensi.dok_file = '';
+    lisensi.dok_original = '';
+    await supir.save();
+    res.json(supir);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.delete('/by-no-polisi/:no_polisi/lisensi/:lisensi_id/document', async (req, res) => {
   try {
     const { no_polisi, lisensi_id } = req.params;
-    const supir = await DataSupir.findOne({ no_polisi });
+    const [mysqlRows] = await db.query(
+      'SELECT id_driver FROM driver WHERE no_polisi = ?',
+      [no_polisi]
+    );
+    if (mysqlRows.length === 0) {
+      return res.status(404).json({ message: 'Driver not found in Master' });
+    }
+    if (mysqlRows.length > 1) {
+      return res.status(409).json({
+        message: 'No. Police digunakan lebih dari satu driver. Gunakan ID Driver.',
+      });
+    }
+    const supir = await DataSupir.findOne({
+      id_driver: mysqlRows[0].id_driver,
+    }) || (await DataSupir.findOne({ no_polisi }));
     if (!supir) {
       return res.status(404).json({ message: 'Data Supir tidak ditemukan.' });
     }
