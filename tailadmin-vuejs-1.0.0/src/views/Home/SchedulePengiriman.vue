@@ -33,7 +33,7 @@
             </div>
             <div class="sm:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Kata Kunci (No Police / Customer / Driver / No SPK)
+                Kata Kunci (No Police / Customer / Driver / No DN)
               </label>
               <input
                 v-model="filters.search"
@@ -93,7 +93,26 @@
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="w-10 px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    &nbsp;
+                    <button
+                      type="button"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                      :disabled="!hasExpandableRows"
+                      :aria-label="allExpanded ? 'Collapse all' : 'Expand all'"
+                      @click="toggleAll"
+                    >
+                      <svg
+                        class="h-4 w-4 transition-transform duration-200"
+                        :class="allExpanded ? 'rotate-180' : ''"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="m5 8 5 5 5-5" />
+                      </svg>
+                    </button>
                   </th>
                   <th
                     class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
@@ -555,7 +574,7 @@
                   <tr v-if="expanded[row.id_sales_cost]">
                     <td :colspan="parentColumnCount" class="px-5 py-4 sm:px-6">
                       <div
-                        class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200"
+                        class="rounded-lg border border-gray-200 bg-emerald-50 p-5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200"
                       >
                         <div class="max-w-full overflow-x-auto custom-scrollbar">
                           <table class="min-w-full">
@@ -635,26 +654,51 @@
             </table>
           </div>
         </div>
-        <div class="mt-4 flex items-center justify-end gap-2 text-sm">
-          <button
-            type="button"
-            class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-            :disabled="loading || currentPage <= 1"
-            @click="goToPage(currentPage - 1)"
-          >
-            Prev
-          </button>
-          <span class="text-gray-500 dark:text-gray-400">
-            Page {{ currentPage }} / {{ meta.totalPages }}
-          </span>
-          <button
-            type="button"
-            class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-            :disabled="loading || currentPage >= meta.totalPages"
-            @click="goToPage(currentPage + 1)"
-          >
-            Next
-          </button>
+        <div
+          class="mt-4 flex items-center justify-between border-t border-gray-200 bg-gray-50 px-5 py-3 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400"
+        >
+          <div>
+            Halaman
+            <span class="font-medium text-gray-700 dark:text-gray-200">{{ currentPage }}</span>
+            dari
+            <span class="font-medium text-gray-700 dark:text-gray-200">{{ meta.totalPages }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              :disabled="loading || currentPage === 1"
+              @click="goToPage(currentPage - 1)"
+            >
+              Sebelumnya
+            </button>
+            <div class="flex items-center gap-1">
+              <template v-for="item in paginationItems" :key="item.key">
+                <button
+                  v-if="item.type === 'page'"
+                  type="button"
+                  class="rounded-md border px-3 py-1 text-xs font-medium"
+                  :class="
+                    item.value === currentPage
+                      ? 'border-brand-500 bg-brand-500 text-white'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'
+                  "
+                  @click="goToPage(item.value)"
+                >
+                  {{ item.value }}
+                </button>
+                <span v-else class="px-2 text-xs text-gray-400">...</span>
+              </template>
+            </div>
+            <button
+              type="button"
+              class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              :disabled="loading || currentPage >= meta.totalPages"
+              @click="goToPage(currentPage + 1)"
+            >
+              Berikutnya
+            </button>
+          </div>
         </div>
       </ComponentCard>
     </div>
@@ -727,6 +771,10 @@ type ScheduleResponse = {
   rows: ScheduleRow[]
 }
 
+type PaginationItem =
+  | { type: 'page'; value: number; key: string }
+  | { type: 'ellipsis'; key: string }
+
 const currentPageTitle = ref('Schedule Pengiriman')
 const router = useRouter()
 const toast = useToast()
@@ -781,6 +829,59 @@ const meta = reactive<ScheduleMeta>({
 })
 
 const parentColumnCount = 12
+const hasExpandableRows = computed(() => rows.value.some((row) => row.dnCount > 0))
+const allExpanded = computed(() => {
+  const expandable = rows.value.filter((row) => row.dnCount > 0)
+  if (expandable.length === 0) {
+    return false
+  }
+  return expandable.every((row) => expanded[row.id_sales_cost])
+})
+
+const paginationItems = computed<PaginationItem[]>(() => {
+  const total = meta.totalPages || 1
+  const current = currentPage.value
+  const maxVisible = 5
+
+  if (total <= maxVisible + 2) {
+    return Array.from({ length: total }, (_, index) => ({
+      type: 'page',
+      value: index + 1,
+      key: `page-${index + 1}`
+    }))
+  }
+
+  const half = Math.floor(maxVisible / 2)
+  let start = Math.max(1, current - half)
+  let end = start + maxVisible - 1
+
+  if (end > total) {
+    end = total
+    start = end - maxVisible + 1
+  }
+
+  const items: PaginationItem[] = []
+
+  if (start > 1) {
+    items.push({ type: 'page', value: 1, key: 'page-1' })
+    if (start > 2) {
+      items.push({ type: 'ellipsis', key: 'ellipsis-start' })
+    }
+  }
+
+  for (let page = start; page <= end; page += 1) {
+    items.push({ type: 'page', value: page, key: `page-${page}` })
+  }
+
+  if (end < total) {
+    if (end < total - 1) {
+      items.push({ type: 'ellipsis', key: 'ellipsis-end' })
+    }
+    items.push({ type: 'page', value: total, key: `page-${total}` })
+  }
+
+  return items
+})
 
 const formatDate = (value?: string | null) => {
   if (!value) {
@@ -893,6 +994,15 @@ const loadData = async () => {
 
 const toggleExpand = (id: number) => {
   expanded[id] = !expanded[id]
+}
+
+const toggleAll = () => {
+  const shouldExpand = !allExpanded.value
+  rows.value.forEach((row) => {
+    if (row.dnCount > 0) {
+      expanded[row.id_sales_cost] = shouldExpand
+    }
+  })
 }
 
 const toggleSort = (column: SortKey) => {

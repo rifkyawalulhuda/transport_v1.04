@@ -15,9 +15,23 @@
             <MasterImportActions master-type="customer" @imported="handleImported" />
             <SearchBar v-model="search" placeholder="Cari nama customer / PIC / telp" />
           </div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Total: {{ totalCount }} customer
-          </p>
+          <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Total: {{ totalCount }} customer
+            </p>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
+              <select
+                v-model.number="pageSize"
+                class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @change="changePageSize"
+              >
+                <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                  {{ size }}
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
         <div
           v-if="showForm && editingId === null"
@@ -334,6 +348,11 @@ const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery
   pageSize: 15,
   debounceMs: 300
 })
+const pageSizeOptions = [15, 20, 50]
+
+const changePageSize = () => {
+  setPage(1)
+}
 
 // TODO: Move search + pagination to backend when list endpoints support q/page/limit.
 const filteredItems = computed(() =>

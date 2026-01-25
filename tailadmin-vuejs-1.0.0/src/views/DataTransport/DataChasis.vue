@@ -55,7 +55,7 @@
             <button
               type="button"
               @click="exportToExcel"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-green-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export to Excel
@@ -74,9 +74,23 @@
           >
             Tambah Data
           </RouterLink>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Total: {{ filteredItems.length }} data
-          </p>
+          <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Total: {{ filteredItems.length }} data
+            </p>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
+              <select
+                v-model.number="pageSize"
+                class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @change="changePageSize"
+              >
+                <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                  {{ size }}
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
@@ -271,7 +285,8 @@ const searchKeyword = ref('')
 
 // Pagination
 const currentPage = ref(1)
-const pageSize = 10
+const pageSize = ref(10)
+const pageSizeOptions = [10, 20, 50]
 
 const sortColumn = ref('updatedAt')
 const sortOrder = ref('desc')
@@ -338,12 +353,12 @@ const sortedItems = computed(() => {
 
 const totalPages = computed(() => {
   if (sortedItems.value.length === 0) return 1
-  return Math.ceil(sortedItems.value.length / pageSize)
+  return Math.ceil(sortedItems.value.length / pageSize.value)
 })
 
 const pagedItems = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return sortedItems.value.slice(start, start + pageSize)
+  const start = (currentPage.value - 1) * pageSize.value
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const paginationItems = computed(() => {
@@ -469,6 +484,10 @@ const goToPage = (page) => {
   if (page >= 1 && page <= totalPages.value) {
     currentPage.value = page
   }
+}
+
+const changePageSize = () => {
+  currentPage.value = 1
 }
 
 onMounted(() => {

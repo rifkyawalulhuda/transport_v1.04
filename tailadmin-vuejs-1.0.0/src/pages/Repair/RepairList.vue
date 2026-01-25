@@ -93,16 +93,30 @@
       </ComponentCard>
 
       <ComponentCard title="Daftar Repair">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
+        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <RouterLink
             to="/repair/new"
             class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
           >
             Tambah Transaksi
           </RouterLink>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Total: {{ totalCount }} transaksi
-          </p>
+          <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Total: {{ totalCount }} transaksi
+            </p>
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
+              <select
+                v-model.number="pageSize"
+                class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @change="changePageSize"
+              >
+                <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                  {{ size }}
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div
@@ -557,7 +571,8 @@ const items = ref<RepairItem[]>([])
 const loading = ref(false)
 const isExporting = ref(false)
 const currentPage = ref(1)
-const pageSize = 15
+const pageSize = ref(15)
+const pageSizeOptions = [15, 20, 50, 75, 100]
 const totalCount = ref(0)
 const deletingId = ref<number | null>(null)
 
@@ -616,7 +631,7 @@ const totalPages = computed(() => {
   if (totalCount.value === 0) {
     return 1
   }
-  return Math.ceil(totalCount.value / pageSize)
+  return Math.ceil(totalCount.value / pageSize.value)
 })
 
 const paginationItems = computed<PaginationItem[]>(() => {
@@ -680,7 +695,7 @@ const openDatePicker = (event: Event) => {
 const buildFilterParams = () => {
   const params: Record<string, string | number> = {
     page: currentPage.value,
-    pageSize
+    pageSize: pageSize.value
   }
   if (filters.startDate) {
     params.startDate = filters.startDate
@@ -720,8 +735,8 @@ const loadData = async () => {
 }
 
 const pagedItems = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return sortedItems.value.slice(start, start + pageSize)
+  const start = (currentPage.value - 1) * pageSize.value
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const goToPage = (page: number) => {
@@ -729,6 +744,10 @@ const goToPage = (page: number) => {
     return
   }
   currentPage.value = page
+}
+
+const changePageSize = () => {
+  currentPage.value = 1
 }
 
 const resetFilter = () => {

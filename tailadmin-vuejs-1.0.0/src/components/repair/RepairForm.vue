@@ -26,7 +26,7 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-1">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
               Kategori Perbaikan
@@ -43,10 +43,8 @@
               <option value="Engine Overhaul">Engine Overhaul</option>
             </select>
           </div>
-        </div>
 
-        <div class="grid gap-4 sm:grid-cols-1">
-          <div>
+            <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
               Truck
             </label>
