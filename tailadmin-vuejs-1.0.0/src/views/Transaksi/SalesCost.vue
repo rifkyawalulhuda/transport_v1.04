@@ -310,7 +310,7 @@
           </form>
         </div>
         <div
-          class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+          class="overflow-visible rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
         >
           <div class="max-w-full overflow-x-auto custom-scrollbar">
             <table class="min-w-full">
@@ -589,37 +589,68 @@
                       {{ formatRupiah(item.margin) }}
                     </td>
                     <td class="px-5 py-3 text-center sm:px-6">
-                      <div class="flex items-center justify-center gap-2">
-                        <RouterLink
-                          :to="`/sales-cost/${item.id_sales_cost}`"
-                          class="w-24 rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
+                      <div class="relative inline-flex justify-center">
+                          <button
+                            type="button"
+                            class="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                            @click.stop="toggleActionMenu(item.id_sales_cost, $event)"
+                          >
+                        <svg
+                          class="h-3.5 w-3.5"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                         >
-                          Details
-                        </RouterLink>
-                        <RouterLink
-                          :to="`/sales-cost/${item.id_sales_cost}/edit`"
-                          class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
-                        >
-                          Edit
-                        </RouterLink>
-                        <RouterLink
-                          :to="`/sales-cost/${item.id_sales_cost}/print`"
-                          target="_blank"
-                          rel="noopener"
-                          class="rounded-lg bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-400"
-                        >
-                          Cetak
-                        </RouterLink>
-                        <button
-                          v-if="isAdmin"
-                          type="button"
-                          :disabled="deletingId === item.id_sales_cost"
-                          class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-error-500/15 dark:text-error-400"
-                          @click="remove(item)"
-                        >
-                          Hapus
+                          <path d="m5 8 5 5 5-5" />
+                        </svg>
+
                         </button>
-                      </div>
+                          <Teleport to="body">
+                            <div
+                              v-if="openActionId === item.id_sales_cost"
+                              ref="actionMenuRef"
+                              class="fixed z-[9999] w-36 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                              :style="actionMenuStyle"
+                              @click.stop
+                            >
+                              <RouterLink
+                                :to="`/sales-cost/${item.id_sales_cost}`"
+                                class="block px-3 py-2 text-xs font-medium text-sky-600 hover:bg-gray-50 dark:text-sky-400 dark:hover:bg-white/[0.03]"
+                                @click="closeActionMenu"
+                              >
+                                Details
+                              </RouterLink>
+                              <RouterLink
+                                :to="`/sales-cost/${item.id_sales_cost}/edit`"
+                                class="block px-3 py-2 text-xs font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-white/[0.03]"
+                                @click="closeActionMenu"
+                              >
+                                Edit
+                              </RouterLink>
+                              <RouterLink
+                                :to="`/sales-cost/${item.id_sales_cost}/print`"
+                                target="_blank"
+                                rel="noopener"
+                                class="block px-3 py-2 text-xs font-medium text-emerald-600 hover:bg-gray-50 dark:text-emerald-400 dark:hover:bg-white/[0.03]"
+                                @click="closeActionMenu"
+                              >
+                                Cetak
+                              </RouterLink>
+                              <button
+                                v-if="isAdmin"
+                                type="button"
+                                :disabled="deletingId === item.id_sales_cost"
+                                class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
+                                @click="handleDelete(item)"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </Teleport>
+                        </div>
                     </td>
                   </tr>
                   <tr v-if="editingId === item.id_sales_cost">
@@ -948,7 +979,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
@@ -1115,6 +1146,57 @@ const totalPages = computed(() => {
   }
   return Math.ceil(filteredItems.value.length / pageSize.value)
 })
+
+const openActionId = ref<number | null>(null)
+const actionMenuRef = ref<HTMLElement | HTMLElement[] | null>(null)
+const actionMenuPosition = ref({ top: 0, left: 0 })
+
+const setActionMenuPosition = (event: MouseEvent) => {
+  const trigger = event.currentTarget as HTMLElement | null
+  if (!trigger) {
+    return
+  }
+  const rect = trigger.getBoundingClientRect()
+  const top = rect.bottom + 8
+  const left = rect.right
+  actionMenuPosition.value = { top, left }
+
+  nextTick(() => {
+    const menuEl = actionMenuRef.value
+    const element = Array.isArray(menuEl) ? menuEl[0] : menuEl
+    if (!element) return
+    const menuHeight = element.offsetHeight || 0
+    if (top + menuHeight > window.innerHeight - 8) {
+      actionMenuPosition.value = {
+        top: Math.max(8, rect.top - menuHeight - 8),
+        left
+      }
+    }
+  })
+}
+
+const actionMenuStyle = computed(() => ({
+  top: `${actionMenuPosition.value.top}px`,
+  left: `${actionMenuPosition.value.left}px`
+}))
+
+const toggleActionMenu = (id: number, event: MouseEvent) => {
+  if (openActionId.value === id) {
+    closeActionMenu()
+    return
+  }
+  openActionId.value = id
+  setActionMenuPosition(event)
+}
+
+const closeActionMenu = () => {
+  openActionId.value = null
+}
+
+const handleDelete = (item: SalesCostItem) => {
+  closeActionMenu()
+  remove(item)
+}
 const paginationItems = computed<PaginationItem[]>(() => {
   const total = totalPages.value
   const current = currentPage.value
@@ -1657,6 +1739,26 @@ const remove = async (item: SalesCostItem) => {
 
 onMounted(async () => {
   await Promise.all([loadOptions(), loadData()])
+})
+
+const handleDocumentClick = () => {
+  closeActionMenu()
+}
+
+const handleWindowChange = () => {
+  closeActionMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('scroll', handleWindowChange, true)
+  window.addEventListener('resize', handleWindowChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('scroll', handleWindowChange, true)
+  window.removeEventListener('resize', handleWindowChange)
 })
 
 watch(searchInput, (value, _prev, onCleanup) => {
