@@ -46,6 +46,7 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SalesCostForm from '@/components/sales-cost/SalesCostForm.vue'
 import { salesCostService } from '@/services/salesCostService'
+import { addressBookService } from '@/services/addressBookService'
 import { useToast } from '@/composables/useToast'
 
 const currentPageTitle = ref('Input Sales Cost')
@@ -61,6 +62,24 @@ localStorage.setItem(printPreferenceKey, 'true')
 watch(printAfterSave, (value) => {
   localStorage.setItem(printPreferenceKey, String(value))
 })
+
+const upsertAddressBook = async (dnItems: Array<Record<string, unknown>>) => {
+  const unique = new Set<string>()
+  dnItems.forEach((item) => {
+    const pickup = typeof item.pickup_alamat === 'string' ? item.pickup_alamat.trim() : ''
+    const drop = typeof item.drop_alamat === 'string' ? item.drop_alamat.trim() : ''
+    if (pickup.length >= 5) {
+      unique.add(pickup)
+    }
+    if (drop.length >= 5) {
+      unique.add(drop)
+    }
+  })
+  const tasks = Array.from(unique).map((address) =>
+    addressBookService.upsert(address).catch(() => null)
+  )
+  await Promise.all(tasks)
+}
 
 const handleSubmit = async (payload: Record<string, unknown>) => {
   if (isSubmitting.value) {
@@ -80,6 +99,11 @@ const handleSubmit = async (payload: Record<string, unknown>) => {
 
     if (createdId && Array.isArray(dnItems)) {
       await salesCostService.saveDNList(createdId, dnItems)
+      try {
+        await upsertAddressBook(dnItems)
+      } catch (error) {
+        console.error(error)
+      }
     }
 
     if (printAfterSave.value && createdId) {

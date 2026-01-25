@@ -214,21 +214,21 @@
               <div class="grid gap-4 md:grid-cols-2">
                 <div>
                   <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Pickup Alamat</label>
-                  <textarea
+                  <AddressAutocomplete
                     v-model="item.pickup_alamat"
-                    rows="2"
-                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                     placeholder="Alamat Pickup"
-                  ></textarea>
+                    :disabled="isDisabled"
+                    @selected="markAddressUsed"
+                  />
                 </div>
                 <div>
                   <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Drop Alamat</label>
-                  <textarea
+                  <AddressAutocomplete
                     v-model="item.drop_alamat"
-                    rows="2"
-                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                     placeholder="Alamat Drop"
-                  ></textarea>
+                    :disabled="isDisabled"
+                    @selected="markAddressUsed"
+                  />
                 </div>
               </div>
 
@@ -552,7 +552,9 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
+import AddressAutocomplete from '@/components/common/AddressAutocomplete.vue'
 import { salesCostService } from '@/services/salesCostService'
+import { addressBookService } from '@/services/addressBookService'
 import { useToast } from '@/composables/useToast'
 
 type TruckOption = {
@@ -650,6 +652,17 @@ const areas = ref<AreaOption[]>([])
 const showOptionalCosts = ref(false)
 const errors = reactive<Record<string, string>>({})
 const toast = useToast()
+
+const markAddressUsed = async (item?: { _id?: string }) => {
+  if (!item?._id) {
+    return
+  }
+  try {
+    await addressBookService.markUsed(item._id)
+  } catch (error) {
+    console.error(error)
+  }
+}
 
 const form = reactive<SalesCostFormData>({
   id_truck: '',
