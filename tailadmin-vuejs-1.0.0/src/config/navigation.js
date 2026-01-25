@@ -3,6 +3,27 @@ import { GridIcon, CalenderIcon, UserCircleIcon, PieChartIcon, TableIcon, BoxCub
 export const getMenuGroups = (userLevel) => {
   const isAdmin = userLevel === 'admin'
   const isMekanik = userLevel === 'mekanik'
+  const isCs = userLevel === 'cs'
+
+  if (isCs) {
+    return [
+      {
+        title: '',
+        items: [
+          {
+            icon: GridIcon,
+            name: 'Dashboard',
+            subItems: [{ name: 'Schedule Pengiriman', path: '/schedule-pengiriman', pro: false }],
+          },
+          {
+            icon: UserCircleIcon,
+            name: 'User Profile',
+            path: '/profile',
+          },
+        ],
+      },
+    ]
+  }
   const menuGroups = [
     {
       title: '',
@@ -10,7 +31,10 @@ export const getMenuGroups = (userLevel) => {
         {
           icon: GridIcon,
           name: 'Dashboard',
-          subItems: [{ name: 'Home', path: '/', pro: false }],
+          subItems: [
+            { name: 'Home', path: '/', pro: false },
+            { name: 'Schedule Pengiriman', path: '/schedule-pengiriman', pro: false }
+          ],
         },
         {
           icon: CalenderIcon,

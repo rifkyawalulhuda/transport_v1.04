@@ -51,3 +51,6 @@
 	2. 'nomor_telp' varchar(20)
 	3. 'jabatan' char(30)
 
+15. Tambah data value di DB trucking.admin kolom 'level
+	<> enum('admin', 'user', 'mekanik', 'cs')
+

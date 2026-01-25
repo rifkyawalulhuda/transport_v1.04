@@ -110,6 +110,7 @@
                   <option value="admin">Admin</option>
                   <option value="user">User</option>
                   <option value="mekanik">Mekanik</option>
+                  <option value="cs">CS</option>
                 </select>
               </div>
               <div>
@@ -332,6 +333,7 @@
                                 <option value="admin">Admin</option>
                                 <option value="user">User</option>
                                 <option value="mekanik">Mekanik</option>
+                                <option value="cs">CS</option>
                               </select>
                             </div>
                             <div>

@@ -19,7 +19,7 @@
         !isExpanded && !isHovered ? 'lg:justify-center' : 'justify-start',
       ]"
     >
-      <router-link to="/">
+      <router-link :to="homePath">
         <img
           v-if="isExpanded || isHovered || isMobileOpen"
           class="dark:hidden"
@@ -228,6 +228,9 @@ const route = useRoute();
 const { isExpanded, isMobileOpen, isHovered, openSubmenu } = useSidebar();
 const user = ref(authService.getUser());
 const isAdmin = computed(() => user.value?.level === "admin");
+const homePath = computed(() =>
+  user.value?.level === "cs" ? "/schedule-pengiriman" : "/"
+);
 
 const menuGroups = computed(() => getMenuGroups(user.value?.level));
 

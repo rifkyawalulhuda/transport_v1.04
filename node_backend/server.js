@@ -21,6 +21,8 @@ const notificationsRouter = require("./routes/notifications");
 const dataTruckRouter = require("./routes/dataTruck");
 const dataChasisRouter = require("./routes/dataChasis");
 const dataSupirRouter = require("./routes/dataSupir");
+const schedulePengirimanRouter = require("./routes/schedulePengiriman");
+const { restrictCsAccess } = require("./middleware/rbac");
 
 const app = express();
 
@@ -35,6 +37,7 @@ app.use(
 
 app.options("*", cors());
 app.use(express.json());
+app.use("/api", restrictCsAccess);
 app.use("/img", express.static(path.join(__dirname, "img")));
 app.use(
   "/doc-data-truck",
@@ -80,6 +83,7 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/data-trucks", dataTruckRouter);
 app.use("/api/data-chasis", dataChasisRouter);
 app.use("/api/data-supir", dataSupirRouter);
+app.use("/api/schedule-pengiriman", schedulePengirimanRouter);
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";

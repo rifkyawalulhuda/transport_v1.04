@@ -433,6 +433,7 @@
                         Details
                       </RouterLink>
                       <RouterLink
+                        v-if="!isUser"
                         :to="`/repair/${item.id_repair}/edit`"
                         class="w-24 rounded-lg bg-amber-50 px-3 py-1 text-xs font-medium text-amber-600 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-400"
                       >
@@ -549,6 +550,7 @@ type PaginationItem =
 const currentPageTitle = ref('Repair')
 const user = ref(authService.getUser())
 const isAdmin = computed(() => user.value?.level === 'admin')
+const isUser = computed(() => user.value?.level === 'user')
 const { confirm } = useDialog()
 const toast = useToast()
 const items = ref<RepairItem[]>([])

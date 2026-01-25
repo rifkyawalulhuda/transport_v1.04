@@ -1,0 +1,55 @@
+const jwt = require("jsonwebtoken");
+
+const getTokenFromHeader = (req) => {
+  const header = req.headers.authorization || "";
+  if (!header.startsWith("Bearer ")) {
+    return "";
+  }
+  return header.slice("Bearer ".length).trim();
+};
+
+const isAllowedForCs = (req) => {
+  const method = req.method.toUpperCase();
+  const path = req.path || "";
+  const allowedRoutes = [
+    { method: "GET", path: "/schedule-pengiriman" },
+    { method: "GET", path: "/auth/me" },
+    { method: "PUT", path: "/auth/me" }
+  ];
+
+  return allowedRoutes.some(
+    (route) => route.method === method && path.startsWith(route.path)
+  );
+};
+
+const restrictCsAccess = (req, res, next) => {
+  const token = getTokenFromHeader(req);
+  if (!token) {
+    return next();
+  }
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error("JWT_SECRET belum dikonfigurasi");
+    return res.status(500).json({ message: "JWT secret belum dikonfigurasi" });
+  }
+
+  try {
+    const payload = jwt.verify(token, secret);
+    if (payload?.level !== "cs") {
+      return next();
+    }
+
+    if (isAllowedForCs(req)) {
+      return next();
+    }
+
+    return res.status(403).json({ message: "Forbidden" });
+  } catch (error) {
+    return res.status(401).json({ message: "Token tidak valid" });
+  }
+};
+
+module.exports = {
+  restrictCsAccess
+};

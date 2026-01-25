@@ -179,8 +179,9 @@ const handleSubmit = async () => {
   }
   loading.value = true
   try {
-    await authService.login(nikAdmin.value, password.value)
-    router.replace('/')
+    const result = await authService.login(nikAdmin.value, password.value)
+    const level = result?.user?.level
+    router.replace(level === 'cs' ? '/schedule-pengiriman' : '/')
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Login gagal.'
   } finally {

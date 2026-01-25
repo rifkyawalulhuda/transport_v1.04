@@ -17,6 +17,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/schedule-pengiriman',
+      name: 'Schedule Pengiriman',
+      component: () => import('../views/Home/SchedulePengiriman.vue'),
+      meta: {
+        title: 'Schedule Pengiriman',
+        allowCS: true,
+      },
+    },
+    {
       path: '/calendar',
       name: 'Calendar',
       component: () => import('../views/Others/Calendar.vue'),
@@ -30,6 +39,7 @@ const router = createRouter({
       component: () => import('../views/Others/UserProfile.vue'),
       meta: {
         title: 'Profile',
+        allowCS: true,
       },
     },
     {
@@ -366,6 +376,25 @@ const router = createRouter({
       component: () => import('../views/Auth/Login.vue'),
       meta: {
         title: 'Login',
+        allowCS: true,
+      },
+    },
+    {
+      path: '/403',
+      name: 'Forbidden',
+      component: () => import('../views/Errors/Forbidden.vue'),
+      meta: {
+        title: 'Forbidden',
+        allowCS: true,
+      },
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('../views/Errors/FourZeroFour.vue'),
+      meta: {
+        title: 'Not Found',
+        allowCS: true,
       },
     },
   ],
@@ -415,6 +444,11 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (token && isLoginRoute) {
+    await initAuth()
+    const user = authService.getUser()
+    if (user?.level === 'cs') {
+      return next('/schedule-pengiriman')
+    }
     return next('/')
   }
 
@@ -429,6 +463,21 @@ router.beforeEach(async (to, from, next) => {
       }
       return next('/')
     }
+  }
+
+  if (
+    user?.level === 'mekanik' &&
+    (to.path.startsWith('/sales-cost') || to.path.startsWith('/subcontractor'))
+  ) {
+    return next('/403')
+  }
+
+  if (user?.level === 'user' && to.path.startsWith('/repair/') && to.path.endsWith('/edit')) {
+    return next('/403')
+  }
+
+  if (user?.level === 'cs' && to.meta.allowCS !== true) {
+    return next('/403')
   }
 
   return next()
