@@ -25,9 +25,10 @@ export default defineConfig(({ mode }) => {
       host: true, // atau '0.0.0.0'
       port: 5173,
       strictPort: true,
+      allowedHosts: ['sankyu-transport.fun'],
       proxy: {
         '/api': {
-          target: 'http://192.168.60.29:3000',
+          target: 'http://localhost:3000',
           changeOrigin: true,
           secure: false,
         },
