@@ -77,14 +77,16 @@ router.get("/export/excel", async (req, res) => {
 
     worksheet.columns = [
       { header: "No.", key: "no", width: 6 },
+      { header: "No. SPK Perbaikan", key: "no_spk_perbaikan", width: 18 },
       { header: "No. Police", key: "no_police", width: 16 },
       { header: "Maker", key: "merk_mobil", width: 18 },
-      { header: "Model", key: "model", width: 16 },
       { header: "Kategori Perbaikan", key: "kategori_repair", width: 20 },
       { header: "Tanggal Input", key: "tgl_input", width: 14 },
       { header: "Tanggal Kerusakan", key: "tgl_kerusakan", width: 16 },
       { header: "Tanggal Maintenance", key: "jadwal_berkala", width: 18 },
-      { header: "No. SPK Perbaikan", key: "no_spk_perbaikan", width: 18 },
+      { header: "Status Repair", key: "status_repair", width: 18 },
+      { header: "Estimasi Tanggal Selesai", key: "tgl_proses", width: 20 },
+      { header: "Tanggal Selesai", key: "tgl_selesai", width: 16 },
       { header: "Kilometer", key: "kilometer", width: 14 },
       { header: "Jenis Kerusakan", key: "jenis_kerusakan", width: 18 },
       { header: "Spare Part", key: "spare_part", width: 18 },
@@ -111,14 +113,16 @@ router.get("/export/excel", async (req, res) => {
     rows.forEach((row, index) => {
       worksheet.addRow({
         no: index + 1,
+        no_spk_perbaikan: row.no_spk_perbaikan || "",
         no_police: row.no_police || "",
         merk_mobil: row.merk_mobil || "",
-        model: row.model || "",
         kategori_repair: row.kategori_repair || "",
         tgl_input: formatDate(row.tgl_input),
         tgl_kerusakan: formatDate(row.tgl_kerusakan),
         jadwal_berkala: formatDate(row.jadwal_berkala),
-        no_spk_perbaikan: row.no_spk_perbaikan || "",
+        status_repair: row.status_repair || "",
+        tgl_proses: formatDate(row.tgl_proses),
+        tgl_selesai: formatDate(row.tgl_selesai),
         kilometer: row.kilometer || "",
         jenis_kerusakan: row.jenis_kerusakan || "",
         spare_part: row.spare_part || "",
@@ -164,6 +168,10 @@ router.post("/", async (req, res) => {
     res.status(201).json(created);
   } catch (error) {
     console.error(error);
+    const status = error?.status;
+    if (status === 400) {
+      return res.status(400).json({ message: error.message || "Input tidak valid." });
+    }
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -195,6 +203,10 @@ router.put("/:id", async (req, res) => {
     res.json(updated);
   } catch (error) {
     console.error(error);
+    const status = error?.status;
+    if (status === 400) {
+      return res.status(400).json({ message: error.message || "Input tidak valid." });
+    }
     res.status(500).json({ message: "Internal server error" });
   }
 });

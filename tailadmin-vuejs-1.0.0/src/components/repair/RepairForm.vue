@@ -12,7 +12,7 @@
 
     <form class="space-y-4" @submit.prevent="handleSubmit">
       <fieldset :disabled="isDisabled" class="space-y-4">
-        <div class="grid gap-4 sm:grid-cols-1">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
               Tanggal Input
@@ -22,6 +22,39 @@
               type="date"
               readonly
               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Estimasi Tanggal Selesai
+            </label>
+            <VueDatePicker
+              v-model="form.tgl_proses"
+              :enable-time-picker="false"
+              format="dd/MM/yyyy"
+              model-type="yyyy-MM-dd"
+              auto-apply
+              :teleport="true"
+              :input-class-name="dateInputClass"
+              :dark="isDarkMode"
+            />
+          </div>
+        </div>
+
+        <div v-if="form.status_repair === 'SELESAI'" class="grid gap-4 sm:grid-cols-1">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Tanggal Selesai
+            </label>
+            <VueDatePicker
+              v-model="form.tgl_selesai"
+              :enable-time-picker="false"
+              format="dd/MM/yyyy"
+              model-type="yyyy-MM-dd"
+              auto-apply
+              :teleport="true"
+              :input-class-name="dateInputClass"
+              :dark="isDarkMode"
             />
           </div>
         </div>
@@ -41,6 +74,7 @@
               <option value="Mechanical Repair">Mechanical</option>
               <option value="Tire Repair">Tire</option>
               <option value="Engine Overhaul">Engine Overhaul</option>
+              <option value="High Repair">High Repair</option>
             </select>
           </div>
 
@@ -194,6 +228,9 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { repairService } from '@/services/repair'
+import VueDatePicker from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
+import { useTheme } from '@/components/layout/ThemeProvider.vue'
 
 type RepairFormData = {
   kategori_repair: string
@@ -207,6 +244,9 @@ type RepairFormData = {
   keterangan: string
   biaya_perbaikan: string
   tgl_input?: string
+  status_repair?: 'PROSES' | 'SELESAI'
+  tgl_proses?: string
+  tgl_selesai?: string | null
 }
 
 const props = withDefaults(
@@ -217,6 +257,9 @@ const props = withDefaults(
     loading?: boolean
     submitting?: boolean
     submitError?: string
+    statusRepair?: 'PROSES' | 'SELESAI'
+    tglProses?: string
+    tglSelesai?: string | null
   }>(),
   {
     submitLabel: 'Simpan',
@@ -229,6 +272,9 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: 'submit', payload: RepairFormData): void
+  (event: 'update:statusRepair', value: 'PROSES' | 'SELESAI'): void
+  (event: 'update:tglProses', value: string): void
+  (event: 'update:tglSelesai', value: string | null): void
 }>()
 
 const trucks = ref<Array<Record<string, unknown>>>([])
@@ -244,10 +290,16 @@ const form = reactive<RepairFormData>({
   jadwal_berkala: '',
   keterangan: '',
   biaya_perbaikan: '',
-  tgl_input: ''
+  tgl_input: '',
+  status_repair: 'PROSES',
+  tgl_proses: '',
+  tgl_selesai: null
 })
 
 const isDisabled = computed(() => props.loading || props.submitting)
+const { isDarkMode } = useTheme()
+const dateInputClass =
+  'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200'
 
 const formatTruckLabel = (truck: Record<string, unknown>) => {
   const noPolice = truck.no_police ? String(truck.no_police) : ''
@@ -290,6 +342,9 @@ const applyInitialData = (data: Partial<RepairFormData>) => {
     ? Number(String(data.biaya_perbaikan).replace(/[^\d]/g, '')).toLocaleString('en-US')
     : ''
   form.tgl_input = normalizeDateInput(data.tgl_input)
+  form.status_repair = (data.status_repair as 'PROSES' | 'SELESAI') || 'PROSES'
+  form.tgl_proses = normalizeDateInput(data.tgl_proses)
+  form.tgl_selesai = data.tgl_selesai ? normalizeDateInput(data.tgl_selesai) : null
 }
 
 const loadTrucks = async () => {
@@ -302,14 +357,6 @@ const loadTrucks = async () => {
 
 const handleSubmit = () => {
   emit('submit', { ...form })
-}
-
-const getLocalDateString = () => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 const openDatePicker = (event: Event) => {
@@ -335,9 +382,72 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => props.statusRepair,
+  (value) => {
+    if (value && value !== form.status_repair) {
+      form.status_repair = value
+    }
+  }
+)
+
+watch(
+  () => props.tglProses,
+  (value) => {
+    if (value !== undefined && value !== null) {
+      const normalized = normalizeDateInput(value)
+      if (normalized !== form.tgl_proses) {
+        form.tgl_proses = normalized
+      }
+    }
+  }
+)
+
+watch(
+  () => props.tglSelesai,
+  (value) => {
+    const normalized = value ? normalizeDateInput(value) : null
+    if (normalized !== form.tgl_selesai) {
+      form.tgl_selesai = normalized
+    }
+  }
+)
+
+watch(
+  () => form.status_repair,
+  (value) => {
+    emit('update:statusRepair', value || 'PROSES')
+    if (value === 'PROSES') {
+      form.tgl_selesai = null
+      emit('update:tglSelesai', null)
+    }
+  }
+)
+
+watch(
+  () => form.tgl_proses,
+  (value) => {
+    emit('update:tglProses', value || '')
+  }
+)
+
+watch(
+  () => form.tgl_selesai,
+  (value) => {
+    emit('update:tglSelesai', value ? value : null)
+  }
+)
+
 onMounted(() => {
   if (props.mode === 'create' && !form.tgl_input) {
-    form.tgl_input = getLocalDateString()
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    form.tgl_input = `${year}-${month}-${day}`
+  }
+  if (props.mode === 'create' && !form.status_repair) {
+    form.status_repair = 'PROSES'
   }
   loadTrucks()
 })

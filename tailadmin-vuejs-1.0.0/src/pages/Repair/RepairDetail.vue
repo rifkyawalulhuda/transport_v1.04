@@ -5,6 +5,13 @@
       <ComponentCard title="Rincian Transaksi Repair">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2 no-print">
           <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">Detail Transaksi</div>
+          <div
+            v-if="detail.status_repair"
+            class="rounded-full px-5 py-3 text-xs font-medium"
+            :class="statusBadgeClass"
+          >
+            {{ statusBadgeLabel }}
+          </div>
           <div class="flex flex-wrap items-center gap-2">
             <RouterLink
               to="/repair"
@@ -26,7 +33,7 @@
         </p>
 
         <div v-else class="space-y-4 print-area">
-          <div class="grid gap-4 sm:grid-cols-1">
+          <div class="grid gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
                 Tanggal Input
@@ -34,6 +41,31 @@
               <input
                 type="text"
                 :value="formatDate(detail.tgl_input)"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                readonly
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Estimasi Tanggal Selesai
+              </label>
+              <input
+                type="text"
+                :value="formatDate(detail.tgl_proses)"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                readonly
+              />
+            </div>
+          </div>
+
+          <div v-if="detail.status_repair === 'SELESAI'" class="grid gap-4 sm:grid-cols-1">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Tanggal Selesai
+              </label>
+              <input
+                type="text"
+                :value="formatDate(detail.tgl_selesai)"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 readonly
               />
@@ -199,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
@@ -211,6 +243,9 @@ type RepairDetail = {
   kategori_repair?: string
   id_truck?: number
   tgl_input?: string
+  status_repair?: 'PROSES' | 'SELESAI'
+  tgl_proses?: string
+  tgl_selesai?: string
   tgl_kerusakan?: string
   no_spk_perbaikan?: string
   kilometer?: string
@@ -230,6 +265,15 @@ const route = useRoute()
 const loading = ref(true)
 const formError = ref('')
 const detail = ref<RepairDetail>({} as RepairDetail)
+
+const statusBadgeLabel = computed(() =>
+  detail.value.status_repair === 'SELESAI' ? 'Perbaikan Selesai' : 'Proses Perbaikan'
+)
+const statusBadgeClass = computed(() =>
+  detail.value.status_repair === 'SELESAI'
+    ? 'bg-green-50 text-green-600 dark:bg-green-500/15 dark:text-green-400'
+    : 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400'
+)
 
 const resolveIdParam = () => {
   const raw = route.params.id

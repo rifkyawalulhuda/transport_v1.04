@@ -54,3 +54,22 @@
 15. Tambah data value di DB trucking.admin kolom 'level
 	<> enum('admin', 'user', 'mekanik', 'cs')
 
+
+16. Tambah Kolom di DB trucking.repair
+	Buka http://localhost/phpmyadmin
+	Pilih database trucking
+	Klik tab SQL
+	Tempel dan jalankan script ini:
+	
+	ALTER TABLE trucking.repair
+  ADD COLUMN status_repair ENUM('PROSES','SELESAI') NOT NULL DEFAULT 'PROSES',
+  ADD COLUMN tgl_proses DATE NULL,
+  ADD COLUMN tgl_selesai DATE NULL;
+
+UPDATE trucking.repair
+SET status_repair = COALESCE(status_repair, 'PROSES');
+
+UPDATE trucking.repair
+SET tgl_proses = COALESCE(tgl_proses, CURDATE());
+
+

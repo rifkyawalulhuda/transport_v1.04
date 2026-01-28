@@ -120,13 +120,53 @@
         </div>
 
         <div
-          class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+          class="overflow-visible rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
         >
           <div class="max-w-full overflow-x-auto custom-scrollbar">
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">No</th>
+                  <th 
+                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
+                    @click="toggleSort('no_spk_perbaikan')"
+                  >
+                    <div class="flex items-center gap-1">
+                      No. SPK Perbaikan
+                      <span class="flex flex-col">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="transition-colors"
+                          :class="sortColumn === 'no_spk_perbaikan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m18 15-6-6-6 6"/>
+                        </svg>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          stroke-width="2" 
+                          stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          class="-mt-1 transition-colors"
+                          :class="sortColumn === 'no_spk_perbaikan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                        >
+                          <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                      </span>
+                    </div>
+                  </th>
                   <th 
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('no_police')"
@@ -209,10 +249,10 @@
                   </th>
                   <th 
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('model')"
+                    @click="toggleSort('status_repair')"
                   >
                     <div class="flex items-center gap-1">
-                      Model
+                      Status
                       <span class="flex flex-col">
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
@@ -225,7 +265,7 @@
                           stroke-linecap="round" 
                           stroke-linejoin="round" 
                           class="transition-colors"
-                          :class="sortColumn === 'model' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="sortColumn === 'status_repair' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
                         >
                           <path d="m18 15-6-6-6 6"/>
                         </svg>
@@ -240,7 +280,7 @@
                           stroke-linecap="round" 
                           stroke-linejoin="round" 
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'model' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="sortColumn === 'status_repair' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
                         >
                           <path d="m6 9 6 6 6-6"/>
                         </svg>
@@ -328,46 +368,6 @@
                     </div>
                   </th>
                   <th 
-                    class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('no_spk_perbaikan')"
-                  >
-                    <div class="flex items-center gap-1">
-                      No. SPK Perbaikan
-                      <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
-                          class="transition-colors"
-                          :class="sortColumn === 'no_spk_perbaikan' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
-                        >
-                          <path d="m18 15-6-6-6 6"/>
-                        </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
-                          class="-mt-1 transition-colors"
-                          :class="sortColumn === 'no_spk_perbaikan' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
-                        >
-                          <path d="m6 9 6 6 6-6"/>
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th 
                     class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('biaya_perbaikan')"
                   >
@@ -418,13 +418,25 @@
                     {{ (currentPage - 1) * pageSize + index + 1 }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                    {{ item.no_spk_perbaikan || '-' }}
+                  </td>
+                  <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ item.no_police || '-' }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ item.merk_mobil || '-' }}
                   </td>
-                  <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    {{ item.model || '-' }}
+                  <td class="px-5 py-3 text-sm sm:px-6">
+                    <span
+                      class="inline-flex rounded-full px-3 py-1 text-xs font-medium"
+                      :class="
+                        item.status_repair === 'SELESAI'
+                          ? 'bg-green-50 text-green-600 dark:bg-green-500/15 dark:text-green-400'
+                          : 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400'
+                      "
+                    >
+                      {{ item.status_repair === 'SELESAI' ? 'Perbaikan Selesai' : 'Proses Perbaikan' }}
+                    </span>
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ formatDate(item.tgl_kerusakan) }}
@@ -432,36 +444,63 @@
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ formatDate(item.jadwal_berkala) }}
                   </td>
-                  <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    {{ item.no_spk_perbaikan || '-' }}
-                  </td>
                   <td class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ formatNumber(item.biaya_perbaikan) }}
                   </td>
                   <td class="px-5 py-3 text-center sm:px-6">
-                    <div class="flex flex-col items-center justify-center gap-2">
-                      <RouterLink
-                        :to="`/repair/${item.id_repair}`"
-                        class="w-24 rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
-                      >
-                        Details
-                      </RouterLink>
-                      <RouterLink
-                        v-if="!isUser"
-                        :to="`/repair/${item.id_repair}/edit`"
-                        class="w-24 rounded-lg bg-amber-50 px-3 py-1 text-xs font-medium text-amber-600 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-400"
-                      >
-                        Edit
-                      </RouterLink>
+                    <div class="relative inline-flex justify-center">
                       <button
-                        v-if="isAdmin"
                         type="button"
-                        class="w-24 rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-error-500/15 dark:text-error-400"
-                        :disabled="deletingId === item.id_repair"
-                        @click="remove(item)"
+                        class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        @click.stop="toggleActionMenu(item.id_repair, $event)"
                       >
-                        Delete
+                        
+                        <svg
+                          class="h-3.5 w-3.5"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="m5 8 5 5 5-5" />
+                        </svg>
                       </button>
+                        <Teleport to="body">
+                          <div
+                            v-if="openActionId === item.id_repair"
+                            ref="actionMenuRef"
+                            class="fixed z-[9999] w-36 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                            :style="actionMenuStyle"
+                            @click.stop
+                          >
+                            <RouterLink
+                              :to="`/repair/${item.id_repair}`"
+                              class="block px-3 py-2 text-xs font-medium text-sky-600 hover:bg-gray-50 dark:text-sky-400 dark:hover:bg-white/[0.03]"
+                              @click="closeActionMenu"
+                            >
+                              Details
+                            </RouterLink>
+                            <RouterLink
+                              v-if="!isUser"
+                              :to="`/repair/${item.id_repair}/edit`"
+                              class="block px-3 py-2 text-xs font-medium text-amber-600 hover:bg-gray-50 dark:text-amber-400 dark:hover:bg-white/[0.03]"
+                              @click="closeActionMenu"
+                            >
+                              Edit
+                            </RouterLink>
+                            <button
+                              v-if="isAdmin"
+                              type="button"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
+                              :disabled="deletingId === item.id_repair"
+                              @click="handleDelete(item)"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </Teleport>
                     </div>
                   </td>
                 </tr>
@@ -537,7 +576,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
@@ -550,7 +589,7 @@ type RepairItem = {
   id_repair: number
   no_police?: string
   merk_mobil?: string
-  model?: string
+  status_repair?: 'PROSES' | 'SELESAI'
   tgl_kerusakan?: string
   jadwal_berkala?: string
   no_spk_perbaikan?: string
@@ -593,6 +632,57 @@ const searchPlaceholder = computed(() => {
 
 const sortColumn = ref<keyof RepairItem | ''>('id_repair')
 const sortOrder = ref<'asc' | 'desc'>('desc')
+
+const openActionId = ref<number | null>(null)
+const actionMenuRef = ref<HTMLElement | HTMLElement[] | null>(null)
+const actionMenuPosition = ref({ top: 0, left: 0 })
+
+const setActionMenuPosition = (event: MouseEvent) => {
+  const trigger = event.currentTarget as HTMLElement | null
+  if (!trigger) {
+    return
+  }
+  const rect = trigger.getBoundingClientRect()
+  const top = rect.bottom + 8
+  const left = rect.right
+  actionMenuPosition.value = { top, left }
+
+  nextTick(() => {
+    const menuEl = actionMenuRef.value
+    const element = Array.isArray(menuEl) ? menuEl[0] : menuEl
+    if (!element) return
+    const menuHeight = element.offsetHeight || 0
+    if (top + menuHeight > window.innerHeight - 8) {
+      actionMenuPosition.value = {
+        top: Math.max(8, rect.top - menuHeight - 8),
+        left
+      }
+    }
+  })
+}
+
+const actionMenuStyle = computed(() => ({
+  top: `${actionMenuPosition.value.top}px`,
+  left: `${actionMenuPosition.value.left}px`
+}))
+
+const toggleActionMenu = (id: number, event: MouseEvent) => {
+  if (openActionId.value === id) {
+    closeActionMenu()
+    return
+  }
+  openActionId.value = id
+  setActionMenuPosition(event)
+}
+
+const closeActionMenu = () => {
+  openActionId.value = null
+}
+
+const handleDelete = (item: RepairItem) => {
+  closeActionMenu()
+  remove(item)
+}
 
 const toggleSort = (column: keyof RepairItem) => {
   if (sortColumn.value === column) {
@@ -885,5 +975,25 @@ watch(currentPage, () => {
 
 onMounted(() => {
   loadData()
+})
+
+const handleDocumentClick = () => {
+  closeActionMenu()
+}
+
+const handleWindowChange = () => {
+  closeActionMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('scroll', handleWindowChange, true)
+  window.addEventListener('resize', handleWindowChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('scroll', handleWindowChange, true)
+  window.removeEventListener('resize', handleWindowChange)
 })
 </script>

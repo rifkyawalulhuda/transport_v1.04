@@ -93,7 +93,7 @@
           </div>
         </div>
 
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div class="overflow-visible rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="max-w-full overflow-x-auto custom-scrollbar">
             <table class="min-w-full">
               <thead>
@@ -181,29 +181,59 @@
                     {{ formatText(item.keterangan) }}
                   </td>
                   <td class="px-5 py-3 text-right text-sm sm:px-6">
-                    <div class="flex items-center justify-center gap-2">
-                      <RouterLink
-                        :to="`/data-transport/data-chasis/detail/${item._id}`"
-                        class="rounded-lg bg-sky-50 px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-400"
-                      >
-                        Detail
-                      </RouterLink>
-                      <RouterLink
-                        v-if="canEdit"
-                        :to="`/data-transport/data-chasis/edit/${item._id}`"
-                        class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
-                      >
-                        Edit
-                      </RouterLink>
+                    <div class="relative inline-flex justify-center">
                       <button
-                        v-if="canDelete"
                         type="button"
-                        :disabled="deletingId === item._id"
-                        class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-error-500/15 dark:text-error-400"
-                        @click="remove(item)"
+                        class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        @click.stop="toggleActionMenu(item._id, $event)"
                       >
-                        Hapus
+                        
+                        <svg
+                          class="h-3.5 w-3.5"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="m5 8 5 5 5-5" />
+                        </svg>
                       </button>
+                      <Teleport to="body">
+                        <div
+                          v-if="openActionId === item._id"
+                          ref="actionMenuRef"
+                          class="fixed z-[9999] w-36 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                          :style="actionMenuStyle"
+                          @click.stop
+                        >
+                          <RouterLink
+                            :to="`/data-transport/data-chasis/detail/${item._id}`"
+                            class="block px-3 py-2 text-xs font-medium text-sky-600 hover:bg-gray-50 dark:text-sky-400 dark:hover:bg-white/[0.03]"
+                            @click="closeActionMenu"
+                          >
+                            Detail
+                          </RouterLink>
+                          <RouterLink
+                            v-if="canEdit"
+                            :to="`/data-transport/data-chasis/edit/${item._id}`"
+                            class="block px-3 py-2 text-xs font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-white/[0.03]"
+                            @click="closeActionMenu"
+                          >
+                            Edit
+                          </RouterLink>
+                          <button
+                            v-if="canDelete"
+                            type="button"
+                            :disabled="deletingId === item._id"
+                            class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
+                            @click="remove(item); closeActionMenu()"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </Teleport>
                     </div>
                   </td>
                 </tr>
@@ -262,7 +292,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onBeforeUnmount, onMounted, computed, watch, nextTick } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
@@ -290,6 +320,52 @@ const pageSizeOptions = [10, 20, 50]
 
 const sortColumn = ref('updatedAt')
 const sortOrder = ref('desc')
+
+const openActionId = ref(null)
+const actionMenuRef = ref(null)
+const actionMenuPosition = ref({ top: 0, left: 0 })
+
+const setActionMenuPosition = (event) => {
+  const trigger = event?.currentTarget
+  if (!trigger) {
+    return
+  }
+  const rect = trigger.getBoundingClientRect()
+  const top = rect.bottom + 8
+  const left = rect.right
+  actionMenuPosition.value = { top, left }
+
+  nextTick(() => {
+    const menuEl = actionMenuRef.value
+    const element = Array.isArray(menuEl) ? menuEl[0] : menuEl
+    if (!element) return
+    const menuHeight = element.offsetHeight || 0
+    if (top + menuHeight > window.innerHeight - 8) {
+      actionMenuPosition.value = {
+        top: Math.max(8, rect.top - menuHeight - 8),
+        left,
+      }
+    }
+  })
+}
+
+const actionMenuStyle = computed(() => ({
+  top: `${actionMenuPosition.value.top}px`,
+  left: `${actionMenuPosition.value.left}px`,
+}))
+
+const toggleActionMenu = (id, event) => {
+  if (openActionId.value === id) {
+    closeActionMenu()
+    return
+  }
+  openActionId.value = id
+  setActionMenuPosition(event)
+}
+
+const closeActionMenu = () => {
+  openActionId.value = null
+}
 
 const toggleSort = (column) => {
   if (sortColumn.value === column) {
@@ -492,6 +568,26 @@ const changePageSize = () => {
 
 onMounted(() => {
   fetchData()
+})
+
+const handleDocumentClick = () => {
+  closeActionMenu()
+}
+
+const handleWindowChange = () => {
+  closeActionMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('scroll', handleWindowChange, true)
+  window.addEventListener('resize', handleWindowChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('scroll', handleWindowChange, true)
+  window.removeEventListener('resize', handleWindowChange)
 })
 
 watch(totalPages, (value) => {
