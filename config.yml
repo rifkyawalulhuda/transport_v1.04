@@ -1,0 +1,16 @@
+tunnel: 0078b312-9599-46b6-b587-f3fd7ca5fa8a
+credentials-file: C:\Users\rifky\.cloudflared\0078b312-9599-46b6-b587-f3fd7ca5fa8a.json
+
+ingress:
+  - hostname: sankyu-transport.fun
+    path: /api
+    service: http://localhost:3000
+  - hostname: sankyu-transport.fun
+    path: /img
+    service: http://localhost:3000
+  - hostname: sankyu-transport.fun
+    path: /doc-.*
+    service: http://localhost:3000
+  - hostname: sankyu-transport.fun
+    service: http://localhost:5173
+  - service: http_status:404
