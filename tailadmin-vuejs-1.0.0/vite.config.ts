@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     mode === 'development' && process.env.VITE_ENABLE_VUE_DEVTOOLS !== 'false'
 
   return {
-    base: process.env.NODE_ENV === 'production' ? '/tailadmin-vuejs/' : '/',
+    base: '/',
     plugins: [vue(), vueJsx(), enableDevTools ? vueDevTools() : null].filter(Boolean),
     resolve: {
       alias: {
@@ -22,13 +22,37 @@ export default defineConfig(({ mode }) => {
 
     // listen untuk LAN
     server: {
-      host: true, // atau '0.0.0.0'
+      host: '0.0.0.0',
       port: 5173,
       strictPort: true,
-      allowedHosts: ['sankyu-transport.fun'],
+      allowedHosts: true,
+      hmr: {
+        host: 'sankyu-transport.fun',
+        protocol: 'wss',
+      },
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/img': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/doc-data-truck': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/doc-data-chasis': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/doc-supir': {
+          target: 'http://127.0.0.1:3000',
           changeOrigin: true,
           secure: false,
         },
