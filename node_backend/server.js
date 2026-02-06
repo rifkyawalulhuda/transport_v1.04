@@ -24,6 +24,7 @@ const dataSupirRouter = require("./routes/dataSupir");
 const schedulePengirimanRouter = require("./routes/schedulePengiriman");
 const { restrictCsAccess } = require("./middleware/rbac");
 const addressBookRouter = require("./routes/addressBook");
+const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use("/api/data-chasis", dataChasisRouter);
 app.use("/api/data-supir", dataSupirRouter);
 app.use("/api/schedule-pengiriman", schedulePengirimanRouter);
 app.use("/api/address-book", addressBookRouter);
+app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";

@@ -315,6 +315,21 @@ const fetchRepairsForExport = async (query = {}) => {
   return rows;
 };
 
+const fetchRepairProcessNotifications = async ({ limit = 10 } = {}) => {
+  const safeLimit = Math.min(Number(limit) || 10, 50);
+  const [[countRow]] = await db.query(
+    "SELECT COUNT(*) AS total FROM repair WHERE status_repair = 'PROSES'"
+  );
+  const [rows] = await db.query(
+    "SELECT repair.id_repair, repair.id_truck, repair.no_spk_perbaikan, repair.jenis_kerusakan, repair.tgl_proses, truck.no_police FROM repair LEFT JOIN truck ON repair.id_truck = truck.id_truck WHERE repair.status_repair = 'PROSES' ORDER BY repair.tgl_proses DESC, repair.id_repair DESC LIMIT ?",
+    [safeLimit]
+  );
+  return {
+    count: Number(countRow?.total || 0),
+    items: rows
+  };
+};
+
 module.exports = {
   buildFilters,
   fetchRepairs,
@@ -322,5 +337,6 @@ module.exports = {
   createRepair,
   updateRepair,
   deleteRepair,
-  fetchRepairsForExport
+  fetchRepairsForExport,
+  fetchRepairProcessNotifications
 };

@@ -5,7 +5,7 @@
       @click="toggleDropdown"
     >
       <span
-        :class="{ hidden: unreadCount === 0, flex: unreadCount > 0 }"
+        :class="{ hidden: totalUnread === 0, flex: totalUnread > 0 }"
         class="absolute right-0 top-0.5 z-1 h-2 w-2 rounded-full bg-orange-400"
       >
         <span
@@ -125,19 +125,23 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { API_ORIGIN } from '@/config/api'
+import { API_BASE, API_ORIGIN } from '@/config/api'
 import { useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { useNotifications } from '@/composables/useNotifications'
-import { useAuthUser } from '@/services/auth'
+import { authFetch, useAuthUser } from '@/services/auth'
 
-const apiBase = API_ORIGIN
+const apiOrigin = API_ORIGIN
+const apiBase = API_BASE
 const dropdownOpen = ref(false)
 const dropdownRef = ref(null)
 const pollerId = ref(null)
 const toast = useToast()
 const router = useRouter()
 const authUser = useAuthUser()
+const REPAIR_NOTIFICATION_ID = '__repair_proses__'
+const repairCount = ref(0)
+const repairItems = ref([])
 
 const {
   notifications,
@@ -147,15 +151,65 @@ const {
   markAllRead
 } = useNotifications()
 
+const totalUnread = computed(() => unreadCount.value + (repairCount.value > 0 ? 1 : 0))
+
+const formatDateId = (dateValue) => {
+  if (!dateValue) {
+    return ''
+  }
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }).format(date)
+}
+
+const repairNotification = computed(() => {
+  if (repairCount.value <= 0) {
+    return null
+  }
+  const items = Array.isArray(repairItems.value) ? repairItems.value : []
+  const userAvatar =
+    authUser.value?.gambar ? `${apiOrigin}/img/${authUser.value.gambar}` : '/images/user/default.jpg'
+  const plates = items
+    .map((item) => item?.no_police)
+    .filter((value) => typeof value === 'string' && value.trim())
+  const topPlates = plates.slice(0, 3)
+  const detail = topPlates.length ? topPlates.join(', ') : ''
+  const more = plates.length > 3 ? ', ...' : ''
+  const message = `${repairCount.value} truck sedang perbaikan${
+    detail ? `: ${detail}${more}` : ''
+  }`
+  const latestDate = items[0]?.tgl_proses
+  return {
+    _id: REPAIR_NOTIFICATION_ID,
+    title: 'Proses Perbaikan',
+    message,
+    typeLabel: 'Repair',
+    timeAgo: formatDateId(latestDate),
+    read: false,
+    entity: 'repair',
+    meta: { route: '/repair?status=PROSES', noMarkRead: true },
+    avatarUrl: userAvatar
+  }
+})
+
 const displayNotifications = computed(() => {
-  return notifications.value.slice(0, 10).map((item) => ({
+  const baseNotifications = notifications.value.slice(0, 10).map((item) => ({
     ...item,
     avatarUrl: item.actor?.gambar
-      ? `${apiBase}/img/${item.actor.gambar}`
+      ? `${apiOrigin}/img/${item.actor.gambar}`
       : '/images/user/default.jpg',
     timeAgo: formatTimeAgo(item.createdAt),
     typeLabel: item.type || 'Notification'
   }))
+  return repairNotification.value
+    ? [repairNotification.value, ...baseNotifications]
+    : baseNotifications
 })
 
 const toggleDropdown = () => {
@@ -194,11 +248,16 @@ const resolveRoute = (notification) => {
 const isMasterEntity = (entity) =>
   ['truck', 'driver', 'customer', 'area', 'warehouse', 'subcont', 'admin'].includes(entity)
 
+const isRepairSynthetic = (notification) =>
+  notification?._id === REPAIR_NOTIFICATION_ID || notification?.meta?.noMarkRead
+
 const handleItemClick = async (notification) => {
-  try {
-    await markRead(notification._id)
-  } catch (error) {
-    toast.error(error?.message || 'Gagal memperbarui notifikasi.')
+  if (!isRepairSynthetic(notification)) {
+    try {
+      await markRead(notification._id)
+    } catch (error) {
+      toast.error(error?.message || 'Gagal memperbarui notifikasi.')
+    }
   }
   closeDropdown()
   if (isMasterEntity(notification.entity) && authUser.value?.level === 'user') {
@@ -223,11 +282,27 @@ const handleMarkAllRead = async () => {
   }
 }
 
+const fetchRepairNotifications = async () => {
+  const res = await authFetch(`${apiBase}/repairs/notifications/proses`)
+  if (!res.ok) {
+    const message = await res.text()
+    throw new Error(message || 'Gagal memuat notifikasi repair.')
+  }
+  const data = await res.json()
+  repairCount.value = Number(data?.count || 0)
+  repairItems.value = Array.isArray(data?.items) ? data.items : []
+}
+
 const fetchLatest = async () => {
   try {
     await fetchNotifications({ limit: 10 })
   } catch (error) {
     toast.error(error?.message || 'Gagal memuat notifikasi.')
+  }
+  try {
+    await fetchRepairNotifications()
+  } catch (error) {
+    toast.error(error?.message || 'Gagal memuat notifikasi repair.')
   }
 }
 
