@@ -8,7 +8,8 @@ const {
   createRepair,
   updateRepair,
   deleteRepair,
-  fetchRepairsForExport
+  fetchRepairsForExport,
+  fetchRepairProcessNotifications
 } = require("../services/repairService");
 
 const router = express.Router();
@@ -132,6 +133,17 @@ router.get("/export/excel", async (req, res) => {
     });
 
     await workbook.commit();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/notifications/proses", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+    const result = await fetchRepairProcessNotifications({ limit });
+    res.json(result);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });

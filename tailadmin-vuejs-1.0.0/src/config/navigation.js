@@ -33,7 +33,8 @@ export const getMenuGroups = (userLevel) => {
           name: 'Dashboard',
           subItems: [
             { name: 'Home', path: '/', pro: false },
-            { name: 'Schedule Pengiriman', path: '/schedule-pengiriman', pro: false }
+            { name: 'Schedule Pengiriman', path: '/schedule-pengiriman', pro: false },
+            { name: 'Monitoring Kendaraan', path: '/monitoring-kendaraan', pro: false }
           ],
         },
         {
