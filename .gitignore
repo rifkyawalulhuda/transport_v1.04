@@ -1,15 +1,1 @@
-# Dependencies
-node_modules/
-/vendor/
-
-# OS Files
-.DS_Store
-Thumbs.db
-
-# Editor directories
-.vscode/
-.idea/
-
-# Build outputs
-dist/
-build/
+node_modules
