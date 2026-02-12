@@ -11,6 +11,20 @@
     </p>
 
     <form class="space-y-4" @submit.prevent="handleSubmit">
+      <div v-if="checkingTruckStatus" class="text-xs text-gray-500 dark:text-gray-400">
+        Memeriksa status truck...
+      </div>
+      <div
+        v-if="truckStatus"
+        :class="[
+          'rounded-lg border px-4 py-3 text-sm',
+          truckStatus.type === 'repair'
+            ? 'border-error-200 bg-error-50 text-error-700 dark:border-error-500/40 dark:bg-error-500/10 dark:text-error-200'
+            : 'border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-200'
+        ]"
+      >
+        {{ truckStatus.message }}
+      </div>
       <fieldset :disabled="isDisabled" class="space-y-4">
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
@@ -555,6 +569,7 @@ import DatePickerInput from '@/components/DatePickerInput.vue'
 import AddressAutocomplete from '@/components/common/AddressAutocomplete.vue'
 import { salesCostService } from '@/services/salesCostService'
 import { addressBookService } from '@/services/addressBookService'
+import { monitoringKendaraanService } from '@/services/monitoringKendaraanService'
 import { useToast } from '@/composables/useToast'
 
 type TruckOption = {
@@ -652,6 +667,9 @@ const areas = ref<AreaOption[]>([])
 const showOptionalCosts = ref(false)
 const errors = reactive<Record<string, string>>({})
 const toast = useToast()
+const checkingTruckStatus = ref(false)
+const truckStatus = ref<{ type: 'repair' | 'transaksi'; message: string } | null>(null)
+let truckStatusRequestId = 0
 
 const markAddressUsed = async (item?: { _id?: string }) => {
   if (!item?._id) {
@@ -1047,6 +1065,86 @@ const handleSubmit = () => {
   emit('submit', buildPayload())
 }
 
+const currentSalesCostId = computed(() => {
+  const raw =
+    (props.initialData as Record<string, unknown>)?.id_sales_cost ??
+    (props.initialData as Record<string, unknown>)?.id ??
+    null
+  if (raw === null || raw === undefined || raw === '') {
+    return null
+  }
+  const parsed = Number(raw)
+  return Number.isNaN(parsed) ? null : parsed
+})
+
+const updateTruckStatus = async () => {
+  const truck = selectedTruck.value
+  if (!truck?.no_police) {
+    truckStatus.value = null
+    return
+  }
+
+  const requestId = (truckStatusRequestId += 1)
+  checkingTruckStatus.value = true
+
+  try {
+    const response = await monitoringKendaraanService.fetchMonitoring({
+      search: truck.no_police,
+      limit: 5
+    })
+
+    if (requestId !== truckStatusRequestId) {
+      return
+    }
+
+    const matchesTruck = (item: any) =>
+      String(item?.id_truck) === String(truck.id_truck) ||
+      String(item?.no_police || '').toLowerCase() === String(truck.no_police || '').toLowerCase()
+
+    const repairMatch = response?.repair?.find(matchesTruck)
+    const transaksiMatch = response?.transaksi?.find(matchesTruck)
+
+    if (repairMatch) {
+      const spk = repairMatch?.repair?.no_spk_perbaikan || '-'
+      truckStatus.value = {
+        type: 'repair',
+        message: `Truck ini sedang dalam Perbaikan dengan nomor SPK Perbaikan: ${spk}`
+      }
+      return
+    }
+
+    if (transaksiMatch) {
+      const trxId = Number(transaksiMatch?.transaksi?.id_sales_cost)
+      if (
+        props.mode === 'edit' &&
+        currentSalesCostId.value &&
+        Number.isFinite(trxId) &&
+        trxId === currentSalesCostId.value
+      ) {
+        truckStatus.value = null
+        return
+      }
+      const spk = transaksiMatch?.transaksi?.no_spk || '-'
+      truckStatus.value = {
+        type: 'transaksi',
+        message: `Truck ini sudah memiliki Transaksi dengan nomor SPK : ${spk}`
+      }
+      return
+    }
+
+    truckStatus.value = null
+  } catch (error) {
+    if (requestId !== truckStatusRequestId) {
+      return
+    }
+    truckStatus.value = null
+  } finally {
+    if (requestId === truckStatusRequestId) {
+      checkingTruckStatus.value = false
+    }
+  }
+}
+
 const loadOptions = async () => {
   const [truckData, driverData, customerData, areaData] = await Promise.all([
     salesCostService.fetchTrucks(),
@@ -1084,6 +1182,17 @@ watch(
       resetForm()
       applyInitialData({})
     }
+  }
+)
+
+watch(
+  () => form.id_truck,
+  () => {
+    truckStatus.value = null
+    if (!form.id_truck) {
+      return
+    }
+    void updateTruckStatus()
   }
 )
 

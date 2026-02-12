@@ -10,7 +10,7 @@
           <div class="relative">
             <button
               type="button"
-              class="inline-flex items-center gap-4 rounded-full px-5 py-3 text-xs font-medium"
+              class="inline-flex items-center gap-4 rounded-lg px-5 py-3 text-xs font-medium"
               :class="statusBadgeClass"
               @click="toggleStatusMenu"
             >

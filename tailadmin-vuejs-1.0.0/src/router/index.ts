@@ -123,6 +123,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/monitoring-kendaraan',
+      name: 'Monitoring Kendaraan',
+      component: () => import('../views/Monitoring/MonitoringKendaraan.vue'),
+      meta: {
+        title: 'Monitoring Kendaraan',
+      },
+    },
+    {
       path: '/repair',
       name: 'Repair',
       component: () => import('../pages/Repair/RepairList.vue'),
