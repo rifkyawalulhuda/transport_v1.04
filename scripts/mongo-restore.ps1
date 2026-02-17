@@ -37,12 +37,41 @@ function Resolve-MongoRestore {
   throw "mongorestore not found. Install MongoDB Database Tools (`winget install MongoDB.DatabaseTools --accept-package-agreements --accept-source-agreements`) then reopen PowerShell."
 }
 
+function Parse-MongoDatabaseFromUri {
+  param([string]$UriText)
+
+  if (-not $UriText) { return $null }
+  try {
+    $uri = [Uri]$UriText
+    $db = $uri.AbsolutePath.Trim("/")
+    if ($db) { return [Uri]::UnescapeDataString($db) }
+  } catch {
+    return $null
+  }
+  return $null
+}
+
 try {
   if (-not (Test-Path -Path $BackupPath)) {
     throw "Backup path not found: $BackupPath"
   }
 
+  $BackupPath = [System.IO.Path]::GetFullPath($BackupPath)
   $mongorestoreExe = Resolve-MongoRestore
+  $dbFromUri = Parse-MongoDatabaseFromUri -UriText $MongoUri
+
+  if ($Database -and $dbFromUri -and ($dbFromUri -ne $Database)) {
+    throw "Database pada URI (`"$dbFromUri`") berbeda dengan parameter -Database (`"$Database`"). Samakan salah satu."
+  }
+
+  if ($Database) {
+    $dbSubDir = Join-Path $BackupPath $Database
+    $hasBsonAtRoot = [bool](Get-ChildItem -Path $BackupPath -File -Filter "*.bson" -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if (-not $hasBsonAtRoot -and (Test-Path $dbSubDir)) {
+      $BackupPath = $dbSubDir
+      Write-Host "[INFO ] Menggunakan subfolder database: $BackupPath"
+    }
+  }
 
   $args = @(
     "--uri=$MongoUri"
@@ -52,7 +81,7 @@ try {
     $args += "--drop"
   }
 
-  if ($Database) {
+  if ($Database -and -not $dbFromUri) {
     $args += "--db=$Database"
   }
 
