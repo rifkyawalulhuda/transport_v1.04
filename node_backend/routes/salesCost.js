@@ -870,6 +870,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       { header: "Delivery Order", key: "delivery_order", width: 16 },
       { header: "Arrival Order", key: "arrival_order", width: 16 },
       { header: "Finish Order", key: "finish_order", width: 16 },
+      { header: "Waktu Pengiriman", key: "waktu_pengiriman", width: 18 },
       { header: "No. SPK", key: "no_spk", width: 18 },
       { header: "Area", key: "nama_area", width: 20 },
       { header: "Customer", key: "nama_customer", width: 24 },
@@ -932,6 +933,35 @@ router.get("/export", authenticateToken, async (req, res) => {
       return `${year}-${month}-${day}`;
     };
 
+    const parseDateOnly = (value) => {
+      if (!value) return null;
+      if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) return null;
+        return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+      }
+      const str = String(value).trim();
+      const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      }
+      const parsed = new Date(str);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    };
+
+    const buildShippingDuration = (deliveryOrder, finishOrder) => {
+      const delivery = parseDateOnly(deliveryOrder);
+      const finish = parseDateOnly(finishOrder);
+      if (!delivery || !finish) {
+        return "";
+      }
+      const diffDays = Math.floor((finish.getTime() - delivery.getTime()) / 86400000);
+      if (diffDays < 0) {
+        return "";
+      }
+      return `${diffDays} Hari`;
+    };
+
     const numberFormat = "[$-421] #,##0";
     const numericKeys = [
       "lift_on",
@@ -963,6 +993,7 @@ router.get("/export", authenticateToken, async (req, res) => {
         delivery_order: formatDate(row.delivery_order),
         arrival_order: formatDate(row.arrival_order),
         finish_order: formatDate(row.finish_order),
+        waktu_pengiriman: buildShippingDuration(row.delivery_order, row.finish_order),
         no_spk: `${row.id_sales_cost} /SPK/CLC`,
         nama_area: row.nama_area,
         nama_customer: row.nama_customer,

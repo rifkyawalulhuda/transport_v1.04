@@ -203,7 +203,7 @@
             <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Timeline Pengiriman
             </p>
-            <div class="grid gap-4 md:grid-cols-3">
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
                   Delivery Order
@@ -233,6 +233,17 @@
                 <input
                   type="text"
                   :value="formatDate(detail.finish_order)"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Waktu Pengiriman
+                </label>
+                <input
+                  type="text"
+                  :value="shippingDurationLabel"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
@@ -559,6 +570,46 @@ const formatDate = (value?: string | null) => {
     year: 'numeric'
   }).format(date)
 }
+
+const parseDateOnly = (value?: string | null) => {
+  if (!value) {
+    return null
+  }
+
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    return new Date(year, month - 1, day)
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+}
+
+const shippingDurationDays = computed(() => {
+  const delivery = parseDateOnly(detail.value.delivery_order)
+  const finish = parseDateOnly(detail.value.finish_order)
+  if (!delivery || !finish) {
+    return null
+  }
+  const diff = Math.floor((finish.getTime() - delivery.getTime()) / 86400000)
+  if (diff < 0) {
+    return null
+  }
+  return diff
+})
+
+const shippingDurationLabel = computed(() => {
+  if (shippingDurationDays.value === null) {
+    return '-'
+  }
+  return `${shippingDurationDays.value} Hari`
+})
 
 const totalPages = computed(() => Math.ceil(dnItems.value.length / itemsPerPage))
 
