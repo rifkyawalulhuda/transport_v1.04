@@ -199,28 +199,44 @@
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Delivery Order
-              </label>
-              <input
-                type="text"
-                :value="formatDate(detail.delivery_order)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Arrival
-              </label>
-              <input
-                type="text"
-                :value="formatDate(detail.arrival_order)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+          <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-900/30">
+            <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Timeline Pengiriman
+            </p>
+            <div class="grid gap-4 md:grid-cols-3">
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Delivery Order
+                </label>
+                <input
+                  type="text"
+                  :value="formatDate(detail.delivery_order)"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Arrival
+                </label>
+                <input
+                  type="text"
+                  :value="formatDate(detail.arrival_order)"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Finish Order
+                </label>
+                <input
+                  type="text"
+                  :value="formatDate(detail.finish_order)"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  readonly
+                />
+              </div>
             </div>
           </div>
 
@@ -411,6 +427,7 @@ type DetailData = {
   nama_driver: string
   delivery_order: string | null
   arrival_order: string | null
+  finish_order: string | null
   jenis_trip: string | null
   no_container: string | null
   trip: string | number | null
@@ -465,6 +482,7 @@ const detail = ref<DetailData>({
   nama_driver: '',
   delivery_order: null,
   arrival_order: null,
+  finish_order: null,
   jenis_trip: '',
   no_container: '',
   trip: '',
