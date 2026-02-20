@@ -959,7 +959,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       if (diffDays < 0) {
         return "";
       }
-      return `${diffDays} Hari`;
+      return `${diffDays + 1} Hari`;
     };
 
     const numberFormat = "[$-421] #,##0";

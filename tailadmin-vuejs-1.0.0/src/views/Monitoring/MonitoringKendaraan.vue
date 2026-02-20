@@ -500,7 +500,7 @@ const resolveShippingDurationLabel = (
   if (diffDays < 0) {
     return '-'
   }
-  return `${diffDays} Hari`
+  return `${diffDays + 1} Hari`
 }
 
 const resolveVehicleName = (item: any) => {

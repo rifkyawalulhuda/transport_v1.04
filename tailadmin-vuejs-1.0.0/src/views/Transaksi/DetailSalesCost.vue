@@ -601,7 +601,7 @@ const shippingDurationDays = computed(() => {
   if (diff < 0) {
     return null
   }
-  return diff
+  return diff + 1
 })
 
 const shippingDurationLabel = computed(() => {
