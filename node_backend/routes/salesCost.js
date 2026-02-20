@@ -719,6 +719,8 @@ router.get("/", async (req, res) => {
   try {
     const startDate = req.query.start_date || "";
     const endDate = req.query.end_date || "";
+    const yearParam = String(req.query.year || "").trim();
+    const year = Number.parseInt(yearParam, 10);
     const keyword = String(req.query.q || "").trim();
     const column = String(req.query.column || "all").trim().toLowerCase();
 
@@ -750,6 +752,11 @@ router.get("/", async (req, res) => {
     if (endDate) {
       conditions.push("sales_cost.delivery_order <= ?");
       params.push(endDate + " 23:59:59");
+    }
+
+    if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
+      conditions.push("YEAR(sales_cost.delivery_order) = ?");
+      params.push(year);
     }
 
     if (keyword) {
@@ -787,6 +794,8 @@ router.get("/export", authenticateToken, async (req, res) => {
   try {
     const startDate = req.query.start_date || "";
     const endDate = req.query.end_date || "";
+    const yearParam = String(req.query.year || "").trim();
+    const year = Number.parseInt(yearParam, 10);
     const keyword = String(req.query.q || "").trim();
     const column = String(req.query.column || "all").trim().toLowerCase();
 
@@ -819,6 +828,11 @@ router.get("/export", authenticateToken, async (req, res) => {
     if (endDate) {
       conditions.push("sales_cost.delivery_order <= ?");
       params.push(endDate + " 23:59:59");
+    }
+
+    if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
+      conditions.push("YEAR(sales_cost.delivery_order) = ?");
+      params.push(year);
     }
 
     if (keyword) {
@@ -1179,6 +1193,26 @@ router.get("/export", authenticateToken, async (req, res) => {
     sheetDN.commit();
 
     await workbook.commit();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/years", async (_req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT DISTINCT YEAR(delivery_order) AS year
+       FROM sales_cost
+       WHERE delivery_order IS NOT NULL
+       ORDER BY year DESC`
+    );
+
+    const years = rows
+      .map((row) => Number.parseInt(String(row.year), 10))
+      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999);
+
+    res.json(years);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });

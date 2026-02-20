@@ -112,6 +112,19 @@
             Tambah Transaksi
           </RouterLink>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 dark:text-gray-300">Tahun</label>
+              <select
+                v-model="filters.year"
+                class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @change="handleYearFilterChange"
+              >
+                <option value="">Semua</option>
+                <option v-for="year in yearOptions" :key="year" :value="year">
+                  {{ year }}
+                </option>
+              </select>
+            </div>
             <p class="text-sm text-gray-500 dark:text-gray-400">
               Total: {{ filteredItems.length }} transaksi
             </p>
@@ -1060,6 +1073,9 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const currentPage = ref(1)
 const pageSize = ref(15)
 const pageSizeOptions = [15, 20, 50, 75, 100]
+const currentYear = new Date().getFullYear()
+const defaultYear = String(currentYear)
+const yearOptions = ref<string[]>([])
 const searchColumns = [
   { value: 'all', label: 'Semua Kolom', placeholder: 'Cari transaksi...' },
   { value: 'id_sales_cost', label: 'No. SPK', placeholder: 'Cari no. SPK' },
@@ -1243,7 +1259,8 @@ const paginationItems = computed<PaginationItem[]>(() => {
 })
 const filters = reactive({
   startDate: '',
-  endDate: ''
+  endDate: '',
+  year: defaultYear
 })
 const filterError = ref('')
 
@@ -1325,6 +1342,31 @@ const loadOptions = async () => {
   areas.value = await areaRes.json()
 }
 
+const loadYearOptions = async () => {
+  try {
+    const res = await fetch(`${apiBase}/sales-costs/years`)
+    if (!res.ok) {
+      throw new Error('Gagal memuat daftar tahun.')
+    }
+    const data = await res.json()
+    if (!Array.isArray(data)) {
+      yearOptions.value = []
+      return
+    }
+    yearOptions.value = data
+      .map((year) => Number.parseInt(String(year), 10))
+      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999)
+      .map((year) => String(year))
+
+    if (yearOptions.value.length > 0 && !yearOptions.value.includes(filters.year)) {
+      filters.year = yearOptions.value[0]
+    }
+  } catch (error) {
+    console.error(error)
+    yearOptions.value = []
+  }
+}
+
 const loadData = async () => {
   loading.value = true
   try {
@@ -1361,9 +1403,17 @@ const changePageSize = () => {
   currentPage.value = 1
 }
 
+const handleYearFilterChange = () => {
+  currentPage.value = 1
+  loadData()
+}
+
 const resetFilter = () => {
   filters.startDate = ''
   filters.endDate = ''
+  filters.year = yearOptions.value.includes(defaultYear)
+    ? defaultYear
+    : (yearOptions.value[0] || '')
   searchColumn.value = 'all'
   searchInput.value = ''
   searchKeyword.value = ''
@@ -1378,6 +1428,9 @@ const buildFilterParams = () => {
   }
   if (filters.endDate) {
     params.append('end_date', filters.endDate)
+  }
+  if (filters.year) {
+    params.append('year', filters.year)
   }
   if (searchKeyword.value.trim()) {
     params.append('q', searchKeyword.value.trim())
@@ -1738,7 +1791,8 @@ const remove = async (item: SalesCostItem) => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadOptions(), loadData()])
+  await Promise.all([loadOptions(), loadYearOptions()])
+  await loadData()
 })
 
 const handleDocumentClick = () => {
