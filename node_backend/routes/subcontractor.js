@@ -42,6 +42,8 @@ function parseNumber(value) {
 function buildFilters(query) {
   const startDate = query.start_date || "";
   const endDate = query.end_date || "";
+  const yearParam = String(query.year || "").trim();
+  const year = Number.parseInt(yearParam, 10);
   const keyword = String(query.keyword || "").trim();
   const column = String(query.search_column || "all").trim().toLowerCase();
 
@@ -56,6 +58,11 @@ function buildFilters(query) {
   if (endDate) {
     conditions.push("sub_contractor.delivery_date <= ?");
     params.push(endDate);
+  }
+
+  if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
+    conditions.push("YEAR(sub_contractor.delivery_date) = ?");
+    params.push(year);
   }
 
   if (keyword) {
@@ -118,6 +125,26 @@ function buildFilters(query) {
 
   return { conditions, params };
 }
+
+router.get("/years", async (_req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT DISTINCT YEAR(delivery_date) AS year
+       FROM sub_contractor
+       WHERE delivery_date IS NOT NULL
+       ORDER BY year DESC`
+    );
+
+    const years = rows
+      .map((row) => Number.parseInt(String(row.year), 10))
+      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999);
+
+    res.json(years);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 router.get("/", async (req, res) => {
   try {

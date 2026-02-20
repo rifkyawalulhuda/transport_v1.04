@@ -66,6 +66,12 @@ export const repairService = {
     }`
     return authFetch(url)
   },
+  async fetchRepairYears(params) {
+    const searchParams = buildParams(params)
+    const url = `${API_BASE}/repairs/years${searchParams.toString() ? `?${searchParams}` : ''}`
+    const res = await authFetch(url)
+    return handleJson(res)
+  },
   async fetchTrucks() {
     const res = await authFetch(`${API_BASE}/trucks`)
     return handleJson(res)

@@ -9,6 +9,7 @@ const {
   updateRepair,
   deleteRepair,
   fetchRepairsForExport,
+  fetchRepairYears,
   fetchRepairProcessNotifications
 } = require("../services/repairService");
 
@@ -144,6 +145,16 @@ router.get("/notifications/proses", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
     const result = await fetchRepairProcessNotifications({ limit });
     res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/years", async (req, res) => {
+  try {
+    const years = await fetchRepairYears(req.query);
+    res.json(years);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });

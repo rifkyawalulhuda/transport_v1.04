@@ -15,6 +15,8 @@ const resolveDateColumn = (dateField) =>
 const buildFilters = (query = {}) => {
   const startDate = query.startDate || query.start_date || "";
   const endDate = query.endDate || query.end_date || "";
+  const yearParam = String(query.year || "").trim();
+  const year = Number.parseInt(yearParam, 10);
   const keyword = String(query.keyword || query.q || "").trim();
   const column = String(query.searchColumn || query.column || "all")
     .trim()
@@ -33,6 +35,11 @@ const buildFilters = (query = {}) => {
   if (endDate) {
     conditions.push(`${dateColumn} <= ?`);
     params.push(endDate);
+  }
+
+  if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
+    conditions.push(`YEAR(${dateColumn}) = ?`);
+    params.push(year);
   }
 
   if (keyword) {
@@ -315,6 +322,21 @@ const fetchRepairsForExport = async (query = {}) => {
   return rows;
 };
 
+const fetchRepairYears = async (query = {}) => {
+  const dateField = normalizeDateField(query.dateField);
+  const dateColumn = resolveDateColumn(dateField);
+  const [rows] = await db.query(
+    `SELECT DISTINCT YEAR(${dateColumn}) AS year
+     FROM repair
+     WHERE ${dateColumn} IS NOT NULL
+     ORDER BY year DESC`
+  );
+
+  return rows
+    .map((row) => Number.parseInt(String(row.year), 10))
+    .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999);
+};
+
 const fetchRepairProcessNotifications = async ({ limit = 10 } = {}) => {
   const safeLimit = Math.min(Number(limit) || 10, 50);
   const [[countRow]] = await db.query(
@@ -338,5 +360,6 @@ module.exports = {
   updateRepair,
   deleteRepair,
   fetchRepairsForExport,
+  fetchRepairYears,
   fetchRepairProcessNotifications
 };

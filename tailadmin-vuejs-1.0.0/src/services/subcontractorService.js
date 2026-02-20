@@ -64,6 +64,10 @@ export const subcontractorService = {
     const url = `${API_BASE}/subcontractor/export${searchParams.toString() ? `?${searchParams}` : ''}`
     return authFetch(url)
   },
+  async fetchSubcontractorYears() {
+    const res = await authFetch(`${API_BASE}/subcontractor/years`)
+    return handleJson(res)
+  },
   async fetchWarehouses() {
     const res = await authFetch(`${API_BASE}/warehouses`)
     return handleJson(res)

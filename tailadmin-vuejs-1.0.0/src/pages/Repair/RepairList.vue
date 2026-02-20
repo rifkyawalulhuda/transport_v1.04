@@ -102,6 +102,18 @@
             Tambah Transaksi
           </RouterLink>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div class="flex items-center gap-2">
+              <label class="text-sm text-gray-600 dark:text-gray-300">Tahun</label>
+              <select
+                v-model="filters.year"
+                class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @change="handleYearFilterChange"
+              >
+                <option v-for="year in yearOptions" :key="year" :value="year">
+                  {{ year }}
+                </option>
+              </select>
+            </div>
             <p class="text-sm text-gray-500 dark:text-gray-400">
               Total: {{ totalCount }} transaksi
             </p>
@@ -613,6 +625,9 @@ const isExporting = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(15)
 const pageSizeOptions = [15, 20, 50, 75, 100]
+const currentYear = new Date().getFullYear()
+const defaultYear = String(currentYear)
+const yearOptions = ref<string[]>([])
 const totalCount = ref(0)
 const deletingId = ref<number | null>(null)
 
@@ -772,7 +787,8 @@ const paginationItems = computed<PaginationItem[]>(() => {
 
 const filters = reactive({
   startDate: '',
-  endDate: ''
+  endDate: '',
+  year: defaultYear
 })
 const filterError = ref('')
 
@@ -793,6 +809,9 @@ const buildFilterParams = () => {
   }
   if (filters.endDate) {
     params.endDate = filters.endDate
+  }
+  if (filters.year) {
+    params.year = filters.year
   }
   if (searchKeyword.value.trim()) {
     params.keyword = searchKeyword.value.trim()
@@ -841,9 +860,38 @@ const changePageSize = () => {
   currentPage.value = 1
 }
 
+const handleYearFilterChange = () => {
+  currentPage.value = 1
+  loadData()
+}
+
+const loadYearOptions = async () => {
+  try {
+    const data = await repairService.fetchRepairYears()
+    if (!Array.isArray(data)) {
+      yearOptions.value = []
+      return
+    }
+    yearOptions.value = data
+      .map((year) => Number.parseInt(String(year), 10))
+      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999)
+      .map((year) => String(year))
+
+    if (yearOptions.value.length > 0 && !yearOptions.value.includes(filters.year)) {
+      filters.year = yearOptions.value[0]
+    }
+  } catch (error) {
+    console.error(error)
+    yearOptions.value = []
+  }
+}
+
 const resetFilter = () => {
   filters.startDate = ''
   filters.endDate = ''
+  filters.year = yearOptions.value.includes(defaultYear)
+    ? defaultYear
+    : (yearOptions.value[0] || '')
   searchColumn.value = 'all'
   searchInput.value = ''
   searchKeyword.value = ''
@@ -974,8 +1022,9 @@ watch(currentPage, () => {
   loadData()
 })
 
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadYearOptions()
+  await loadData()
 })
 
 const handleDocumentClick = () => {
