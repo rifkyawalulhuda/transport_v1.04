@@ -1,63 +1,103 @@
 <template>
   <admin-layout>
-    <div class="space-y-6">
+    <div class="space-y-6 dashboard-print-wrapper">
       <div
-        class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+        class="ringkasan-print-area rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
       >
         <div
-          class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 dark:border-gray-800 sm:px-6"
+          class="ringkasan-print-header flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 dark:border-gray-800 sm:px-6"
         >
           <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
             Ringkasan Dashboard
           </h3>
-          <div class="flex items-center gap-3">
-            <button
-              type="button"
-              class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              @click="collapseAll"
-            >
-              Collapse all
-            </button>
-            <button
-              type="button"
-              class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              @click="expandAll"
-            >
-              Expand all
-            </button>
-            <button
-              type="button"
-              class="rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              :aria-expanded="sections.group1"
-              @click="toggleSection('group1')"
-            >
-              <svg
-                class="h-4 w-4 transition-transform duration-200"
-                :class="sections.group1 ? 'rotate-180' : ''"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+          <div class="no-print flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <div class="flex items-center gap-2">
+              <select
+                v-model.number="printMonth"
+                class="h-8 rounded-lg border border-gray-200 bg-transparent px-2 text-xs text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               >
-                <path d="M4 8l6 6 6-6" />
-              </svg>
-            </button>
+                <option
+                  v-for="option in monthOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+              <select
+                v-model.number="printYear"
+                class="h-8 rounded-lg border border-gray-200 bg-transparent px-2 text-xs text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              >
+                <option
+                  v-for="year in printYearOptions"
+                  :key="year"
+                  :value="year"
+                >
+                  {{ year }}
+                </option>
+              </select>
+              <button
+                type="button"
+                class="inline-flex h-8 items-center rounded-lg bg-brand-500 px-3 text-xs font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-70"
+                :disabled="isPrinting"
+                @click="handlePrintRingkasan"
+              >
+                {{ isPrinting ? 'Preparing...' : 'Print Ringkasan' }}
+              </button>
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                @click="collapseAll"
+              >
+                Collapse all
+              </button>
+              <button
+                type="button"
+                class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                @click="expandAll"
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                class="rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                :aria-expanded="sections.group1"
+                @click="toggleSection('group1')"
+              >
+                <svg
+                  class="h-4 w-4 transition-transform duration-200"
+                  :class="sections.group1 ? 'rotate-180' : ''"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 8l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         <div v-show="sections.group1" class="px-5 pb-5 pt-4 sm:px-6">
           <div class="grid grid-cols-12 gap-4 md:gap-6">
             <div class="col-span-12 space-y-6 xl:col-span-7">
-              <ecommerce-metrics />
-              <monthly-target />
+              <ecommerce-metrics :external-month="printMonth" :external-year="printYear" />
+              <monthly-target :external-year="printYear" />
             </div>
             <div class="col-span-12 xl:col-span-5">
-              <monthly-sale />
+              <monthly-sale :external-month="printMonth" :external-year="printYear" />
             </div>
 
             <div class="col-span-12 xl:col-span-5">
-              <customer-demographic />
+              <customer-demographic
+                :external-month="printMonth"
+                :external-year="printYear"
+                :force-show-all-rows="isPrinting"
+              />
             </div>
 
             <div class="col-span-12 xl:col-span-7">
@@ -68,10 +108,10 @@
         </div>
       </div>
 
-      <expiry-alerts />
+      <expiry-alerts class="hide-on-ringkasan-print" />
 
       <div
-        class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+        class="hide-on-ringkasan-print rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
       >
         <div
           class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800 sm:px-6"
@@ -166,7 +206,7 @@
       </div>
 
       <div
-        class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+        class="hide-on-ringkasan-print rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
       >
         <div
           class="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800 sm:px-6"
@@ -264,7 +304,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AdminLayout from '../components/layout/AdminLayout.vue'
 import EcommerceMetrics from '../components/ecommerce/EcommerceMetrics.vue'
 import MonthlyTarget from '../components/ecommerce/MonthlySale.vue'
@@ -330,6 +370,15 @@ watch(sections, persistSectionState, { deep: true })
 
 onMounted(() => {
   loadSectionState()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('afterprint', handleAfterPrint)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('afterprint', handleAfterPrint)
+  }
 })
 
 const options = [
@@ -340,8 +389,47 @@ const options = [
 
 const apiBase = API_BASE
 const toast = useToast()
+const currentDate = new Date()
+const currentYear = currentDate.getFullYear()
+const currentMonth = currentDate.getMonth() + 1
+const monthOptions = [
+  { value: 1, label: 'Jan' },
+  { value: 2, label: 'Feb' },
+  { value: 3, label: 'Mar' },
+  { value: 4, label: 'Apr' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'Jun' },
+  { value: 7, label: 'Jul' },
+  { value: 8, label: 'Aug' },
+  { value: 9, label: 'Sep' },
+  { value: 10, label: 'Oct' },
+  { value: 11, label: 'Nov' },
+  { value: 12, label: 'Dec' }
+]
+const printMonth = ref(currentMonth)
+const printYear = ref(currentYear)
+const printYearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 5 + index)
+const isPrinting = ref(false)
+const wait = (ms: number) => new Promise<void>((resolve) => {
+  window.setTimeout(() => resolve(), ms)
+})
+const handleAfterPrint = () => {
+  isPrinting.value = false
+}
+const handlePrintRingkasan = async () => {
+  if (isPrinting.value) {
+    return
+  }
+  isPrinting.value = true
+  try {
+    await nextTick()
+    await wait(250)
+    window.print()
+  } catch {
+    isPrinting.value = false
+  }
+}
 const numberFormatter = new Intl.NumberFormat('id-ID')
-const currentYear = new Date().getFullYear()
 const selectedYear = ref(currentYear)
 const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 5 + index)
 
@@ -790,3 +878,31 @@ watch([subcontractorActiveRange, subcontractorSelectedYear], () => {
   void fetchSubcontractorStatistics()
 }, { immediate: true })
 </script>
+
+<style>
+@media print {
+  aside,
+  header,
+  footer,
+  .no-print,
+  .hide-on-ringkasan-print {
+    display: none !important;
+  }
+
+  .dashboard-print-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .ringkasan-print-area {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .ringkasan-print-area .custom-scrollbar {
+    overflow: visible !important;
+  }
+}
+</style>

@@ -116,6 +116,17 @@ import { API_BASE } from '@/config/api'
 import { authFetch } from '@/services/auth'
 import { useToast } from '@/composables/useToast'
 
+const props = defineProps({
+  externalMonth: {
+    type: Number,
+    default: null
+  },
+  externalYear: {
+    type: Number,
+    default: null
+  }
+})
+
 const apiBase = API_BASE
 const toast = useToast()
 
@@ -264,4 +275,38 @@ watch([salesMonth, salesYear], () => {
 watch([subcontractorMonth, subcontractorYear], () => {
   void fetchSubcontractorCount()
 }, { immediate: true })
+
+watch(
+  () => props.externalMonth,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1 || nextValue > 12) {
+      return
+    }
+    if (salesMonth.value !== nextValue) {
+      salesMonth.value = nextValue
+    }
+    if (subcontractorMonth.value !== nextValue) {
+      subcontractorMonth.value = nextValue
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.externalYear,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1900) {
+      return
+    }
+    if (salesYear.value !== nextValue) {
+      salesYear.value = nextValue
+    }
+    if (subcontractorYear.value !== nextValue) {
+      subcontractorYear.value = nextValue
+    }
+  },
+  { immediate: true }
+)
 </script>

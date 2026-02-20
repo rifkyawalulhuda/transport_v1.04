@@ -61,7 +61,7 @@
         class="space-y-5"
       >
         <div
-          v-for="row in pagedRows"
+          v-for="row in displayedRows"
           :key="row.id_truck"
           class="flex items-center justify-between"
         >
@@ -89,7 +89,7 @@
       </div>
     </div>
     <div
-      v-if="totalPages > 1"
+      v-if="!shouldShowAllRows && totalPages > 1"
       class="flex items-center justify-center gap-2"
     >
       <template v-for="item in visiblePages" :key="item">
@@ -109,7 +109,7 @@
           v-else
           class="text-sm text-gray-400 dark:text-gray-500"
         >
-          …
+          ...
         </span>
       </template>
     </div>
@@ -117,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { API_BASE } from '@/config/api'
 import { authFetch } from '@/services/auth'
 import { useToast } from '@/composables/useToast'
@@ -128,6 +128,12 @@ type TruckMonthlyRow = {
   transaction_count: number
   percent: number
 }
+
+const props = defineProps<{
+  externalMonth?: number | null
+  externalYear?: number | null
+  forceShowAllRows?: boolean
+}>()
 
 const apiBase = API_BASE
 const toast = useToast()
@@ -149,7 +155,7 @@ const monthOptions = [
   { value: 9, label: 'Sep' },
   { value: 10, label: 'Oct' },
   { value: 11, label: 'Nov' },
-  { value: 12, label: 'Dec' },
+  { value: 12, label: 'Dec' }
 ]
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 5 + index)
 
@@ -158,6 +164,8 @@ const rows = ref<TruckMonthlyRow[]>([])
 const avgPercent = ref(0)
 const pageSize = 5
 const currentPage = ref(1)
+const isPrintMode = ref(false)
+const printMedia = typeof window !== 'undefined' ? window.matchMedia('print') : null
 
 const numberFormatter = new Intl.NumberFormat('id-ID')
 const formatCount = (value: number) => numberFormatter.format(Number(value) || 0)
@@ -205,8 +213,12 @@ watch([selectedMonth, selectedYear], () => {
   void fetchMonthlyAverage()
 }, { immediate: true })
 
+const shouldShowAllRows = computed(() => Boolean(props.forceShowAllRows) || isPrintMode.value)
 const totalPages = computed(() => Math.ceil(rows.value.length / pageSize))
-const pagedRows = computed(() => {
+const displayedRows = computed(() => {
+  if (shouldShowAllRows.value) {
+    return rows.value
+  }
   if (rows.value.length === 0) {
     return []
   }
@@ -256,7 +268,76 @@ const visiblePages = computed(() => {
   return pages
 })
 
+const handleBeforePrint = () => {
+  isPrintMode.value = true
+}
+
+const handleAfterPrint = () => {
+  isPrintMode.value = false
+}
+
+const handlePrintMediaChange = (event: MediaQueryListEvent) => {
+  isPrintMode.value = event.matches
+}
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeprint', handleBeforePrint)
+    window.addEventListener('afterprint', handleAfterPrint)
+  }
+  if (printMedia) {
+    isPrintMode.value = printMedia.matches
+    if (typeof printMedia.addEventListener === 'function') {
+      printMedia.addEventListener('change', handlePrintMediaChange)
+    } else if (typeof printMedia.addListener === 'function') {
+      printMedia.addListener(handlePrintMediaChange)
+    }
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('beforeprint', handleBeforePrint)
+    window.removeEventListener('afterprint', handleAfterPrint)
+  }
+  if (printMedia) {
+    if (typeof printMedia.removeEventListener === 'function') {
+      printMedia.removeEventListener('change', handlePrintMediaChange)
+    } else if (typeof printMedia.removeListener === 'function') {
+      printMedia.removeListener(handlePrintMediaChange)
+    }
+  }
+})
+
 watch(rows, () => {
   clampCurrentPage()
 })
+
+watch(
+  () => props.externalMonth,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1 || nextValue > 12) {
+      return
+    }
+    if (selectedMonth.value !== nextValue) {
+      selectedMonth.value = nextValue
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.externalYear,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1900) {
+      return
+    }
+    if (selectedYear.value !== nextValue) {
+      selectedYear.value = nextValue
+    }
+  },
+  { immediate: true }
+)
 </script>

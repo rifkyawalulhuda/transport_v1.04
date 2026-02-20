@@ -48,6 +48,13 @@ import VueApexCharts from 'vue3-apexcharts'
 import { authFetch } from '@/services/auth'
 import { useToast } from '@/composables/useToast'
 
+const props = defineProps({
+  externalYear: {
+    type: Number,
+    default: null
+  }
+})
+
 const apiBase = API_BASE
 const toast = useToast()
 
@@ -180,4 +187,18 @@ const fetchMonthlyTransactions = async () => {
 watch(selectedYear, () => {
   void fetchMonthlyTransactions()
 }, { immediate: true })
+
+watch(
+  () => props.externalYear,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1900) {
+      return
+    }
+    if (selectedYear.value !== nextValue) {
+      selectedYear.value = nextValue
+    }
+  },
+  { immediate: true }
+)
 </script>

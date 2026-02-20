@@ -103,6 +103,11 @@ import { authFetch } from '@/services/auth'
 import { useToast } from '@/composables/useToast'
 import VueApexCharts from 'vue3-apexcharts'
 
+const props = defineProps<{
+  externalMonth?: number | null
+  externalYear?: number | null
+}>()
+
 const apiBase = API_BASE
 const toast = useToast()
 
@@ -305,4 +310,32 @@ const fetchMonthlyTarget = async () => {
 watch([selectedMonth, selectedYear], () => {
   void fetchMonthlyTarget()
 }, { immediate: true })
+
+watch(
+  () => props.externalMonth,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1 || nextValue > 12) {
+      return
+    }
+    if (selectedMonth.value !== nextValue) {
+      selectedMonth.value = nextValue
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.externalYear,
+  (value) => {
+    const nextValue = Number(value)
+    if (!Number.isFinite(nextValue) || nextValue < 1900) {
+      return
+    }
+    if (selectedYear.value !== nextValue) {
+      selectedYear.value = nextValue
+    }
+  },
+  { immediate: true }
+)
 </script>
