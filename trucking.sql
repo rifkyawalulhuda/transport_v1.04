@@ -512,6 +512,7 @@ CREATE TABLE `sales_cost` (
   `id_admin` varchar(13) NOT NULL,
   `delivery_order` date NOT NULL,
   `arrival_order` date NOT NULL,
+  `finish_order` date DEFAULT NULL,
   `bills` varchar(50) NOT NULL,
   `lift_on` int(30) NOT NULL,
   `lift_of` int(30) NOT NULL,

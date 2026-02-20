@@ -25,6 +25,25 @@ function parseNumber(value) {
   return parsed;
 }
 
+function isValidIsoDate(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return false;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() + 1 === month &&
+    date.getUTCDate() === day
+  );
+}
+
 function parseExcelDate(value) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -1146,6 +1165,7 @@ router.post("/", authenticateToken, async (req, res) => {
     const idCustomer = body.id_customer || null;
     const deliveryOrder = body.delivery_order || null;
     const arrivalOrder = body.arrival_order || null;
+    const finishOrder = body.finish_order || null;
     const noDn = body.no_dn || "";
     const containerDepot = body.container_depot || "";
     const noPo = body.no_po || "";
@@ -1161,6 +1181,13 @@ router.post("/", authenticateToken, async (req, res) => {
     let containerSize = rawContainerSize ? rawContainerSize : null;
     const idPrint = body.id_print || "";
     const idAdmin = req.user.id_admin;
+
+    if (!finishOrder) {
+      return res.status(400).json({ message: "Finish Order wajib diisi." });
+    }
+    if (!isValidIsoDate(finishOrder)) {
+      return res.status(400).json({ message: "Format Finish Order harus YYYY-MM-DD." });
+    }
 
     // Alamat pickup & drop sekarang adalah TEXT, bukan angka.
     const almtPickup = body.almt_pickup || "";
@@ -1205,7 +1232,7 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     const [result] = await db.query(
-      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, delivery_order, arrival_order, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, delivery_order, arrival_order, finish_order, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [
         tglOrder,
         idTruck,
@@ -1215,6 +1242,7 @@ router.post("/", authenticateToken, async (req, res) => {
         idAdmin,
         deliveryOrder,
         arrivalOrder,
+        finishOrder,
         bills,
         liftOn,
         liftOf,
@@ -1242,7 +1270,7 @@ router.post("/", authenticateToken, async (req, res) => {
     );
 
     const [rows] = await db.query(
-      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
+      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.finish_order, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
       [result.insertId]
     );
 
@@ -1295,6 +1323,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const idCustomer = body.id_customer || null;
     const deliveryOrder = body.delivery_order || null;
     const arrivalOrder = body.arrival_order || null;
+    const finishOrder = body.finish_order || null;
     const noDn = body.no_dn || "";
     const containerDepot = body.container_depot || "";
     const noPo = body.no_po || "";
@@ -1308,6 +1337,10 @@ router.put("/:id", authenticateToken, async (req, res) => {
         ? body.container_size.trim()
         : body.container_size;
     let containerSize = rawContainerSize ? rawContainerSize : null;
+
+    if (finishOrder && !isValidIsoDate(finishOrder)) {
+      return res.status(400).json({ message: "Format Finish Order harus YYYY-MM-DD." });
+    }
     
     // Alamat pickup & drop (Text)
     const almtPickup = body.almt_pickup || "";
@@ -1352,7 +1385,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     const [result] = await db.query(
-      "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, delivery_order = ?, arrival_order = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?",
+      "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, delivery_order = ?, arrival_order = ?, finish_order = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?",
       [
         idTruck,
         idDriver,
@@ -1360,6 +1393,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
         idCustomer,
         deliveryOrder,
         arrivalOrder,
+        finishOrder,
         bills,
         liftOn,
         liftOf,
@@ -1407,7 +1441,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     });
 
     const [rows] = await db.query(
-      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
+      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.finish_order, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
       [id]
     );
 

@@ -121,7 +121,7 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-4 md:grid-cols-3">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Delivery Order</label
@@ -148,6 +148,20 @@
             />
             <p v-if="errors.arrival_order" class="mt-1 text-xs text-error-600">
               {{ errors.arrival_order }}
+            </p>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+              >Finish Order</label
+            >
+            <DatePickerInput
+              v-model="form.finish_order"
+              placeholder="Pilih tanggal"
+              :required="props.mode === 'create'"
+              :disabled="isDisabled"
+            />
+            <p v-if="errors.finish_order" class="mt-1 text-xs text-error-600">
+              {{ errors.finish_order }}
             </p>
           </div>
         </div>
@@ -604,6 +618,7 @@ type SalesCostFormData = {
   lift_of: string
   delivery_order: string
   arrival_order: string
+  finish_order: string
   container_depot: string
   no_po: string
   tax: string
@@ -693,6 +708,7 @@ const form = reactive<SalesCostFormData>({
   lift_of: '0',
   delivery_order: '',
   arrival_order: '',
+  finish_order: '',
   container_depot: '0',
   no_po: '0',
   tax: '0',
@@ -856,6 +872,11 @@ const validateForm = () => {
   } else if (!isValidIsoDate(form.arrival_order)) {
     errors.arrival_order = 'Arrival tidak valid.'
   }
+  if (props.mode === 'create' && !form.finish_order) {
+    errors.finish_order = 'Finish Order wajib diisi.'
+  } else if (form.finish_order && !isValidIsoDate(form.finish_order)) {
+    errors.finish_order = 'Finish Order tidak valid.'
+  }
   if (!form.ops_cost) {
     errors.ops_cost = 'Operasional Cost wajib diisi.'
   }
@@ -894,6 +915,7 @@ const resetForm = () => {
   form.lift_of = '0'
   form.delivery_order = ''
   form.arrival_order = ''
+  form.finish_order = ''
   form.container_depot = '0'
   form.no_po = '0'
   form.tax = '0'
@@ -934,6 +956,7 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
   form.lift_of = formatIndonesianNumber(parseIndonesianNumber(String(data.lift_of ?? '0')))
   form.delivery_order = normalizeDate(data.delivery_order)
   form.arrival_order = normalizeDate(data.arrival_order)
+  form.finish_order = normalizeDate(data.finish_order)
   form.container_depot = data.container_depot ?? '0'
   form.no_po = data.no_po ?? '0'
   form.tax = data.tax ?? '0'
@@ -1027,6 +1050,7 @@ const buildPayload = () => ({
   nik_admin: form.nik_admin,
   delivery_order: form.delivery_order,
   arrival_order: form.arrival_order,
+  finish_order: form.finish_order,
   bills: form.bills,
   lift_on: parseIndonesianNumber(form.lift_on || '0'),
   lift_of: parseIndonesianNumber(form.lift_of || '0'),
