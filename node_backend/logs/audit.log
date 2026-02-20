@@ -110,3 +110,5 @@
 {"timestamp":"20/02/2026 19:13:23","event":"sales_cost_update","id_sales_cost":"40756","id_admin":2,"nik_admin":"CLC003","level":"admin"}
 {"timestamp":"20/02/2026 19:27:05","event":"sales_cost_update","id_sales_cost":"40760","id_admin":2,"nik_admin":"CLC003","level":"admin"}
 {"timestamp":"20/02/2026 19:52:08","event":"sales_cost_update","id_sales_cost":"40763","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"20/02/2026 20:17:09","event":"sales_cost_update","id_sales_cost":"40759","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"20/02/2026 20:19:20","event":"sales_cost_update","id_sales_cost":"40765","id_admin":2,"nik_admin":"CLC003","level":"admin"}

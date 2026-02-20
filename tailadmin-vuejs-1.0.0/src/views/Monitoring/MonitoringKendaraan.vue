@@ -158,6 +158,16 @@
                   <span class="font-medium text-gray-700 dark:text-gray-200">Finish Order:</span>
                   {{ formatDate(item.transaksi?.finish_order || item.transaksi?.arrival_order) }}
                 </p>
+                <p>
+                  <span class="font-medium text-gray-700 dark:text-gray-200">Waktu Kirim:</span>
+                  {{
+                    resolveShippingDurationLabel(
+                      item.transaksi?.delivery_order,
+                      item.transaksi?.finish_order,
+                      item.transaksi?.arrival_order
+                    )
+                  }}
+                </p>
               </div>
             </div>
           </div>
@@ -324,6 +334,18 @@
                   <span class="font-medium text-gray-700 dark:text-gray-200">Rute Terakhir:</span>
                   {{ item.last_transaction?.route || '-' }}
                 </p>
+                <p>
+                  <span class="font-medium text-gray-700 dark:text-gray-200"
+                    >Waktu Kirim Terakhir:</span
+                  >
+                  {{
+                    resolveShippingDurationLabel(
+                      item.last_transaction?.delivery_order,
+                      item.last_transaction?.finish_order,
+                      item.last_transaction?.arrival_order
+                    )
+                  }}
+                </p>
               </div>
             </div>
           </div>
@@ -447,6 +469,38 @@ const formatDate = (value?: string | null) => {
     month: 'short',
     year: 'numeric'
   })
+}
+
+const parseDateOnly = (value?: string | null) => {
+  if (!value) {
+    return null
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+}
+
+const resolveShippingDurationLabel = (
+  deliveryOrder?: string | null,
+  finishOrder?: string | null,
+  arrivalOrder?: string | null
+) => {
+  const delivery = parseDateOnly(deliveryOrder)
+  const finishOrArrival = parseDateOnly(finishOrder || arrivalOrder || null)
+  if (!delivery || !finishOrArrival) {
+    return '-'
+  }
+  const diffDays = Math.floor((finishOrArrival.getTime() - delivery.getTime()) / 86400000)
+  if (diffDays < 0) {
+    return '-'
+  }
+  return `${diffDays} Hari`
 }
 
 const resolveVehicleName = (item: any) => {

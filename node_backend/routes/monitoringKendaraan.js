@@ -192,6 +192,8 @@ router.get("/", async (req, res) => {
         sc.id_truck,
         sc.id_driver,
         sc.delivery_order,
+        sc.arrival_order,
+        sc.finish_order,
         d.nama_driver,
         a.nama_area
       FROM sales_cost sc
@@ -279,6 +281,8 @@ router.get("/", async (req, res) => {
             ? {
                 id_sales_cost: last.id_sales_cost,
                 delivery_order: toDateString(last.delivery_order),
+                arrival_order: toDateString(last.arrival_order),
+                finish_order: toDateString(last.finish_order),
                 driver_name: last.nama_driver || null,
                 route: last.nama_area || null
               }
@@ -310,6 +314,8 @@ router.get("/", async (req, res) => {
             ? {
                 id_sales_cost: last.id_sales_cost,
                 delivery_order: toDateString(last.delivery_order),
+                arrival_order: toDateString(last.arrival_order),
+                finish_order: toDateString(last.finish_order),
                 driver_name: last.nama_driver || null,
                 route: last.nama_area || null
               }
@@ -326,6 +332,8 @@ router.get("/", async (req, res) => {
           ? {
               id_sales_cost: last.id_sales_cost,
               delivery_order: toDateString(last.delivery_order),
+              arrival_order: toDateString(last.arrival_order),
+              finish_order: toDateString(last.finish_order),
               driver_name: last.nama_driver || null,
               route: last.nama_area || null
             }
