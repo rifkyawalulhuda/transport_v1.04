@@ -216,6 +216,7 @@ router.get("/import/template", authenticateToken, async (req, res) => {
       "Customer (ID - Nama)",
       "Delivery Order (YYYY-MM-DD)",
       "Arrival Order (YYYY-MM-DD)",
+      "Finish Order (YYYY-MM-DD)",
       "Bills",
       "Lift On",
       "Lift Off",
@@ -283,8 +284,8 @@ router.get("/import/template", authenticateToken, async (req, res) => {
         error: 'Select from dropdown'
       };
 
-      // Jenis Trip: Col S (19)
-      sheetSales.getCell(`S${r}`).dataValidation = {
+      // Jenis Trip: Col T (20)
+      sheetSales.getCell(`T${r}`).dataValidation = {
         type: 'list',
         allowBlank: false,
         formulae: ['"Day,Trip"'],
@@ -293,8 +294,8 @@ router.get("/import/template", authenticateToken, async (req, res) => {
         error: 'Pilih nilai dari dropdown (Day atau Trip)'
       };
 
-      // Container Size: Col T (20)
-      sheetSales.getCell(`T${r}`).dataValidation = {
+      // Container Size: Col U (21)
+      sheetSales.getCell(`U${r}`).dataValidation = {
         type: 'list',
         allowBlank: true,
         formulae: ['=CONTAINER_SIZE_LIST'],
@@ -322,11 +323,11 @@ router.get("/import/template", authenticateToken, async (req, res) => {
     });
     sheetSales.columns.forEach(col => { col.width = 25; });
     sheetSales.views = [{ state: "frozen", ySplit: 1 }];
-    sheetSales.autoFilter = { from: "A1", to: "AB1" };
+    sheetSales.autoFilter = { from: "A1", to: "AC1" };
 
-    const jenisTripHeaderCell = sheetSales.getCell("S1");
+    const jenisTripHeaderCell = sheetSales.getCell("T1");
     jenisTripHeaderCell.note = "Jangan ketik manual, pilih dari dropdown\nPilihan: Day, Trip";
-    const containerSizeHeaderCell = sheetSales.getCell("T1");
+    const containerSizeHeaderCell = sheetSales.getCell("U1");
     containerSizeHeaderCell.note = "Jika Truck jenis HB, Container Size wajib diisi\nPilihan: 20 Feet / 40 Feet";
 
     // --- SHEET 3: DNList ---
@@ -394,6 +395,15 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
     if (!sheetSales) {
       return res.status(400).json({ message: "Sheet 'SalesCost' not found" });
     }
+    const finishOrderHeader = String(sheetSales.getCell("H1").value || "")
+      .trim()
+      .toLowerCase();
+    if (!finishOrderHeader.startsWith("finish order")) {
+      return res.status(400).json({
+        message:
+          "Template tidak sesuai versi terbaru. Silakan download ulang template Sales Cost (kolom Finish Order wajib ada)."
+      });
+    }
 
     const parseId = (str, fieldName) => {
       if (!str) return null;
@@ -435,27 +445,28 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
           custStr: row.getCell(5).value,
           deliveryOrder: row.getCell(6).value,
           arrivalOrder: row.getCell(7).value,
-          bills: row.getCell(8).value,
-          liftOn: row.getCell(9).value,
-          liftOf: row.getCell(10).value,
-          containerDepot: row.getCell(11).value,
-          noPo: row.getCell(12).value,
-          noAju: row.getCell(13).value,
-          noContainer: row.getCell(14).value,
-          tax: row.getCell(15).value,
-          adminCharge: row.getCell(16).value,
-          materai: row.getCell(17).value,
-          trip: row.getCell(18).value,
-          jenisTrip: row.getCell(19).value,
-          containerSize: row.getCell(20).value,
-          price: row.getCell(21).value,
-          containerRepair: row.getCell(22).value,
-          demurrage: row.getCell(23).value,
-          detention: row.getCell(24).value,
-          extendGate: row.getCell(25).value,
-          addCost: row.getCell(26).value,
-          opsCost: row.getCell(27).value,
-          idPrint: row.getCell(28).value,
+          finishOrder: row.getCell(8).value,
+          bills: row.getCell(9).value,
+          liftOn: row.getCell(10).value,
+          liftOf: row.getCell(11).value,
+          containerDepot: row.getCell(12).value,
+          noPo: row.getCell(13).value,
+          noAju: row.getCell(14).value,
+          noContainer: row.getCell(15).value,
+          tax: row.getCell(16).value,
+          adminCharge: row.getCell(17).value,
+          materai: row.getCell(18).value,
+          trip: row.getCell(19).value,
+          jenisTrip: row.getCell(20).value,
+          containerSize: row.getCell(21).value,
+          price: row.getCell(22).value,
+          containerRepair: row.getCell(23).value,
+          demurrage: row.getCell(24).value,
+          detention: row.getCell(25).value,
+          extendGate: row.getCell(26).value,
+          addCost: row.getCell(27).value,
+          opsCost: row.getCell(28).value,
+          idPrint: row.getCell(29).value,
         });
       });
 
@@ -504,6 +515,18 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
               rowNumber: row.rowNumber,
               reasonCode: "INVALID_DELIVERY_ORDER_FORMAT",
               reason: "invalid delivery_order format"
+            });
+            continue;
+          }
+
+          const finishDate = parseExcelDate(row.finishOrder);
+          if (!finishDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_FINISH_ORDER_FORMAT",
+              reason: "invalid finish_order format"
             });
             continue;
           }
@@ -598,15 +621,15 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
           const [res] = await connection.query(
             `INSERT INTO sales_cost (
                tgl_order, id_truck, id_driver, id_area, id_customer, id_admin,
-               delivery_order, arrival_order, bills, lift_on, lift_of, container_depot,
+               delivery_order, arrival_order, finish_order, bills, lift_on, lift_of, container_depot,
                no_po, no_aju, no_container, tax, admin_charge, materai,
                trip, jenis_trip, container_size, price, container_repair,
                demurrage_chargers, detention_chargers, extend_gate_pass,
                additional_cost, ops_cost, total, margin, id_print
-             ) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               idTruck, idDriver, idArea, idCustomer, req.user.id_admin,
-              deliveryDate, arrivalDate, row.bills || "", liftOn, liftOf, row.containerDepot || "",
+              deliveryDate, arrivalDate, finishDate, row.bills || "", liftOn, liftOf, row.containerDepot || "",
               row.noPo || "", row.noAju || "", row.noContainer || "", row.tax || "", row.adminCharge || 0, row.materai || 0,
               row.trip || "", jenisTripValue, containerSizeNormalized, price, containerRepair,
               demurrage, detention, extendGate, addCost, opsCost, total, margin, row.idPrint || ""
