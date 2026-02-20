@@ -146,8 +146,11 @@
               required
               :disabled="isDisabled"
             />
-            <p v-if="errors.arrival_order" class="mt-1 text-xs text-error-600">
-              {{ errors.arrival_order }}
+            <p
+              v-if="dateOrderErrors.arrival_order || errors.arrival_order"
+              class="mt-1 text-xs text-error-600"
+            >
+              {{ dateOrderErrors.arrival_order || errors.arrival_order }}
             </p>
           </div>
           <div>
@@ -160,8 +163,11 @@
               :required="props.mode === 'create'"
               :disabled="isDisabled"
             />
-            <p v-if="errors.finish_order" class="mt-1 text-xs text-error-600">
-              {{ errors.finish_order }}
+            <p
+              v-if="dateOrderErrors.finish_order || errors.finish_order"
+              class="mt-1 text-xs text-error-600"
+            >
+              {{ dateOrderErrors.finish_order || errors.finish_order }}
             </p>
           </div>
         </div>
@@ -681,6 +687,10 @@ const customers = ref<CustomerOption[]>([])
 const areas = ref<AreaOption[]>([])
 const showOptionalCosts = ref(false)
 const errors = reactive<Record<string, string>>({})
+const dateOrderErrors = reactive<Record<'arrival_order' | 'finish_order', string>>({
+  arrival_order: '',
+  finish_order: ''
+})
 const toast = useToast()
 const checkingTruckStatus = ref(false)
 const truckStatus = ref<{ type: 'repair' | 'transaksi'; message: string } | null>(null)
@@ -848,6 +858,46 @@ const isValidIsoDate = (value: string) => {
   )
 }
 
+const ARRIVAL_LT_DELIVERY_MSG =
+  'Tanggal Arrival Order tidak boleh kurang dari tanggal Delivery Order.'
+const FINISH_LT_ARRIVAL_MSG =
+  'Tanggal Finish Order tidak boleh kurang dari tanggal Arrival.'
+
+const updateDateOrderErrors = () => {
+  let arrivalOrderMessage = ''
+  let finishOrderMessage = ''
+
+  if (
+    form.delivery_order &&
+    form.arrival_order &&
+    isValidIsoDate(form.delivery_order) &&
+    isValidIsoDate(form.arrival_order) &&
+    form.arrival_order < form.delivery_order
+  ) {
+    arrivalOrderMessage = ARRIVAL_LT_DELIVERY_MSG
+  }
+
+  if (
+    form.arrival_order &&
+    form.finish_order &&
+    isValidIsoDate(form.arrival_order) &&
+    isValidIsoDate(form.finish_order) &&
+    form.finish_order < form.arrival_order
+  ) {
+    finishOrderMessage = FINISH_LT_ARRIVAL_MSG
+  }
+
+  dateOrderErrors.arrival_order = arrivalOrderMessage
+  dateOrderErrors.finish_order = finishOrderMessage
+
+  if (!arrivalOrderMessage && errors.arrival_order === ARRIVAL_LT_DELIVERY_MSG) {
+    delete errors.arrival_order
+  }
+  if (!finishOrderMessage && errors.finish_order === FINISH_LT_ARRIVAL_MSG) {
+    delete errors.finish_order
+  }
+}
+
 const validateForm = () => {
   clearErrors()
   if (!form.id_truck) {
@@ -876,6 +926,13 @@ const validateForm = () => {
     errors.finish_order = 'Finish Order wajib diisi.'
   } else if (form.finish_order && !isValidIsoDate(form.finish_order)) {
     errors.finish_order = 'Finish Order tidak valid.'
+  }
+  updateDateOrderErrors()
+  if (!errors.arrival_order && dateOrderErrors.arrival_order) {
+    errors.arrival_order = dateOrderErrors.arrival_order
+  }
+  if (!errors.finish_order && dateOrderErrors.finish_order) {
+    errors.finish_order = dateOrderErrors.finish_order
   }
   if (!form.ops_cost) {
     errors.ops_cost = 'Operasional Cost wajib diisi.'
@@ -1218,6 +1275,14 @@ watch(
     }
     void updateTruckStatus()
   }
+)
+
+watch(
+  () => [form.delivery_order, form.arrival_order, form.finish_order],
+  () => {
+    updateDateOrderErrors()
+  },
+  { immediate: true }
 )
 
 onMounted(async () => {
