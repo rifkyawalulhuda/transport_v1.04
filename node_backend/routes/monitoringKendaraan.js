@@ -139,9 +139,17 @@ router.get("/", async (req, res) => {
     const [repairRows] = await db.query(repairSql, repairParams);
 
     const trxConditions = [
-      "(sc.arrival_order IS NULL OR sc.arrival_order = '0000-00-00' OR sc.arrival_order >= ?)"
+      `(
+        (sc.finish_order IS NOT NULL AND sc.finish_order <> '0000-00-00' AND sc.finish_order > ?)
+        OR
+        (
+          (sc.finish_order IS NULL OR sc.finish_order = '0000-00-00')
+          AND
+          (sc.arrival_order IS NULL OR sc.arrival_order = '0000-00-00' OR sc.arrival_order >= ?)
+        )
+      )`
     ];
-    const trxParams = [todayString];
+    const trxParams = [todayString, todayString];
     if (month && year) {
       trxConditions.push("MONTH(sc.delivery_order) = ?");
       trxConditions.push("YEAR(sc.delivery_order) = ?");
@@ -155,6 +163,7 @@ router.get("/", async (req, res) => {
         sc.id_driver,
         sc.delivery_order,
         sc.arrival_order,
+        sc.finish_order,
         sc.trip,
         sc.jenis_trip,
         sc.no_po,
@@ -289,6 +298,7 @@ router.get("/", async (req, res) => {
             no_spk: trx.id_sales_cost,
             delivery_order: toDateString(trx.delivery_order),
             arrival_order: toDateString(trx.arrival_order),
+            finish_order: toDateString(trx.finish_order),
             trip: trx.trip || null,
             jenis_trip: trx.jenis_trip || null,
             no_po: trx.no_po || null,

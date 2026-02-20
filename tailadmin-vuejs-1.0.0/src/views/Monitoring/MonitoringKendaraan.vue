@@ -155,8 +155,8 @@
                   {{ formatDate(item.transaksi?.delivery_order) }}
                 </p>
                 <p>
-                  <span class="font-medium text-gray-700 dark:text-gray-200">Est. Tiba:</span>
-                  {{ formatDate(item.transaksi?.arrival_order) }}
+                  <span class="font-medium text-gray-700 dark:text-gray-200">Finish Order:</span>
+                  {{ formatDate(item.transaksi?.finish_order || item.transaksi?.arrival_order) }}
                 </p>
               </div>
             </div>
