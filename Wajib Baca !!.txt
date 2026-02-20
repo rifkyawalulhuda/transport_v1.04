@@ -1,0 +1,11 @@
+tambahkan ini ke database mysql
+
+pilih trucking > Tab SQL
+
+masukan : 
+
+ALTER TABLE trucking.sales_cost
+ADD COLUMN finish_order DATE NULL AFTER arrival_order;
+
+
+lalu tekan GO > Finish
