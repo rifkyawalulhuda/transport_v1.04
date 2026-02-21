@@ -1,6 +1,7 @@
 const db = require("../db");
 
 const DEFAULT_DATE_FIELD = "maintenance";
+const YEAR_DATE_COLUMN = "repair.tgl_kerusakan";
 
 const normalizeDateField = (value) => {
   const field = String(value || "").toLowerCase();
@@ -38,7 +39,7 @@ const buildFilters = (query = {}) => {
   }
 
   if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
-    conditions.push(`YEAR(${dateColumn}) = ?`);
+    conditions.push(`YEAR(${YEAR_DATE_COLUMN}) = ?`);
     params.push(year);
   }
 
@@ -152,8 +153,15 @@ const createRepair = async (payload = {}) => {
 
   const tglProsesValue = normalizeDateOnly(payload.tgl_proses);
   const tglSelesaiValue = normalizeDateOnly(payload.tgl_selesai);
+  const tglKerusakanValue = normalizeDateOnly(payload.tgl_kerusakan);
   const resolvedTglProses = tglProsesValue || null;
   let resolvedTglSelesai = null;
+
+  if (!tglKerusakanValue) {
+    const error = new Error("Tanggal kerusakan wajib diisi");
+    error.status = 400;
+    throw error;
+  }
 
   if (statusRepair === "SELESAI") {
     if (!tglSelesaiValue) {
@@ -168,7 +176,7 @@ const createRepair = async (payload = {}) => {
     kategori_repair: payload.kategori_repair || "",
     id_truck: payload.id_truck || null,
     tgl_input: normalizeDateValue(payload.tgl_input),
-    tgl_kerusakan: normalizeDateValue(payload.tgl_kerusakan),
+    tgl_kerusakan: tglKerusakanValue,
     no_spk_perbaikan: payload.no_spk_perbaikan || "",
     kilometer: payload.kilometer || "",
     jenis_kerusakan: payload.jenis_kerusakan || "",
@@ -225,6 +233,8 @@ const updateRepair = async (id, payload = {}) => {
 
   const tglProsesValue = normalizeDateOnly(payload.tgl_proses);
   const tglSelesaiValue = normalizeDateOnly(payload.tgl_selesai);
+  const tglKerusakanValue =
+    normalizeDateOnly(payload.tgl_kerusakan) || normalizeDateOnly(existing.tgl_kerusakan);
   const resolvedTglProses =
     tglProsesValue || normalizeDateOnly(existing.tgl_proses) || null;
 
@@ -245,11 +255,17 @@ const updateRepair = async (id, payload = {}) => {
     resolvedTglSelesai = null;
   }
 
+  if (!tglKerusakanValue) {
+    const error = new Error("Tanggal kerusakan wajib diisi");
+    error.status = 400;
+    throw error;
+  }
+
   const data = {
     kategori_repair: payload.kategori_repair || "",
     id_truck: payload.id_truck || null,
     tgl_input: normalizeDateValue(payload.tgl_input),
-    tgl_kerusakan: normalizeDateValue(payload.tgl_kerusakan),
+    tgl_kerusakan: tglKerusakanValue,
     no_spk_perbaikan: payload.no_spk_perbaikan || "",
     kilometer: payload.kilometer || "",
     jenis_kerusakan: payload.jenis_kerusakan || "",
@@ -322,13 +338,11 @@ const fetchRepairsForExport = async (query = {}) => {
   return rows;
 };
 
-const fetchRepairYears = async (query = {}) => {
-  const dateField = normalizeDateField(query.dateField);
-  const dateColumn = resolveDateColumn(dateField);
+const fetchRepairYears = async (_query = {}) => {
   const [rows] = await db.query(
-    `SELECT DISTINCT YEAR(${dateColumn}) AS year
+    `SELECT DISTINCT YEAR(${YEAR_DATE_COLUMN}) AS year
      FROM repair
-     WHERE ${dateColumn} IS NOT NULL
+     WHERE ${YEAR_DATE_COLUMN} IS NOT NULL
      ORDER BY year DESC`
   );
 

@@ -105,6 +105,7 @@
               type="date"
               @click="openDatePicker"
               @keydown.prevent
+              required
               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               :disabled="isDisabled"
             />

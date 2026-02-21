@@ -183,6 +183,13 @@ const handleSubmit = async (payload: Record<string, any>) => {
   formError.value = ''
   isSubmitting.value = true
   try {
+    if (!payload.tgl_kerusakan) {
+      const message = 'Tanggal kerusakan wajib diisi'
+      formError.value = message
+      toast.error(message)
+      isSubmitting.value = false
+      return
+    }
     if (statusRepair.value === 'SELESAI' && !tglSelesai.value) {
       toast.error('Tanggal selesai wajib diisi')
       isSubmitting.value = false
@@ -197,7 +204,7 @@ const handleSubmit = async (payload: Record<string, any>) => {
     }
     await repairService.updateRepair(idParam, requestPayload)
     toast.success('Perubahan berhasil disimpan')
-    router.push(`/repair/${idParam}`)
+    await router.push('/repair')
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Gagal memperbarui transaksi'
     formError.value = message

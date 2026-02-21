@@ -342,10 +342,10 @@
                   </th>
                   <th 
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('jadwal_berkala')"
+                    @click="toggleSort('tgl_proses')"
                   >
                     <div class="flex items-center gap-1">
-                      Tanggal Maintenance
+                      Estimasi Tanggal Selesai
                       <span class="flex flex-col">
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
@@ -358,7 +358,7 @@
                           stroke-linecap="round" 
                           stroke-linejoin="round" 
                           class="transition-colors"
-                          :class="sortColumn === 'jadwal_berkala' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="sortColumn === 'tgl_proses' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
                         >
                           <path d="m18 15-6-6-6 6"/>
                         </svg>
@@ -373,7 +373,7 @@
                           stroke-linecap="round" 
                           stroke-linejoin="round" 
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'jadwal_berkala' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="sortColumn === 'tgl_proses' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
                         >
                           <path d="m6 9 6 6 6-6"/>
                         </svg>
@@ -455,7 +455,7 @@
                     {{ formatDate(item.tgl_kerusakan) }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    {{ formatDate(item.jadwal_berkala) }}
+                    {{ formatDate(item.tgl_proses) }}
                   </td>
                   <td class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ formatNumber(item.biaya_perbaikan) }}
@@ -604,6 +604,7 @@ type RepairItem = {
   merk_mobil?: string
   status_repair?: 'PROSES' | 'SELESAI'
   tgl_kerusakan?: string
+  tgl_proses?: string
   jadwal_berkala?: string
   no_spk_perbaikan?: string
   biaya_perbaikan?: number
@@ -802,7 +803,8 @@ const openDatePicker = (event: Event) => {
 const buildFilterParams = () => {
   const params: Record<string, string | number> = {
     page: currentPage.value,
-    pageSize: pageSize.value
+    pageSize: pageSize.value,
+    dateField: 'damage'
   }
   if (filters.startDate) {
     params.startDate = filters.startDate

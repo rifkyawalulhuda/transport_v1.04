@@ -116,6 +116,13 @@ const handleSubmit = async (payload: Record<string, any>) => {
   formError.value = ''
   isSubmitting.value = true
   try {
+    if (!payload.tgl_kerusakan) {
+      const message = 'Tanggal kerusakan wajib diisi'
+      formError.value = message
+      toast.error(message)
+      isSubmitting.value = false
+      return
+    }
     if (statusRepair.value === 'SELESAI' && !tglSelesai.value) {
       toast.error('Tanggal selesai wajib diisi')
       isSubmitting.value = false
