@@ -139,10 +139,10 @@
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">No</th>
                   <th 
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('order_date')"
+                    @click="toggleSort('delivery_date')"
                   >
                     <div class="flex items-center gap-1">
-                      Tanggal Order
+                      Delivery Date
                       <span class="flex flex-col">
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
@@ -155,7 +155,7 @@
                           stroke-linecap="round" 
                           stroke-linejoin="round" 
                           class="transition-colors"
-                          :class="sortColumn === 'order_date' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="sortColumn === 'delivery_date' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
                         >
                           <path d="m18 15-6-6-6 6"/>
                         </svg>
@@ -170,7 +170,7 @@
                           stroke-linecap="round" 
                           stroke-linejoin="round" 
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'order_date' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="sortColumn === 'delivery_date' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
                         >
                           <path d="m6 9 6 6 6-6"/>
                         </svg>
@@ -428,7 +428,7 @@
                     {{ (currentPage - 1) * pageSize + index + 1 }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                    {{ formatDate(item.order_date) }}
+                    {{ formatDate(item.delivery_date) }}
                   </td>
                   <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                     {{ item.nama_subcont }}
@@ -588,6 +588,7 @@ import { useToast } from '@/composables/useToast'
 type SubcontractorItem = {
   id_subcontractor: number
   order_date: string
+  delivery_date: string
   nama_subcont: string
   nama_customer: string
   kode_warehouse: string
