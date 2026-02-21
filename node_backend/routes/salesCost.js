@@ -963,13 +963,13 @@ router.get("/export", authenticateToken, async (req, res) => {
       return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
     };
 
-    const buildShippingDuration = (deliveryOrder, finishOrder) => {
+    const buildShippingDuration = (deliveryOrder, arrivalOrder) => {
       const delivery = parseDateOnly(deliveryOrder);
-      const finish = parseDateOnly(finishOrder);
-      if (!delivery || !finish) {
+      const arrival = parseDateOnly(arrivalOrder);
+      if (!delivery || !arrival) {
         return "";
       }
-      const diffDays = Math.floor((finish.getTime() - delivery.getTime()) / 86400000);
+      const diffDays = Math.floor((arrival.getTime() - delivery.getTime()) / 86400000);
       if (diffDays < 0) {
         return "";
       }
@@ -1007,7 +1007,7 @@ router.get("/export", authenticateToken, async (req, res) => {
         delivery_order: formatDate(row.delivery_order),
         arrival_order: formatDate(row.arrival_order),
         finish_order: formatDate(row.finish_order),
-        waktu_pengiriman: buildShippingDuration(row.delivery_order, row.finish_order),
+        waktu_pengiriman: buildShippingDuration(row.delivery_order, row.arrival_order),
         no_spk: `${row.id_sales_cost} /SPK/CLC`,
         nama_area: row.nama_area,
         nama_customer: row.nama_customer,

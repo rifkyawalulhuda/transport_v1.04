@@ -593,11 +593,11 @@ const parseDateOnly = (value?: string | null) => {
 
 const shippingDurationDays = computed(() => {
   const delivery = parseDateOnly(detail.value.delivery_order)
-  const finish = parseDateOnly(detail.value.finish_order)
-  if (!delivery || !finish) {
+  const arrival = parseDateOnly(detail.value.arrival_order)
+  if (!delivery || !arrival) {
     return null
   }
-  const diff = Math.floor((finish.getTime() - delivery.getTime()) / 86400000)
+  const diff = Math.floor((arrival.getTime() - delivery.getTime()) / 86400000)
   if (diff < 0) {
     return null
   }

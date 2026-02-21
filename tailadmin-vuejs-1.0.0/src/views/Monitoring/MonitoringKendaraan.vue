@@ -163,7 +163,6 @@
                   {{
                     resolveShippingDurationLabel(
                       item.transaksi?.delivery_order,
-                      item.transaksi?.finish_order,
                       item.transaksi?.arrival_order
                     )
                   }}
@@ -341,7 +340,6 @@
                   {{
                     resolveShippingDurationLabel(
                       item.last_transaction?.delivery_order,
-                      item.last_transaction?.finish_order,
                       item.last_transaction?.arrival_order
                     )
                   }}
@@ -488,15 +486,14 @@ const parseDateOnly = (value?: string | null) => {
 
 const resolveShippingDurationLabel = (
   deliveryOrder?: string | null,
-  finishOrder?: string | null,
   arrivalOrder?: string | null
 ) => {
   const delivery = parseDateOnly(deliveryOrder)
-  const finishOrArrival = parseDateOnly(finishOrder || arrivalOrder || null)
-  if (!delivery || !finishOrArrival) {
+  const arrival = parseDateOnly(arrivalOrder)
+  if (!delivery || !arrival) {
     return '-'
   }
-  const diffDays = Math.floor((finishOrArrival.getTime() - delivery.getTime()) / 86400000)
+  const diffDays = Math.floor((arrival.getTime() - delivery.getTime()) / 86400000)
   if (diffDays < 0) {
     return '-'
   }
