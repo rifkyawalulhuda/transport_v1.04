@@ -176,7 +176,7 @@ router.get("/metrics/sales-cost/summary", authenticateToken, async (req, res) =>
         [month, year]
       ),
       db.query(
-        "SELECT COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
         [prevMonth, prevYear]
       )
     ]);
@@ -184,11 +184,13 @@ router.get("/metrics/sales-cost/summary", authenticateToken, async (req, res) =>
     const sales = Number(current.sales || 0);
     const totalCost = Number(current.total_cost || 0);
     const grossProfit = Number(current.gross_profit || 0);
+    const prevSales = Number(prevRows[0]?.[0]?.sales || 0);
     const prevGrossProfit = Number(prevRows[0]?.[0]?.gross_profit || 0);
     res.json({
       sales,
       totalCost,
       grossProfit,
+      prevSales,
       prevGrossProfit
     });
   } catch (err) {

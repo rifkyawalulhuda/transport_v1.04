@@ -138,7 +138,7 @@ const selectedYear = ref(currentYear)
 const sales = ref(0)
 const totalCost = ref(0)
 const grossProfit = ref(0)
-const prevGrossProfit = ref(0)
+const prevSales = ref(0)
 const loading = ref(false)
 
 const numberFormatter = new Intl.NumberFormat('id-ID')
@@ -248,10 +248,10 @@ const badgeClasses = {
 }
 
 const percent = computed(() => {
-  if (prevGrossProfit.value === 0) {
+  if (prevSales.value === 0) {
     return null
   }
-  return ((grossProfit.value - prevGrossProfit.value) / prevGrossProfit.value) * 100
+  return ((sales.value - prevSales.value) / prevSales.value) * 100
 })
 
 const formatPercentValue = (value: number | null) => {
@@ -299,7 +299,7 @@ const fetchMonthlyTarget = async () => {
     sales.value = Number(data?.sales ?? 0)
     totalCost.value = Number(data?.totalCost ?? 0)
     grossProfit.value = Number(data?.grossProfit ?? 0)
-    prevGrossProfit.value = Number(data?.prevGrossProfit ?? 0)
+    prevSales.value = Number(data?.prevSales ?? 0)
   } catch (error: any) {
     toast.error(error?.message || 'Gagal memuat Monthly Target.')
   } finally {
