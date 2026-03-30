@@ -221,13 +221,6 @@
                   </button>
 
                   <RouterLink
-                    :to="`/data-transport/data-truck/detail/${selectedTruck.id_truck}`"
-                    class="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:text-brand-300"
-                  >
-                    Detail Truk
-                  </RouterLink>
-
-                  <RouterLink
                     v-if="selectedTruck.transaksi?.id_sales_cost"
                     :to="`/sales-cost/${selectedTruck.transaksi.id_sales_cost}`"
                     class="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:text-brand-300 sm:col-span-2"
@@ -277,21 +270,25 @@
                 </div>
 
                 <div class="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-950/40">
-                  <div class="flex items-center justify-between gap-3">
-                    <div>
-                      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                        Koordinat
-                      </p>
-                      <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
-                        {{ formatCoordinates(selectedTruck) }}
-                      </p>
-                    </div>
-                    <div
-                      class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
-                      :class="hasCoordinates(selectedTruck) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'"
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      Lokasi
+                    </p>
+                    <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
+                      {{ selectedTruckLocationValue }}
+                    </p>
+                    <p
+                      v-if="selectedTruckAddressLoading"
+                      class="mt-2 text-xs text-gray-500 dark:text-gray-400"
                     >
-                      {{ hasCoordinates(selectedTruck) ? 'Siap difokuskan' : 'Tanpa titik GPS' }}
-                    </div>
+                      Mengambil nama lokasi...
+                    </p>
+                    <p
+                      v-else-if="selectedTruckAddressError && hasCoordinates(selectedTruck)"
+                      class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      Menampilkan koordinat. {{ selectedTruckAddressError }}
+                    </p>
                   </div>
 
                   <p v-if="!hasCoordinates(selectedTruck)" class="mt-3 text-sm text-amber-700 dark:text-amber-300">
@@ -657,6 +654,17 @@ type TruckLocationPayload = {
   }
 }
 
+type ReverseGeocodePayload = {
+  formatted_address: string | null
+  cached: boolean
+  provider: string
+  coordinates: {
+    lat: number | null
+    lon: number | null
+  }
+  error: string | null
+}
+
 type MarkerRevealOptions = {
   animate?: boolean
   openPopup?: boolean
@@ -694,6 +702,9 @@ const errorMessage = ref('')
 const searchInput = ref('')
 const gpsFilter = ref<GpsFilter>('all')
 const selectedTruckId = ref<number | null>(null)
+const selectedTruckAddress = ref<string | null>(null)
+const selectedTruckAddressLoading = ref(false)
+const selectedTruckAddressError = ref<string | null>(null)
 const mobileDetailOpen = ref(false)
 const mobileFleetOpen = ref(true)
 const trackingData = ref<TruckLocationPayload>({
@@ -716,9 +727,11 @@ const trackingData = ref<TruckLocationPayload>({
 
 let refreshTimer: number | null = null
 let markerIndex = new Map<number, L.Marker>()
+let addressLookupRequestId = 0
 let pendingRevealRequestId = 0
 let pendingRevealAnimationFrame: number | null = null
 let pendingRevealMoveEndHandler: (() => void) | null = null
+const addressCache = new Map<string, string>()
 
 const cancelPendingReveal = () => {
   pendingRevealRequestId += 1
@@ -883,6 +896,14 @@ const formatCoordinates = (truck: TruckLocation) => {
   return `${Number(truck.gps.lat).toFixed(6)}, ${Number(truck.gps.lon).toFixed(6)}`
 }
 
+const buildCoordinateCacheKey = (truck: TruckLocation) => {
+  if (!hasCoordinates(truck)) {
+    return null
+  }
+
+  return `${Number(truck.gps.lat).toFixed(5)},${Number(truck.gps.lon).toFixed(5)}`
+}
+
 const matchesGpsFilter = (truck: TruckLocation) => {
   switch (gpsFilter.value) {
     case 'moving':
@@ -941,6 +962,17 @@ const workspaceGridClass = computed(() =>
     ? 'xl:grid-cols-[minmax(0,1.95fr)_320px_340px]'
     : 'xl:grid-cols-[minmax(0,2.55fr)_360px]'
 )
+const selectedTruckLocationValue = computed(() => {
+  if (!selectedTruck.value) {
+    return '-'
+  }
+
+  if (selectedTruckAddress.value) {
+    return selectedTruckAddress.value
+  }
+
+  return formatCoordinates(selectedTruck.value)
+})
 
 const gpsFilterOptions = computed(() => {
   const summary = trackingData.value.summary
@@ -1233,9 +1265,65 @@ const revealTruckMarker = (truckId: number, options?: MarkerRevealOptions) => {
 }
 
 const clearSelectedTruck = () => {
+  addressLookupRequestId += 1
   selectedTruckId.value = null
+  selectedTruckAddress.value = null
+  selectedTruckAddressError.value = null
+  selectedTruckAddressLoading.value = false
   mobileDetailOpen.value = false
   mapInstance.value?.closePopup()
+}
+
+const loadSelectedTruckAddress = async (truck: TruckLocation | null) => {
+  addressLookupRequestId += 1
+  const requestId = addressLookupRequestId
+
+  selectedTruckAddress.value = null
+  selectedTruckAddressError.value = null
+  selectedTruckAddressLoading.value = false
+
+  if (!truck || !hasCoordinates(truck)) {
+    return
+  }
+
+  const cacheKey = buildCoordinateCacheKey(truck)
+  if (cacheKey && addressCache.has(cacheKey)) {
+    selectedTruckAddress.value = addressCache.get(cacheKey) || null
+    return
+  }
+
+  selectedTruckAddressLoading.value = true
+
+  try {
+    const payload = (await truckLocationService.reverseGeocode(
+      Number(truck.gps.lat),
+      Number(truck.gps.lon)
+    )) as ReverseGeocodePayload
+
+    if (requestId !== addressLookupRequestId) {
+      return
+    }
+
+    if (payload.formatted_address) {
+      selectedTruckAddress.value = payload.formatted_address
+      if (cacheKey) {
+        addressCache.set(cacheKey, payload.formatted_address)
+      }
+      return
+    }
+
+    selectedTruckAddressError.value = payload.error || 'Alamat belum tersedia untuk titik GPS ini.'
+  } catch (error: any) {
+    if (requestId !== addressLookupRequestId) {
+      return
+    }
+
+    selectedTruckAddressError.value = error?.message || 'Gagal mengambil alamat lokasi.'
+  } finally {
+    if (requestId === addressLookupRequestId) {
+      selectedTruckAddressLoading.value = false
+    }
+  }
 }
 
 const alignSelectedTruck = () => {
@@ -1416,6 +1504,14 @@ const focusSelectedTruckOnMap = () => {
 watch(selectedTruckId, () => {
   updateMarkerSelection()
 })
+
+watch(
+  selectedTruck,
+  (truck) => {
+    void loadSelectedTruckAddress(truck)
+  },
+  { immediate: true }
+)
 
 watch([searchInput, gpsFilter], async () => {
   alignSelectedTruck()

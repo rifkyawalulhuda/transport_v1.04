@@ -2,6 +2,7 @@ const express = require("express");
 const { authenticateToken } = require("../middleware/auth");
 const {
   getTruckLocations,
+  reverseGeocodeCoordinates,
   autoMapTruckWialonUnits
 } = require("../services/wialonService");
 
@@ -17,6 +18,27 @@ router.get("/trucks/location", async (_req, res) => {
     console.error("Wialon truck location error:", error);
     res.status(500).json({
       message: "Internal server error"
+    });
+  }
+});
+
+router.get("/reverse-geocode", async (req, res) => {
+  try {
+    const lat = Number(req.query?.lat);
+    const lon = Number(req.query?.lon);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return res.status(400).json({
+        message: "Parameter lat dan lon wajib berupa angka yang valid."
+      });
+    }
+
+    const payload = await reverseGeocodeCoordinates({ lat, lon });
+    res.json(payload);
+  } catch (error) {
+    console.error("Wialon reverse geocode error:", error);
+    res.status(500).json({
+      message: "Gagal mengambil alamat lokasi"
     });
   }
 });

@@ -15,6 +15,17 @@ const DEFAULT_REQUEST_TIMEOUT_MS = Number.parseInt(
   process.env.WIALON_TIMEOUT_MS || "20000",
   10
 );
+const DEFAULT_GEOAPIFY_BASE_URL =
+  process.env.GEOAPIFY_BASE_URL || "https://api.geoapify.com/v1/geocode/reverse";
+const DEFAULT_GEOAPIFY_API_KEY = String(process.env.GEOAPIFY_API_KEY || "").trim();
+const DEFAULT_GEOAPIFY_TIMEOUT_MS = Number.parseInt(
+  process.env.GEOAPIFY_TIMEOUT_MS || "6000",
+  10
+);
+const DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS = Number.parseInt(
+  process.env.REVERSE_GEOCODE_CACHE_TTL_MS || `${12 * 60 * 60 * 1000}`,
+  10
+);
 
 const SESSION_TTL_MS = Number.isFinite(DEFAULT_SESSION_TTL_MS)
   ? DEFAULT_SESSION_TTL_MS
@@ -23,6 +34,14 @@ const REQUEST_TIMEOUT_MS = Number.isFinite(DEFAULT_REQUEST_TIMEOUT_MS)
   ? DEFAULT_REQUEST_TIMEOUT_MS
   : 20000;
 const LOGIN_FLAGS = Number.isFinite(DEFAULT_LOGIN_FLAGS) ? DEFAULT_LOGIN_FLAGS : 13;
+const GEOAPIFY_TIMEOUT_MS = Number.isFinite(DEFAULT_GEOAPIFY_TIMEOUT_MS)
+  ? DEFAULT_GEOAPIFY_TIMEOUT_MS
+  : 6000;
+const REVERSE_GEOCODE_CACHE_TTL_MS = Number.isFinite(
+  DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS
+)
+  ? DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS
+  : 12 * 60 * 60 * 1000;
 
 class WialonError extends Error {
   constructor(message, code, payload) {
@@ -38,6 +57,7 @@ const sessionState = {
   expiresAt: 0,
   loginPromise: null
 };
+const reverseGeocodeCache = new Map();
 
 const parseJsonSafely = (value) => {
   if (!value) {
@@ -69,6 +89,57 @@ const toPositiveIntString = (value) => {
     return null;
   }
   return String(parsed);
+};
+
+const ensureFiniteCoordinate = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildReverseGeocodeCacheKey = (lat, lon) => {
+  const safeLat = ensureFiniteCoordinate(lat);
+  const safeLon = ensureFiniteCoordinate(lon);
+  if (safeLat === null || safeLon === null) {
+    return null;
+  }
+
+  return `${safeLat.toFixed(5)},${safeLon.toFixed(5)}`;
+};
+
+const getCachedReverseGeocode = (cacheKey) => {
+  if (!cacheKey) {
+    return null;
+  }
+
+  const entry = reverseGeocodeCache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    reverseGeocodeCache.delete(cacheKey);
+    return null;
+  }
+
+  return entry.payload;
+};
+
+const setCachedReverseGeocode = (cacheKey, payload) => {
+  if (!cacheKey) {
+    return;
+  }
+
+  reverseGeocodeCache.set(cacheKey, {
+    payload,
+    expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS
+  });
+
+  if (reverseGeocodeCache.size > 1000) {
+    const oldestKey = reverseGeocodeCache.keys().next().value;
+    if (oldestKey) {
+      reverseGeocodeCache.delete(oldestKey);
+    }
+  }
 };
 
 const normalizeMatchKey = (value) =>
@@ -638,6 +709,103 @@ const normalizeTruckLocation = ({
   };
 };
 
+const reverseGeocodeCoordinates = async ({ lat, lon }) => {
+  const safeLat = ensureFiniteCoordinate(lat);
+  const safeLon = ensureFiniteCoordinate(lon);
+
+  if (safeLat === null || safeLon === null) {
+    return {
+      formatted_address: null,
+      cached: false,
+      provider: "geoapify",
+      coordinates: {
+        lat: safeLat,
+        lon: safeLon
+      },
+      error: "Koordinat tidak valid."
+    };
+  }
+
+  if (!DEFAULT_GEOAPIFY_API_KEY) {
+    return {
+      formatted_address: null,
+      cached: false,
+      provider: "geoapify",
+      coordinates: {
+        lat: safeLat,
+        lon: safeLon
+      },
+      error: "GEOAPIFY_API_KEY belum diatur."
+    };
+  }
+
+  const cacheKey = buildReverseGeocodeCacheKey(safeLat, safeLon);
+  const cachedPayload = getCachedReverseGeocode(cacheKey);
+  if (cachedPayload) {
+    return {
+      ...cachedPayload,
+      cached: true
+    };
+  }
+
+  const url = new URL(DEFAULT_GEOAPIFY_BASE_URL);
+  url.searchParams.set("lat", String(safeLat));
+  url.searchParams.set("lon", String(safeLon));
+  url.searchParams.set("format", "json");
+  url.searchParams.set("apiKey", DEFAULT_GEOAPIFY_API_KEY);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GEOAPIFY_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.message || `Geoapify request failed with status ${response.status}`);
+    }
+
+    const result =
+      Array.isArray(payload?.results) && payload.results.length > 0
+        ? payload.results[0]
+        : null;
+
+    const normalizedPayload = {
+      formatted_address:
+        result?.formatted || result?.address_line1 || result?.address_line2 || null,
+      cached: false,
+      provider: "geoapify",
+      coordinates: {
+        lat: safeLat,
+        lon: safeLon
+      },
+      error: null
+    };
+
+    setCachedReverseGeocode(cacheKey, normalizedPayload);
+    return normalizedPayload;
+  } catch (error) {
+    return {
+      formatted_address: null,
+      cached: false,
+      provider: "geoapify",
+      coordinates: {
+        lat: safeLat,
+        lon: safeLon
+      },
+      error: error?.message || "Gagal mengambil alamat dari Geoapify."
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const getTruckLocations = async () => {
   const [truckRows] = await db.query(
     `
@@ -890,6 +1058,7 @@ const autoMapTruckWialonUnits = async ({ overwrite = false } = {}) => {
 
 module.exports = {
   getTruckLocations,
+  reverseGeocodeCoordinates,
   autoMapTruckWialonUnits,
   clearSession
 };
