@@ -13,6 +13,14 @@
               Tambah Truck
             </button>
             <MasterImportActions master-type="truck" @imported="handleImported" />
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
+              :disabled="isAutoMapping"
+              @click="autoMapWialonUnits"
+            >
+              {{ isAutoMapping ? 'Auto Mapping...' : 'Auto Mapping Wialon' }}
+            </button>
             <SearchBar v-model="search" placeholder="Cari no polisi / merk / model" />
           </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
@@ -64,6 +72,17 @@
                   placeholder="Masukan No Police"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   required
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Wialon Unit ID
+                </label>
+                <input
+                  v-model="form.wialon_unit_id"
+                  type="text"
+                  placeholder="Masukan Wialon Unit ID"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 />
               </div>
             </div>
@@ -147,6 +166,9 @@
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
                     Type
                   </th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
+                    Wialon Unit ID
+                  </th>
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -173,6 +195,11 @@
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                       {{ item.type_truck }}
                     </td>
+                    <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                      <span class="inline-flex max-w-[180px] break-all rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                        {{ item.wialon_unit_id || '-' }}
+                      </span>
+                    </td>
                     <td class="px-5 py-3 text-center sm:px-6">
                       <div class="flex items-center justify-center gap-2">
                         <button
@@ -195,7 +222,7 @@
                   </tr>
                   <tr v-if="showForm && editingId === item.id_truck">
                     <td
-                      colspan="7"
+                      colspan="8"
                       class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
                     >
                       <div
@@ -229,6 +256,19 @@
                                 placeholder="Masukan No Police"
                                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                 required
+                              />
+                            </div>
+                            <div>
+                              <label
+                                class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                              >
+                                Wialon Unit ID
+                              </label>
+                              <input
+                                v-model="form.wialon_unit_id"
+                                type="text"
+                                placeholder="Masukan Wialon Unit ID"
+                                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                               />
                             </div>
                           </div>
@@ -298,7 +338,7 @@
                 </template>
                 <tr v-if="!loading && totalCount === 0">
                   <td
-                    colspan="7"
+                    colspan="8"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Tidak ada data
@@ -306,7 +346,7 @@
                 </tr>
                 <tr v-if="loading">
                   <td
-                    colspan="7"
+                    colspan="8"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Memuat data...
@@ -347,6 +387,7 @@ type TruckItem = {
   merk_mobil: string
   model: string
   type_truck: string
+  wialon_unit_id?: string | null
 }
 
 type FormState = {
@@ -356,6 +397,7 @@ type FormState = {
   merk_mobil: string
   model: string
   type_truck: string
+  wialon_unit_id: string
 }
 
 const currentPageTitle = ref('Master Truck')
@@ -365,6 +407,7 @@ const showForm = ref(false)
 const editingId = ref<number | null>(null)
 const formTitle = ref('Tambah Truck')
 const isSubmitting = ref(false)
+const isAutoMapping = ref(false)
 const deletingId = ref<number | null>(null)
 const form = reactive<FormState>({
   id: null,
@@ -372,7 +415,8 @@ const form = reactive<FormState>({
   no_police: '',
   merk_mobil: '',
   model: '',
-  type_truck: ''
+  type_truck: '',
+  wialon_unit_id: ''
 })
 
 const apiBase = API_BASE
@@ -433,6 +477,61 @@ const handleImported = async () => {
   setPage(1)
 }
 
+const autoMapWialonUnits = async () => {
+  if (isAutoMapping.value) {
+    return
+  }
+
+  const ok = await confirm({
+    title: 'Auto Mapping Wialon',
+    message:
+      'Jalankan pencocokan otomatis Wialon berdasarkan no polisi untuk truck yang belum punya mapping?',
+    confirmText: 'Ya, jalankan',
+    cancelText: 'Batal',
+    variant: 'warning'
+  })
+  if (!ok) {
+    return
+  }
+
+  isAutoMapping.value = true
+  try {
+    const res = await authFetch(`${apiBase}/wialon/trucks/auto-map`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        overwrite: false
+      })
+    })
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok) {
+      const message = data?.message || 'Gagal menjalankan auto mapping.'
+      toast.error(message)
+      return
+    }
+
+    const summary = data?.summary || {}
+    const updated = Number(summary.updated || 0)
+    const matched = Number(summary.matched || 0)
+    const kept = Number(summary.kept || 0)
+    const unmatched = Number(summary.unmatched || 0)
+    const ambiguous = Number(summary.ambiguous || 0)
+
+    toast.success(
+      `Auto mapping selesai. ${matched} truck cocok, ${updated} truck diperbarui, ${kept} sudah terhubung, ${unmatched} belum cocok, ${ambiguous} ambigu.`
+    )
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    toast.error('Gagal menjalankan auto mapping Wialon.')
+  } finally {
+    isAutoMapping.value = false
+  }
+}
+
 const openForm = (item?: TruckItem) => {
   if (item) {
     formTitle.value = 'Edit Truck'
@@ -443,6 +542,7 @@ const openForm = (item?: TruckItem) => {
     form.merk_mobil = item.merk_mobil
     form.model = item.model
     form.type_truck = item.type_truck
+    form.wialon_unit_id = item.wialon_unit_id || ''
   } else {
     formTitle.value = 'Tambah Truck'
     editingId.value = null
@@ -452,6 +552,7 @@ const openForm = (item?: TruckItem) => {
     form.merk_mobil = ''
     form.model = ''
     form.type_truck = ''
+    form.wialon_unit_id = ''
   }
   showForm.value = true
 }
@@ -470,7 +571,8 @@ const submitForm = async () => {
     no_police: form.no_police,
     merk_mobil: form.merk_mobil,
     model: form.model,
-    type_truck: form.type_truck
+    type_truck: form.type_truck,
+    wialon_unit_id: form.wialon_unit_id
   }
 
   const isUpdate = Boolean(form.id)
@@ -574,4 +676,3 @@ const remove = async (item: TruckItem) => {
 
 onMounted(loadData)
 </script>
-

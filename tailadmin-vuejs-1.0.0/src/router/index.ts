@@ -131,6 +131,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/truck-locations',
+      name: 'Lokasi Truk',
+      component: () => import('../views/Monitoring/TruckLocationMap.vue'),
+      meta: {
+        title: 'Lokasi Truk',
+      },
+    },
+    {
       path: '/repair',
       name: 'Repair',
       component: () => import('../pages/Repair/RepairList.vue'),

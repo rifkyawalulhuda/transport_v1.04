@@ -46,7 +46,7 @@ const upload = multer({
 // 1. GET export data trucks to Excel (MOVE TO TOP to prevent :id conflict)
 router.get('/export', async (req, res) => {
   try {
-    const [mysqlTrucks] = await db.query("SELECT jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck");
+    const [mysqlTrucks] = await db.query("SELECT jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck");
     const mongoDataTrucks = await DataTruck.find({});
 
     const data = mysqlTrucks.map(master => {
@@ -62,6 +62,7 @@ router.get('/export', async (req, res) => {
         'Merk': master.merk_mobil,
         'Model': master.model,
         'Type': master.type_truck,
+        'Wialon Unit ID': master.wialon_unit_id || '',
         'No Asset': operational.no_asset || '',
         'No STNK': operational.no_stnk || '',
         'No BPKB': operational.no_bpkb || '',
@@ -82,9 +83,9 @@ router.get('/export', async (req, res) => {
     const worksheet = xlsx.utils.json_to_sheet(data);
     const wscols = [
       { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-      { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 25 },
-      { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
-      { wch: 20 }, { wch: 30 }
+      { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
+      { wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      { wch: 20 }, { wch: 20 }, { wch: 30 }
     ];
     worksheet['!cols'] = wscols;
     xlsx.utils.book_append_sheet(workbook, worksheet, 'Data Truck');
@@ -101,7 +102,7 @@ router.get('/export', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
-    const [mysqlTrucks] = await db.query("SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck");
+    const [mysqlTrucks] = await db.query("SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck");
     const mongoDataTrucks = await DataTruck.find({});
 
     const mergedTrucks = mysqlTrucks.map(master => {
@@ -113,6 +114,7 @@ router.get('/', async (req, res) => {
         model: master.model,
         type: master.type_truck,
         jenis_kendaraan_master: master.jenis_kendaraan,
+        wialon_unit_id: master.wialon_unit_id || '',
         no_asset: operational.no_asset || '',
         no_stnk: operational.no_stnk || '',
         no_bpkb: operational.no_bpkb || '',
@@ -139,7 +141,8 @@ router.get('/', async (req, res) => {
         t.merk.toLowerCase().includes(keyword) ||
         t.model.toLowerCase().includes(keyword) ||
         t.type.toLowerCase().includes(keyword) ||
-        t.no_asset.toLowerCase().includes(keyword)
+        t.no_asset.toLowerCase().includes(keyword) ||
+        String(t.wialon_unit_id || '').toLowerCase().includes(keyword)
       );
     }
 
@@ -159,7 +162,7 @@ router.get('/', async (req, res) => {
 router.get('/search-mysql-trucks', async (req, res) => {
   try {
     const { q } = req.query;
-    let sql = "SELECT id_truck, no_police, jenis_kendaraan FROM trucking.truck";
+    let sql = "SELECT id_truck, no_police, jenis_kendaraan, wialon_unit_id FROM trucking.truck";
     let params = [];
     if (q) {
       sql += " WHERE no_police LIKE ?";
@@ -178,7 +181,7 @@ router.get('/by-truck-no/:truck_no', async (req, res) => {
   try {
     const { truck_no } = req.params;
     const [mysqlRows] = await db.query(
-      "SELECT jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck WHERE no_police = ? LIMIT 1",
+      "SELECT jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck WHERE no_police = ? LIMIT 1",
       [truck_no]
     );
     if (mysqlRows.length === 0) {
@@ -195,6 +198,7 @@ router.get('/by-truck-no/:truck_no', async (req, res) => {
       model: master.model,
       type: master.type_truck,
       jenis_kendaraan_master: master.jenis_kendaraan,
+      wialon_unit_id: master.wialon_unit_id || '',
       no_asset: operational.no_asset || '',
       no_stnk: operational.no_stnk || '',
       no_bpkb: operational.no_bpkb || '',

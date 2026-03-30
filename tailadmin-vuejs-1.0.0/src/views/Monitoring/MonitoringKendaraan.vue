@@ -18,6 +18,12 @@
             class="flex flex-wrap items-end gap-3"
             @submit.prevent="applyFilter"
           >
+            <RouterLink
+              to="/truck-locations"
+              class="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 shadow-theme-xs transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+            >
+              Buka Peta
+            </RouterLink>
             <div class="w-full sm:w-64">
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                 Pencarian

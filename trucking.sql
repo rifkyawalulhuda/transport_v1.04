@@ -5185,7 +5185,8 @@ CREATE TABLE `truck` (
   `no_police` varchar(50) NOT NULL,
   `merk_mobil` varchar(50) NOT NULL,
   `model` varchar(50) NOT NULL,
-  `type_truck` varchar(50) NOT NULL
+  `type_truck` varchar(50) NOT NULL,
+  `wialon_unit_id` varchar(64) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 --

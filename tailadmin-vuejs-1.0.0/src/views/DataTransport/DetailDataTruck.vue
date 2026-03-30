@@ -7,12 +7,20 @@
           <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">
             Detail Data Truck
           </div>
-          <RouterLink
-            to="/data-transport/data-truck"
-            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
-          >
-            Kembali
-          </RouterLink>
+          <div class="flex flex-wrap gap-2">
+            <RouterLink
+              to="/truck-locations"
+              class="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 shadow-theme-xs hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+            >
+              Lihat Lokasi
+            </RouterLink>
+            <RouterLink
+              to="/data-transport/data-truck"
+              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+            >
+              Kembali
+            </RouterLink>
+          </div>
         </div>
 
         <p
@@ -128,6 +136,17 @@
                 <input
                   type="text"
                   :value="formatText(detail.nomor_mesin)"
+                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  readonly
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Wialon Unit ID
+                </label>
+                <input
+                  type="text"
+                  :value="formatText(detail.wialon_unit_id)"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   readonly
                 />
@@ -481,4 +500,3 @@ onMounted(() => {
   loadDetail()
 })
 </script>
-

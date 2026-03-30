@@ -6,6 +6,18 @@ const { createNotification, getActorFromRequest } = require("../services/notific
 
 const router = express.Router();
 
+const normalizeWialonUnitId = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return String(parsed);
+};
+
 const notifyMasterChange = async ({ req, type, title, action, identifier, entityId }) => {
   const actor = getActorFromRequest(req);
   if (!actor) {
@@ -30,7 +42,7 @@ const notifyMasterChange = async ({ req, type, title, action, identifier, entity
 router.get("/", async (req, res) => {
   try {
     const [rows] = await db.query(
-      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck ORDER BY id_truck ASC"
+      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck ORDER BY id_truck ASC"
     );
     res.json(rows);
   } catch (err) {
@@ -43,7 +55,7 @@ router.get("/:id", async (req, res) => {
   try {
     const id = req.params.id;
     const [rows] = await db.query(
-      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck WHERE id_truck = ?",
+      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck WHERE id_truck = ?",
       [id]
     );
     if (rows.length === 0) {
@@ -64,14 +76,15 @@ router.post("/", authenticateToken, async (req, res) => {
     const merkMobil = body.merk_mobil || "";
     const model = body.model || "";
     const typeTruck = body.type_truck || "";
+    const wialonUnitId = normalizeWialonUnitId(body.wialon_unit_id);
 
     const [result] = await db.query(
-      "INSERT INTO truck (jenis_kendaraan, no_police, merk_mobil, model, type_truck) VALUES (?, ?, ?, ?, ?)",
-      [jenisKendaraan, noPolice, merkMobil, model, typeTruck]
+      "INSERT INTO truck (jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id) VALUES (?, ?, ?, ?, ?, ?)",
+      [jenisKendaraan, noPolice, merkMobil, model, typeTruck, wialonUnitId]
     );
 
     const [rows] = await db.query(
-      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck WHERE id_truck = ?",
+      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck WHERE id_truck = ?",
       [result.insertId]
     );
 
@@ -101,10 +114,11 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const merkMobil = body.merk_mobil || "";
     const model = body.model || "";
     const typeTruck = body.type_truck || "";
+    const wialonUnitId = normalizeWialonUnitId(body.wialon_unit_id);
 
     const [result] = await db.query(
-      "UPDATE truck SET jenis_kendaraan = ?, no_police = ?, merk_mobil = ?, model = ?, type_truck = ? WHERE id_truck = ?",
-      [jenisKendaraan, noPolice, merkMobil, model, typeTruck, id]
+      "UPDATE truck SET jenis_kendaraan = ?, no_police = ?, merk_mobil = ?, model = ?, type_truck = ?, wialon_unit_id = ? WHERE id_truck = ?",
+      [jenisKendaraan, noPolice, merkMobil, model, typeTruck, wialonUnitId, id]
     );
 
     if (result.affectedRows === 0) {
@@ -112,7 +126,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     const [rows] = await db.query(
-      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck FROM truck WHERE id_truck = ?",
+      "SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck WHERE id_truck = ?",
       [id]
     );
 

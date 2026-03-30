@@ -1,0 +1,9 @@
+versi index :
+
+ALTER TABLE truck
+ADD COLUMN wialon_unit_id VARCHAR(64) NULL DEFAULT NULL AFTER type_truck,
+ADD INDEX idx_truck_wialon_unit_id (wialon_unit_id);
+
+
+ALTER TABLE truck
+ADD COLUMN wialon_unit_id VARCHAR(64) NULL DEFAULT NULL AFTER type_truck;
