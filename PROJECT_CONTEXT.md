@@ -72,6 +72,14 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - cluster popup summary
   - truck status colors
   - 30-second auto refresh
+  - adaptive 3-panel workspace layout:
+    - left: main live map
+    - middle: `Vehicle Detail` panel shown only when a truck is selected
+    - right: `Fleet` panel with fixed-height scrollable list
+  - selection sync between marker, detail panel, and fleet list
+  - GPS-only filter chips: `All`, `Moving`, `Idle`, `Offline`, `Belum Terhubung`
+  - simplified fleet cards that only show truck number and GPS status
+  - custom truck marker icon embedded inline in the frontend code so it does not depend on an external image file at runtime
 
 ## Wialon Integration
 
@@ -83,8 +91,14 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 
 1. Backend logs in to Wialon using the token stored in `node_backend/.env`.
 2. Backend fetches last known positions for mapped units.
-3. Backend normalizes the response into truck-friendly data.
-4. Frontend requests only the normalized backend endpoint.
+3. Backend enriches GPS data with operational context from existing app tables:
+   - active transaction
+   - active repair
+   - last transaction
+   - driver name
+4. Backend normalizes the response into a truck-friendly combined payload.
+5. Frontend requests only the normalized backend endpoint for map/list/detail data.
+6. When a user selects a truck, frontend can optionally request reverse geocoding for the selected coordinate only.
 
 ### Important Backend Files
 
@@ -93,13 +107,32 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - session reuse and retry
   - location normalization
   - auto mapping helper
+  - operational data enrichment for map payload
+  - Geoapify reverse geocoding with in-memory cache
 - `node_backend/routes/wialon.js`
-  - protected API routes for truck location and auto mapping
+  - protected API routes for truck location, reverse geocoding, and auto mapping
+- `tailadmin-vuejs-1.0.0/src/views/Monitoring/TruckLocationMap.vue`
+  - 3-panel operational workspace UI
+  - Leaflet marker sync and focus behavior
+  - selected truck inspector
+  - fleet search/filter/list behavior
+  - inline SVG truck marker icon
+- `tailadmin-vuejs-1.0.0/src/services/truckLocationService.ts`
+  - frontend API wrapper for truck locations and reverse geocoding
 
 ### Important Routes
 
 - `GET /api/wialon/trucks/location`
   - returns truck locations and summary info
+  - each truck now includes combined GPS + operational fields:
+    - `driver_name`
+    - `operational_status`
+    - `transaksi`
+    - `repair`
+    - `last_transaction`
+- `GET /api/wialon/reverse-geocode?lat=...&lon=...`
+  - returns reverse geocoding result for one selected truck coordinate
+  - uses Geoapify and backend cache
 - `POST /api/wialon/trucks/auto-map`
   - tries to fill `wialon_unit_id` for trucks that are still empty
 
@@ -143,6 +176,10 @@ Required or currently used variables:
 - `WIALON_LOGIN_FLAGS`
 - `WIALON_SESSION_TTL_MS`
 - `WIALON_TIMEOUT_MS`
+- `GEOAPIFY_API_KEY`
+- `GEOAPIFY_BASE_URL`
+- `GEOAPIFY_TIMEOUT_MS`
+- `REVERSE_GEOCODE_CACHE_TTL_MS`
 
 ### Example File
 
@@ -161,6 +198,10 @@ Required or currently used variables:
 - Never expose secret tokens in the frontend bundle.
 - Use `wialon_unit_id` as the stable mapping key instead of relying only on plate number.
 - Preserve manual mapping if a truck already has a valid `wialon_unit_id`.
+- Reverse geocoding is intentionally done server-side, not directly from the browser.
+- Reverse geocoding should only be requested for the selected truck, not every truck on every refresh.
+- Keep a fallback to raw coordinates when no address is available.
+- The primary filter meaning on the map page is GPS status, not business/operational status.
 
 ## How To Run
 
@@ -192,6 +233,10 @@ npm run build-only
 - `tailadmin-vuejs-1.0.0` still has some older TypeScript warnings in unrelated files outside the map feature.
 - The build for the map feature itself is currently working.
 - If the UI looks stale after CSS changes, do a hard refresh because Leaflet cluster icons can be cached in the browser.
+- `Vehicle Detail` is intentionally hidden until a truck is selected by the user.
+- Auto-refresh keeps map data fresh, but should not aggressively re-focus the map on every refresh.
+- Address lookup depends on a valid `GEOAPIFY_API_KEY` in backend `.env`.
+- When Geoapify is unavailable or quota is exhausted, the UI falls back to showing coordinates in the `Lokasi` card.
 
 ## Suggested Next Improvements
 
@@ -199,3 +244,5 @@ npm run build-only
 - Add an overwrite mode for remapping existing truck rows.
 - Add cluster summaries by status percentage.
 - Add a small legend panel for moving / idle / offline / unlinked statuses.
+- Consider persisting reverse geocode cache in a database or Redis if server restarts become frequent.
+- Consider adding an explicit loading skeleton for address lookup in the detail panel.

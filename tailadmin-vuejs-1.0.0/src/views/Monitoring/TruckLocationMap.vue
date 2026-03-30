@@ -1176,11 +1176,9 @@ const createTruckIcon = (isSelected = false) =>
       <div class="truck-pin ${isSelected ? 'truck-pin--selected' : ''}">
         <span class="truck-pin__halo"></span>
         <div class="truck-pin__badge">
-          <svg viewBox="0 0 64 64" aria-hidden="true" class="truck-pin__icon">
-            <path
-              d="M10 20c0-3.314 2.686-6 6-6h18c3.314 0 6 2.686 6 6v4h8.191c2.071 0 4.02.975 5.258 2.629l4.809 6.412A6 6 0 0 1 60 36.641V44a4 4 0 0 1-4 4h-2.382a8 8 0 0 1-15.236 0H25.618a8 8 0 0 1-15.236 0H8a4 4 0 0 1-4-4v-8a6 6 0 0 1 6-6zm6 22a4 4 0 1 0 0 8 4 4 0 0 0 0-8m30 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8M40 30v6h13.5l-4.2-5.6a2 2 0 0 0-1.6-.8z"
-              fill="currentColor"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3063fd" aria-hidden="true" class="truck-pin__icon">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M13 4a1 1 0 0 1 1 1h4a1 1 0 0 1 .783 .378l.074 .108l3 5l.055 .103l.04 .107l.029 .109l.016 .11l.003 .085v6a1 1 0 0 1 -1 1h-1.171a3.001 3.001 0 0 1 -5.658 0h-4.342a3.001 3.001 0 0 1 -5.658 0h-1.171a1 1 0 0 1 -1 -1v-11a2 2 0 0 1 2 -2zm-6 12a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m10 0a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m.434 -9h-3.434v3h5.234z" />
           </svg>
         </div>
         <span class="truck-pin__tip"></span>
@@ -1574,20 +1572,20 @@ onBeforeUnmount(() => {
 
 .truck-pin__badge {
   position: absolute;
-  inset: 0 0 10px;
+  inset: 2px 2px 11px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 3px solid rgba(255, 255, 255, 0.98);
+  border: 2px solid rgba(59, 130, 246, 0.18);
   border-radius: 999px;
-  background: linear-gradient(135deg, #60a5fa, #2563eb);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 12px 20px rgba(37, 99, 235, 0.28);
 }
 
 .truck-pin__icon {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
 }
 
 .truck-pin__tip {
