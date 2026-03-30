@@ -2,186 +2,557 @@
   <AdminLayout>
     <PageBreadcrumb :pageTitle="pageTitle" />
 
-    <div class="space-y-6">
-      <section class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
-        <div class="relative overflow-hidden bg-gradient-to-r from-slate-950 via-slate-900 to-brand-900 px-6 py-7 text-white">
-          <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-brand-500/20 blur-3xl"></div>
-          <div class="absolute -bottom-16 left-1/2 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl"></div>
-          <div class="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div class="max-w-3xl space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
-                Live Tracking
-              </p>
-              <div>
-                <h1 class="text-2xl font-semibold sm:text-3xl">
-                  Lokasi Truk
-                </h1>
-                <p class="mt-2 text-sm leading-6 text-white/70 sm:text-base">
-                  Peta interaktif truk yang terhubung ke Wialon, ditampilkan lewat Leaflet dan tile OpenStreetMap.
-                </p>
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-3">
-              <RouterLink
-                to="/monitoring-kendaraan"
-                class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15"
-              >
-                Monitoring
-              </RouterLink>
-              <button
-                type="button"
-                :disabled="loading"
-                class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-70"
-                @click="refreshLocations"
-              >
-                {{ loading ? 'Menyegarkan...' : 'Refresh Sekarang' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid gap-4 border-t border-gray-200 p-4 sm:grid-cols-2 xl:grid-cols-4 xl:p-6">
-          <article
-            v-for="card in summaryCards"
-            :key="card.key"
-            class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 shadow-sm transition hover:border-brand-500/30 hover:bg-brand-50/50 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-brand-500/10"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <span class="text-sm text-gray-500 dark:text-gray-400">{{ card.label }}</span>
-              <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl" :class="card.iconClass">
-                <component :is="card.icon" class="h-5 w-5" />
+    <div class="space-y-4">
+      <section
+        class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03] sm:p-5"
+      >
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
+              <span class="rounded-full bg-brand-50 px-3 py-1 dark:bg-brand-500/10">Fleet Workspace</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                Auto refresh 30 detik
               </span>
             </div>
-            <div class="mt-3 text-2xl font-semibold text-gray-800 dark:text-white/90">
-              {{ card.value }}
+            <div>
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-white/90 sm:text-2xl">
+                Lokasi Truk
+              </h1>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Peta live Wialon dengan inspector kendaraan dan daftar armada yang selalu sinkron.
+              </p>
             </div>
-          </article>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div
+              class="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300"
+            >
+              <p class="font-semibold text-gray-900 dark:text-white/90">
+                {{ formatNumber(trackingData.summary.total) }} armada
+              </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Sinkron terakhir {{ formatDateTime(trackingData.meta.fetched_at) }}
+              </p>
+            </div>
+
+            <RouterLink
+              to="/monitoring-kendaraan"
+              class="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:text-brand-300"
+            >
+              Monitoring
+            </RouterLink>
+
+            <button
+              type="button"
+              :disabled="loading"
+              class="inline-flex items-center justify-center rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
+              @click="refreshLocations"
+            >
+              {{ loading ? 'Menyegarkan...' : 'Refresh Sekarang' }}
+            </button>
+          </div>
         </div>
       </section>
 
-      <div v-if="errorMessage" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+      <div
+        v-if="errorMessage"
+        class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+      >
         {{ errorMessage }}
       </div>
 
-      <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
-        <section class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
-          <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="grid gap-4 xl:items-start" :class="workspaceGridClass">
+        <section
+          class="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03] xl:h-[78vh]"
+        >
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
             <div>
-              <h2 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-                Peta Lokasi
-              </h2>
-              <p class="text-sm text-gray-500 dark:text-gray-400">
-                Marker diperbarui otomatis setiap 30 detik.
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white/90">Live Map</h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Marker mengikuti hasil search dan filter GPS.
               </p>
             </div>
-            <div class="flex flex-wrap items-center gap-2 text-xs">
-              <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+
+            <div class="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+              <span
+                class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+              >
                 Moving
               </span>
-              <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+              <span
+                class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+              >
                 Idle
               </span>
-              <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+              <span
+                class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                Offline
+              </span>
+              <span
+                class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+              >
                 Belum Terhubung
               </span>
             </div>
           </div>
 
-          <div class="relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-950">
-            <div ref="mapRef" class="h-[62vh] min-h-[520px] w-full"></div>
+          <div class="relative">
+            <div ref="mapRef" class="h-[68vh] min-h-[520px] w-full xl:h-[calc(78vh-61px)]"></div>
+
             <div
               v-if="loading && !hasInitialized"
-              class="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-medium text-gray-600 backdrop-blur dark:bg-gray-950/70 dark:text-gray-200"
+              class="absolute inset-0 flex items-center justify-center bg-white/75 text-sm font-medium text-gray-600 backdrop-blur dark:bg-gray-950/75 dark:text-gray-200"
             >
               Memuat peta...
+            </div>
+
+            <div class="pointer-events-none absolute left-4 top-4 right-4 flex justify-between gap-3 xl:hidden">
+              <button
+                v-if="detailPanelVisible"
+                type="button"
+                class="pointer-events-auto inline-flex items-center rounded-2xl border border-gray-200 bg-white/95 px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm backdrop-blur transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-200"
+                @click="mobileDetailOpen = !mobileDetailOpen"
+              >
+                {{ mobileDetailOpen ? 'Tutup Detail' : 'Buka Detail' }}
+              </button>
+              <button
+                type="button"
+                class="pointer-events-auto inline-flex items-center rounded-2xl border border-gray-200 bg-white/95 px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm backdrop-blur transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-200"
+                @click="mobileFleetOpen = !mobileFleetOpen"
+              >
+                {{ mobileFleetOpen ? 'Tutup Fleet' : 'Buka Fleet' }}
+              </button>
             </div>
           </div>
         </section>
 
-        <aside class="space-y-4">
-          <section class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Cari truk
-            </label>
-            <div class="relative">
-              <input
-                v-model="searchInput"
-                type="text"
-                placeholder="Plat, unit ID, merk, model"
-                class="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-700 outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-              />
-              <svg class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
+        <section
+          v-if="detailPanelVisible"
+          class="rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03] xl:h-[78vh] xl:self-start xl:flex xl:flex-col"
+        >
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 border-b border-gray-200 px-4 py-4 text-left dark:border-gray-800"
+            @click="mobileDetailOpen = !mobileDetailOpen"
+          >
+            <div>
+              <p class="text-lg font-semibold text-gray-900 dark:text-white/90">Vehicle Detail</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">
+                Inspector kendaraan yang sedang dipilih.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-400 dark:hover:text-brand-300"
+                @click.stop="clearSelectedTruck"
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                  <path d="M6 6 14 14" stroke-linecap="round" />
+                  <path d="m14 6-8 8" stroke-linecap="round" />
+                </svg>
+              </button>
+              <svg
+                class="h-5 w-5 text-gray-400 transition xl:hidden"
+                :class="mobileDetailOpen ? 'rotate-180' : ''"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M5 8.5 10 13.5 15 8.5" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </div>
-          </section>
+          </button>
 
-          <section class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
-            <div class="mb-4 flex items-center justify-between">
-              <div>
-                <h2 class="text-lg font-semibold text-gray-800 dark:text-white/90">
-                  Daftar Truk
-                </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                  {{ visibleTrucks.length }} dari {{ trackingData.trucks.length }} truk ditampilkan
-                </p>
-              </div>
-            </div>
-
-            <div ref="truckListRef" class="max-h-[72vh] space-y-3 overflow-y-auto pr-1">
-              <button
-                v-for="truck in visibleTrucks"
-                :key="truck.id_truck"
-                type="button"
-                :data-truck-id="truck.id_truck"
-                class="w-full rounded-2xl border p-4 text-left transition"
-                :class="selectedTruckId === truck.id_truck
-                  ? 'border-brand-500 bg-brand-50 shadow-sm dark:border-brand-400/40 dark:bg-brand-500/10'
-                  : 'border-gray-200 bg-white hover:border-brand-400/40 hover:bg-brand-50/40 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-brand-500/10'"
-                @click="focusTruck(truck)"
-              >
+          <div
+            class="p-4 sm:p-5 xl:flex-1 xl:min-h-0"
+            :class="mobileDetailOpen ? 'block' : 'hidden xl:block'"
+          >
+            <div
+              v-if="selectedTruck"
+              class="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900/50"
+            >
+              <div class="space-y-4 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <h3 class="truncate text-sm font-semibold text-gray-800 dark:text-white/90">
-                      {{ truck.no_police || `Truck ${truck.id_truck}` }}
+                    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">
+                      Kendaraan Aktif
+                    </p>
+                    <h3 class="mt-2 truncate text-xl font-semibold text-gray-900 dark:text-white/90">
+                      {{ selectedTruck.no_police || `Truck ${selectedTruck.id_truck}` }}
                     </h3>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {{ resolveVehicleName(truck) }}
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {{ resolveVehicleName(selectedTruck) }}
                     </p>
                   </div>
-                  <span
-                    class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
-                    :class="statusBadgeClass(truck.status)"
+
+                  <div class="flex flex-col items-end gap-2">
+                    <span
+                      class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                      :class="statusBadgeClass(selectedTruck.status)"
+                    >
+                      {{ statusLabel(selectedTruck.status) }}
+                    </span>
+                    <span
+                      class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                      :class="operationalBadgeClass(selectedTruck.operational_status)"
+                    >
+                      {{ operationalStatusLabel(selectedTruck.operational_status) }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-sm font-medium transition"
+                    :class="
+                      hasCoordinates(selectedTruck)
+                        ? 'border-brand-200 bg-brand-50 text-brand-700 hover:border-brand-300 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300'
+                        : 'cursor-not-allowed border-gray-200 bg-white text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500'
+                    "
+                    :disabled="!hasCoordinates(selectedTruck)"
+                    @click="focusSelectedTruckOnMap"
                   >
-                    {{ statusLabel(truck.status) }}
-                  </span>
+                    Center on Map
+                  </button>
+
+                  <RouterLink
+                    :to="`/data-transport/data-truck/detail/${selectedTruck.id_truck}`"
+                    class="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:text-brand-300"
+                  >
+                    Detail Truk
+                  </RouterLink>
+
+                  <RouterLink
+                    v-if="selectedTruck.transaksi?.id_sales_cost"
+                    :to="`/sales-cost/${selectedTruck.transaksi.id_sales_cost}`"
+                    class="inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:text-brand-300 sm:col-span-2"
+                  >
+                    Detail Sales Cost
+                  </RouterLink>
+                </div>
+              </div>
+
+              <div class="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      Driver
+                    </p>
+                    <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
+                      {{ selectedTruck.driver_name || '-' }}
+                    </p>
+                  </div>
+
+                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      Unit Wialon
+                    </p>
+                    <p class="mt-2 break-all text-sm font-medium text-gray-900 dark:text-white/90">
+                      {{ selectedTruck.wialon_unit_id || '-' }}
+                    </p>
+                  </div>
+
+                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      Kecepatan
+                    </p>
+                    <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
+                      {{ formatSpeed(selectedTruck.gps?.speed) }}
+                    </p>
+                  </div>
+
+                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      Last GPS Update
+                    </p>
+                    <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
+                      {{ formatDateTime(selectedTruck.gps?.device_time || selectedTruck.synced_at) }}
+                    </p>
+                  </div>
                 </div>
 
-                <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
-                  <div>
-                    <p class="text-gray-400 dark:text-gray-500">Unit ID</p>
-                    <p class="break-all font-medium">{{ truck.wialon_unit_id || '-' }}</p>
+                <div class="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-950/40">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        Koordinat
+                      </p>
+                      <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
+                        {{ formatCoordinates(selectedTruck) }}
+                      </p>
+                    </div>
+                    <div
+                      class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                      :class="hasCoordinates(selectedTruck) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'"
+                    >
+                      {{ hasCoordinates(selectedTruck) ? 'Siap difokuskan' : 'Tanpa titik GPS' }}
+                    </div>
                   </div>
-                  <div>
-                    <p class="text-gray-400 dark:text-gray-500">Kecepatan</p>
-                    <p class="font-medium">{{ formatSpeed(truck.gps?.speed) }}</p>
+
+                  <p v-if="!hasCoordinates(selectedTruck)" class="mt-3 text-sm text-amber-700 dark:text-amber-300">
+                    Kendaraan ini masih ada di daftar fleet, tetapi belum punya koordinat yang bisa ditampilkan di peta.
+                  </p>
+                </div>
+
+                <div
+                  v-if="selectedTruck.transaksi"
+                  class="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-4 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                        Transaksi Aktif
+                      </p>
+                      <p class="mt-2 text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                        Sales Cost #{{ selectedTruck.transaksi.id_sales_cost || '-' }}
+                      </p>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      {{ selectedTruck.transaksi.route || 'Rute belum ada' }}
+                    </span>
                   </div>
-                  <div class="col-span-2">
-                    <p class="text-gray-400 dark:text-gray-500">Update</p>
-                    <p class="font-medium">{{ formatDateTime(truck.synced_at) }}</p>
+
+                  <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">Trip</p>
+                      <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                        {{ selectedTruck.transaksi.trip || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">Jenis Trip</p>
+                      <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                        {{ selectedTruck.transaksi.jenis_trip || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">Delivery Order</p>
+                      <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                        {{ formatDate(selectedTruck.transaksi.delivery_order) }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">Finish Order</p>
+                      <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                        {{ formatDate(selectedTruck.transaksi.finish_order || selectedTruck.transaksi.arrival_order) }}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </button>
 
-              <div
-                v-if="!visibleTrucks.length && !loading"
-                class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
-              >
-                Tidak ada truk yang cocok dengan pencarian.
+                <div
+                  v-if="selectedTruck.repair"
+                  class="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4 dark:border-amber-500/20 dark:bg-amber-500/10"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                        Repair Aktif
+                      </p>
+                      <p class="mt-2 text-sm font-semibold text-amber-900 dark:text-amber-100">
+                        {{ selectedTruck.repair.no_spk_perbaikan || 'Tanpa No. SPK Repair' }}
+                      </p>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                      {{ selectedTruck.repair.kategori_repair || 'PROSES' }}
+                    </span>
+                  </div>
+
+                  <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p class="text-xs text-amber-700/70 dark:text-amber-300/70">Jenis Kerusakan</p>
+                      <p class="mt-1 text-sm font-medium text-amber-900 dark:text-amber-100">
+                        {{ selectedTruck.repair.jenis_kerusakan || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-amber-700/70 dark:text-amber-300/70">Tanggal Proses</p>
+                      <p class="mt-1 text-sm font-medium text-amber-900 dark:text-amber-100">
+                        {{ formatDate(selectedTruck.repair.tgl_proses) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="selectedTruck.last_transaction"
+                  class="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-950/40"
+                >
+                  <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    Transaksi Terakhir
+                  </p>
+                  <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Sales Cost</p>
+                      <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">
+                        #{{ selectedTruck.last_transaction.id_sales_cost || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Route</p>
+                      <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">
+                        {{ selectedTruck.last_transaction.route || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Driver</p>
+                      <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">
+                        {{ selectedTruck.last_transaction.driver_name || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Delivery Order</p>
+                      <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">
+                        {{ formatDate(selectedTruck.last_transaction.delivery_order) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </section>
+
+          </div>
+        </section>
+
+        <aside
+          class="rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03] xl:h-[78vh] xl:self-start xl:flex xl:flex-col"
+        >
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 border-b border-gray-200 px-4 py-4 text-left xl:pointer-events-none dark:border-gray-800"
+            @click="mobileFleetOpen = !mobileFleetOpen"
+          >
+            <div>
+              <p class="text-lg font-semibold text-gray-900 dark:text-white/90">Fleet</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ visibleTrucks.length }} dari {{ trackingData.trucks.length }} kendaraan tampil.
+              </p>
+            </div>
+            <svg
+              class="h-5 w-5 text-gray-400 transition xl:hidden"
+              :class="mobileFleetOpen ? 'rotate-180' : ''"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <path d="M5 8.5 10 13.5 15 8.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+
+          <div
+            class="p-4 sm:p-5 xl:flex-1 xl:min-h-0"
+            :class="mobileFleetOpen ? 'block' : 'hidden xl:block'"
+          >
+            <div class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+              <div class="rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900/50">
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Search Fleet
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="searchInput"
+                    type="text"
+                    placeholder="Plat, driver, unit ID, route"
+                    class="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm text-gray-700 outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-100"
+                  />
+                  <svg
+                    class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="filter in gpsFilterOptions"
+                  :key="filter.key"
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition"
+                  :class="
+                    gpsFilter === filter.key
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/10 dark:text-brand-300'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-400 dark:hover:text-brand-300'
+                  "
+                  @click="gpsFilter = filter.key"
+                >
+                  <span>{{ filter.label }}</span>
+                  <span
+                    class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    :class="gpsFilter === filter.key ? 'bg-white text-brand-700 dark:bg-brand-950/40 dark:text-brand-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'"
+                  >
+                    {{ formatNumber(filter.count) }}
+                  </span>
+                </button>
+              </div>
+
+              <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-300">
+                <p class="font-medium text-gray-900 dark:text-white/90">
+                  {{ visibleTrucks.length }} hasil sesuai filter
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Filter GPS aktif: {{ activeGpsFilterLabel }}
+                </p>
+              </div>
+
+              <div ref="truckListRef" class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                <button
+                  v-for="truck in visibleTrucks"
+                  :key="truck.id_truck"
+                  type="button"
+                  :data-truck-id="truck.id_truck"
+                  class="w-full rounded-2xl border p-3.5 text-left transition"
+                  :class="
+                    selectedTruckId === truck.id_truck
+                      ? 'border-brand-500 bg-brand-50 shadow-sm dark:border-brand-400/40 dark:bg-brand-500/10'
+                      : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-brand-500/10'
+                  "
+                  @click="focusTruck(truck)"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="inline-flex h-2.5 w-2.5 shrink-0 rounded-full"
+                          :class="gpsDotClass(truck.status)"
+                        ></span>
+                        <h3 class="truncate text-base font-semibold text-gray-900 dark:text-white/90">
+                          {{ truck.no_police || `Truck ${truck.id_truck}` }}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center">
+                      <span
+                        class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                        :class="statusBadgeClass(truck.status)"
+                      >
+                        {{ statusLabel(truck.status) }}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+
+                <div
+                  v-if="!visibleTrucks.length && !loading"
+                  class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
+                >
+                  Tidak ada kendaraan yang cocok dengan search dan filter aktif.
+                </div>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </div>
@@ -189,14 +560,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as L from 'leaflet'
 import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
-import { BoxCubeIcon, DocsIcon, InfoCircleIcon, WarningIcon } from '@/icons'
 import { truckLocationService } from '@/services/truckLocationService'
 import { useToast } from '@/composables/useToast'
 
@@ -211,6 +581,45 @@ type TruckGps = {
   fetched_at: string
 }
 
+type TruckTransaction = {
+  id_sales_cost: number | null
+  no_spk: number | null
+  delivery_order: string | null
+  arrival_order: string | null
+  finish_order: string | null
+  trip: string | null
+  jenis_trip: string | null
+  no_po: string | null
+  no_aju: string | null
+  no_container: string | null
+  route: string | null
+}
+
+type TruckRepair = {
+  id_repair: number | null
+  no_spk_perbaikan: string | null
+  kategori_repair: string | null
+  jenis_kerusakan: string | null
+  status_repair: string | null
+  tgl_kerusakan: string | null
+  tgl_input: string | null
+  tgl_proses: string | null
+  tgl_selesai: string | null
+}
+
+type TruckLastTransaction = {
+  id_sales_cost: number | null
+  delivery_order: string | null
+  arrival_order: string | null
+  finish_order: string | null
+  driver_name: string | null
+  route: string | null
+}
+
+type GpsStatus = 'moving' | 'idle' | 'offline' | 'unlinked' | 'no_position' | 'unknown'
+type OperationalStatus = 'transaksi' | 'repair' | 'idle'
+type GpsFilter = 'all' | 'moving' | 'idle' | 'offline' | 'attention'
+
 type TruckLocation = {
   id_truck: number
   no_police: string | null
@@ -220,9 +629,14 @@ type TruckLocation = {
   type_truck: string | null
   wialon_unit_id: string | null
   wialon_unit_name: string | null
-  status: string
+  status: GpsStatus
   gps: TruckGps
   synced_at: string
+  driver_name: string | null
+  operational_status: OperationalStatus
+  transaksi: TruckTransaction | null
+  repair: TruckRepair | null
+  last_transaction: TruckLastTransaction | null
 }
 
 type TruckLocationPayload = {
@@ -243,8 +657,33 @@ type TruckLocationPayload = {
   }
 }
 
+type MarkerRevealOptions = {
+  animate?: boolean
+  openPopup?: boolean
+}
+
+type MarkerSyncOptions = {
+  focusSelected?: boolean
+  openPopupForSelected?: boolean
+  preserveView?: boolean
+}
+
+type ClusterStatusSummary = {
+  moving: number
+  idle: number
+  offline: number
+  unlinked: number
+  no_position: number
+  total: number
+}
+
 const pageTitle = 'Lokasi Truk'
 const toast = useToast()
+
+const defaultCenter: [number, number] = [-2.5489, 118.0149]
+const defaultZoom = 5
+const detailZoom = 17
+
 const mapRef = ref<HTMLDivElement | null>(null)
 const truckListRef = ref<HTMLDivElement | null>(null)
 const mapInstance = ref<L.Map | null>(null)
@@ -253,7 +692,10 @@ const hasInitialized = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 const searchInput = ref('')
+const gpsFilter = ref<GpsFilter>('all')
 const selectedTruckId = ref<number | null>(null)
+const mobileDetailOpen = ref(false)
+const mobileFleetOpen = ref(true)
 const trackingData = ref<TruckLocationPayload>({
   summary: {
     total: 0,
@@ -272,76 +714,26 @@ const trackingData = ref<TruckLocationPayload>({
   }
 })
 
-const defaultCenter: [number, number] = [-2.5489, 118.0149]
-const defaultZoom = 5
-const detailZoom = 17
 let refreshTimer: number | null = null
 let markerIndex = new Map<number, L.Marker>()
+let pendingRevealRequestId = 0
+let pendingRevealAnimationFrame: number | null = null
+let pendingRevealMoveEndHandler: (() => void) | null = null
 
-const summaryCards = computed(() => {
-  const summary = trackingData.value.summary
-  return [
-    {
-      key: 'total',
-      label: 'Total Truk',
-      value: summary.total,
-      icon: BoxCubeIcon,
-      iconClass: 'bg-slate-950 text-white dark:bg-slate-800'
-    },
-    {
-      key: 'linked',
-      label: 'Terhubung',
-      value: summary.linked,
-      icon: DocsIcon,
-      iconClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-    },
-    {
-      key: 'moving',
-      label: 'Moving',
-      value: summary.moving,
-      icon: InfoCircleIcon,
-      iconClass: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-    },
-    {
-      key: 'unlinked',
-      label: 'Belum Terhubung',
-      value: summary.unlinked,
-      icon: WarningIcon,
-      iconClass: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
-    }
-  ].map((card) => ({
-    ...card,
-    value: new Intl.NumberFormat('id-ID').format(Number(card.value) || 0)
-  }))
-})
+const cancelPendingReveal = () => {
+  pendingRevealRequestId += 1
 
-const visibleTrucks = computed(() => {
-  const keyword = searchInput.value.trim().toLowerCase()
-  const trucks = trackingData.value.trucks || []
-  if (!keyword) {
-    return trucks
+  if (pendingRevealAnimationFrame !== null) {
+    window.cancelAnimationFrame(pendingRevealAnimationFrame)
+    pendingRevealAnimationFrame = null
   }
-  return trucks.filter((truck) => {
-    const haystack = [
-      truck.no_police,
-      truck.jenis_kendaraan,
-      truck.merk_mobil,
-      truck.model,
-      truck.type_truck,
-      truck.wialon_unit_id,
-      truck.wialon_unit_name,
-      truck.status
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(keyword)
-  })
-})
 
-const withCoordinates = computed(() =>
-  visibleTrucks.value.filter((truck) => hasCoordinates(truck))
-)
+  if (mapInstance.value && pendingRevealMoveEndHandler) {
+    mapInstance.value.off('moveend', pendingRevealMoveEndHandler)
+  }
+
+  pendingRevealMoveEndHandler = null
+}
 
 const formatNumber = (value: number | null | undefined) =>
   new Intl.NumberFormat('id-ID').format(Number(value) || 0)
@@ -370,12 +762,44 @@ const formatDateTime = (value?: string | null) => {
   }).format(date)
 }
 
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return '-'
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }).format(date)
+}
+
 const resolveVehicleName = (truck: TruckLocation) => {
   const parts = [truck.merk_mobil, truck.model, truck.type_truck, truck.jenis_kendaraan].filter(Boolean)
   return parts.length ? parts.join(' ') : '-'
 }
 
-const statusLabel = (status: string) => {
+const gpsFilterLabel = (filter: GpsFilter) => {
+  switch (filter) {
+    case 'moving':
+      return 'Moving'
+    case 'idle':
+      return 'Idle'
+    case 'offline':
+      return 'Offline'
+    case 'attention':
+      return 'Belum Terhubung'
+    default:
+      return 'All'
+  }
+}
+
+const activeGpsFilterLabel = computed(() => gpsFilterLabel(gpsFilter.value))
+
+const statusLabel = (status: GpsStatus) => {
   switch (status) {
     case 'moving':
       return 'Moving'
@@ -386,26 +810,63 @@ const statusLabel = (status: string) => {
     case 'offline':
       return 'Offline'
     case 'no_position':
-      return 'No Pos'
+      return 'No Posisi'
     default:
       return 'Unknown'
   }
 }
 
-const statusBadgeClass = (status: string) => {
+const operationalStatusLabel = (status: OperationalStatus) => {
+  switch (status) {
+    case 'transaksi':
+      return 'Transaksi'
+    case 'repair':
+      return 'Repair'
+    default:
+      return 'Idle Operasional'
+  }
+}
+
+const statusBadgeClass = (status: GpsStatus) => {
   switch (status) {
     case 'moving':
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
     case 'idle':
       return 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+    case 'offline':
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+    case 'no_position':
     case 'unlinked':
       return 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
-    case 'offline':
-      return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-    case 'no_position':
-      return 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
     default:
       return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  }
+}
+
+const operationalBadgeClass = (status: OperationalStatus) => {
+  switch (status) {
+    case 'transaksi':
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+    case 'repair':
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+    default:
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+  }
+}
+
+const gpsDotClass = (status: GpsStatus) => {
+  switch (status) {
+    case 'moving':
+      return 'bg-emerald-500'
+    case 'idle':
+      return 'bg-blue-500'
+    case 'offline':
+      return 'bg-slate-500'
+    case 'no_position':
+    case 'unlinked':
+      return 'bg-amber-500'
+    default:
+      return 'bg-gray-400'
   }
 }
 
@@ -414,6 +875,87 @@ const hasCoordinates = (truck: TruckLocation) =>
   Number.isFinite(truck.gps.lat) &&
   typeof truck.gps?.lon === 'number' &&
   Number.isFinite(truck.gps.lon)
+
+const formatCoordinates = (truck: TruckLocation) => {
+  if (!hasCoordinates(truck)) {
+    return '-'
+  }
+  return `${Number(truck.gps.lat).toFixed(6)}, ${Number(truck.gps.lon).toFixed(6)}`
+}
+
+const matchesGpsFilter = (truck: TruckLocation) => {
+  switch (gpsFilter.value) {
+    case 'moving':
+      return truck.status === 'moving'
+    case 'idle':
+      return truck.status === 'idle'
+    case 'offline':
+      return truck.status === 'offline'
+    case 'attention':
+      return truck.status === 'unlinked' || truck.status === 'no_position'
+    default:
+      return true
+  }
+}
+
+const visibleTrucks = computed(() => {
+  const keyword = searchInput.value.trim().toLowerCase()
+  const trucks = trackingData.value.trucks.filter(matchesGpsFilter)
+
+  if (!keyword) {
+    return trucks
+  }
+
+  return trucks.filter((truck) => {
+    const haystack = [
+      truck.no_police,
+      truck.jenis_kendaraan,
+      truck.merk_mobil,
+      truck.model,
+      truck.type_truck,
+      truck.wialon_unit_id,
+      truck.wialon_unit_name,
+      truck.status,
+      truck.driver_name,
+      truck.operational_status,
+      truck.transaksi?.route,
+      truck.transaksi?.trip,
+      truck.transaksi?.no_container,
+      truck.repair?.jenis_kerusakan,
+      truck.last_transaction?.route
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return haystack.includes(keyword)
+  })
+})
+
+const selectedTruck = computed(
+  () => visibleTrucks.value.find((truck) => truck.id_truck === selectedTruckId.value) ?? null
+)
+const detailPanelVisible = computed(() => Boolean(selectedTruck.value))
+const workspaceGridClass = computed(() =>
+  detailPanelVisible.value
+    ? 'xl:grid-cols-[minmax(0,1.95fr)_320px_340px]'
+    : 'xl:grid-cols-[minmax(0,2.55fr)_360px]'
+)
+
+const gpsFilterOptions = computed(() => {
+  const summary = trackingData.value.summary
+  return [
+    { key: 'all' as const, label: 'All', count: summary.total },
+    { key: 'moving' as const, label: 'Moving', count: summary.moving },
+    { key: 'idle' as const, label: 'Idle', count: summary.idle },
+    { key: 'offline' as const, label: 'Offline', count: summary.offline },
+    {
+      key: 'attention' as const,
+      label: 'Belum Terhubung',
+      count: Number(summary.unlinked || 0) + Number(summary.no_position || 0)
+    }
+  ]
+})
 
 const escapeHtml = (value: unknown) =>
   String(value ?? '')
@@ -424,9 +966,9 @@ const escapeHtml = (value: unknown) =>
     .replaceAll("'", '&#39;')
 
 const buildPopupContent = (truck: TruckLocation) => {
-  const status = statusLabel(truck.status)
+  const route = truck.transaksi?.route || truck.last_transaction?.route || '-'
   return `
-    <div class="space-y-2 min-w-[220px]">
+    <div class="space-y-2 min-w-[230px]">
       <div>
         <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Truk</div>
         <div class="text-sm font-semibold text-slate-900">${escapeHtml(truck.no_police || `Truck ${truck.id_truck}`)}</div>
@@ -434,33 +976,28 @@ const buildPopupContent = (truck: TruckLocation) => {
       </div>
       <div class="grid grid-cols-2 gap-2 text-xs text-slate-600">
         <div>
-          <div class="text-slate-400">Status</div>
-          <div class="font-semibold">${escapeHtml(status)}</div>
+          <div class="text-slate-400">GPS</div>
+          <div class="font-semibold">${escapeHtml(statusLabel(truck.status))}</div>
         </div>
         <div>
-          <div class="text-slate-400">Unit ID</div>
-          <div class="font-semibold break-all">${escapeHtml(truck.wialon_unit_id || '-')}</div>
+          <div class="text-slate-400">Operasional</div>
+          <div class="font-semibold">${escapeHtml(operationalStatusLabel(truck.operational_status))}</div>
+        </div>
+        <div>
+          <div class="text-slate-400">Driver</div>
+          <div class="font-semibold">${escapeHtml(truck.driver_name || '-')}</div>
         </div>
         <div>
           <div class="text-slate-400">Speed</div>
           <div class="font-semibold">${escapeHtml(formatSpeed(truck.gps?.speed))}</div>
         </div>
-        <div>
-          <div class="text-slate-400">Update</div>
-          <div class="font-semibold">${escapeHtml(formatDateTime(truck.synced_at))}</div>
+        <div class="col-span-2">
+          <div class="text-slate-400">Route</div>
+          <div class="font-semibold">${escapeHtml(route)}</div>
         </div>
       </div>
     </div>
   `
-}
-
-type ClusterStatusSummary = {
-  moving: number
-  idle: number
-  offline: number
-  unlinked: number
-  no_position: number
-  total: number
 }
 
 const getClusterStatusSummary = (markers: L.Marker[]) => {
@@ -491,6 +1028,7 @@ const getClusterStatusSummary = (markers: L.Marker[]) => {
         default:
           break
       }
+
       return summary
     },
     {
@@ -513,15 +1051,11 @@ const getClusterPrimaryStatus = (summary: ClusterStatusSummary) => {
     { status: 'no_position', count: summary.no_position }
   ].sort((left, right) => right.count - left.count)
 
-  const primary = ranked[0]
-  if (!primary || primary.count === 0) {
-    return 'unknown'
-  }
-  return primary.status
+  return ranked[0]?.count ? ranked[0].status : 'unknown'
 }
 
 const clusterStatusLabel = (summary: ClusterStatusSummary) => {
-  const pieces = [
+  const parts = [
     summary.moving ? `Moving ${summary.moving}` : null,
     summary.idle ? `Idle ${summary.idle}` : null,
     summary.offline ? `Offline ${summary.offline}` : null,
@@ -529,7 +1063,7 @@ const clusterStatusLabel = (summary: ClusterStatusSummary) => {
     summary.no_position ? `No Pos ${summary.no_position}` : null
   ].filter(Boolean)
 
-  return pieces.length ? pieces.join(' · ') : 'Tidak ada data'
+  return parts.length ? parts.join(' | ') : 'Tidak ada data'
 }
 
 const buildClusterPopupContent = (cluster: L.Marker) => {
@@ -547,47 +1081,23 @@ const buildClusterPopupContent = (cluster: L.Marker) => {
         <div class="text-sm font-semibold text-slate-900">${escapeHtml(summary.total)} truk</div>
         <div class="text-xs text-slate-500">${escapeHtml(clusterStatusLabel(summary))}</div>
       </div>
-      <div class="grid grid-cols-2 gap-2 text-xs text-slate-600">
-        <div>
-          <div class="text-slate-400">Moving</div>
-          <div class="font-semibold">${escapeHtml(summary.moving)}</div>
-        </div>
-        <div>
-          <div class="text-slate-400">Idle</div>
-          <div class="font-semibold">${escapeHtml(summary.idle)}</div>
-        </div>
-        <div>
-          <div class="text-slate-400">Offline</div>
-          <div class="font-semibold">${escapeHtml(summary.offline)}</div>
-        </div>
-        <div>
-          <div class="text-slate-400">Belum Terhubung</div>
-          <div class="font-semibold">${escapeHtml(summary.unlinked + summary.no_position)}</div>
-        </div>
-      </div>
       <div class="space-y-1">
-        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Isi Cluster</div>
-        <div class="max-h-44 space-y-1 overflow-y-auto pr-1 text-xs text-slate-600">
-          ${sampleTrucks
-            .map(
-              (truck) => `
-                <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <div class="font-semibold text-slate-900">${escapeHtml(truck.no_police || `Truck ${truck.id_truck}`)}</div>
-                  <div class="text-slate-500">${escapeHtml(resolveVehicleName(truck))}</div>
-                  <div class="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500">
-                    <span>${escapeHtml(statusLabel(truck.status))}</span>
-                    <span>${escapeHtml(truck.wialon_unit_id || '-')}</span>
-                  </div>
-                </div>
-              `
-            )
-            .join('')}
-          ${
-            summary.total > sampleTrucks.length
-              ? `<div class="text-[11px] text-slate-400">+${summary.total - sampleTrucks.length} truk lainnya</div>`
-              : ''
-          }
-        </div>
+        ${sampleTrucks
+          .map(
+            (truck) => `
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                <div class="font-semibold text-slate-900">${escapeHtml(truck.no_police || `Truck ${truck.id_truck}`)}</div>
+                <div class="text-slate-500">${escapeHtml(resolveVehicleName(truck))}</div>
+                <div class="mt-1">${escapeHtml(statusLabel(truck.status))} - ${escapeHtml(operationalStatusLabel(truck.operational_status))}</div>
+              </div>
+            `
+          )
+          .join('')}
+        ${
+          summary.total > sampleTrucks.length
+            ? `<div class="text-[11px] text-slate-400">+${summary.total - sampleTrucks.length} truk lainnya</div>`
+            : ''
+        }
       </div>
     </div>
   `
@@ -627,11 +1137,12 @@ const createClusterIcon = (cluster: L.MarkerCluster) => {
   })
 }
 
-const createTruckIcon = () =>
+const createTruckIcon = (isSelected = false) =>
   L.divIcon({
     className: '',
     html: `
-      <div class="truck-pin">
+      <div class="truck-pin ${isSelected ? 'truck-pin--selected' : ''}">
+        <span class="truck-pin__halo"></span>
         <div class="truck-pin__badge">
           <svg viewBox="0 0 64 64" aria-hidden="true" class="truck-pin__icon">
             <path
@@ -648,6 +1159,12 @@ const createTruckIcon = () =>
     popupAnchor: [0, -42]
   })
 
+const updateMarkerSelection = () => {
+  markerIndex.forEach((marker, truckId) => {
+    marker.setIcon(createTruckIcon(selectedTruckId.value === truckId))
+  })
+}
+
 const scrollTruckCardIntoView = async (truckId: number, behavior: ScrollBehavior = 'smooth') => {
   await nextTick()
 
@@ -663,32 +1180,79 @@ const scrollTruckCardIntoView = async (truckId: number, behavior: ScrollBehavior
   })
 }
 
-const revealTruckMarker = (truckId: number, options?: { animate?: boolean; openPopup?: boolean }) => {
+const revealTruckMarker = (truckId: number, options?: MarkerRevealOptions) => {
   if (!mapInstance.value || !markerClusterLayer.value) {
     return
   }
 
-  const marker = markerIndex.get(truckId)
-  if (!marker) {
-    return
-  }
+  cancelPendingReveal()
 
   const map = mapInstance.value
   const clusterLayer = markerClusterLayer.value
+  const marker = markerIndex.get(truckId)
+  if (!marker || !clusterLayer.hasLayer(marker)) {
+    return
+  }
+
+  const requestId = pendingRevealRequestId
   const target = marker.getLatLng()
   const shouldAnimate = options?.animate ?? true
   const shouldOpenPopup = options?.openPopup ?? true
+  const targetZoom = Math.max(map.getZoom(), detailZoom)
 
-  clusterLayer.zoomToShowLayer(marker, () => {
-    map.flyTo(target, Math.max(map.getZoom(), detailZoom), {
-      animate: shouldAnimate,
-      duration: shouldAnimate ? 0.8 : 0
-    })
+  const openPopupSafely = () => {
+    pendingRevealMoveEndHandler = null
+
+    if (requestId !== pendingRevealRequestId) {
+      return
+    }
+
+    const currentMarker = markerIndex.get(truckId)
+    if (!currentMarker || !markerClusterLayer.value?.hasLayer(currentMarker)) {
+      return
+    }
 
     if (shouldOpenPopup) {
-      marker.openPopup()
+      currentMarker.openPopup()
     }
+  }
+
+  map.stop()
+
+  if (map.getZoom() === targetZoom && map.getCenter().distanceTo(target) < 1) {
+    openPopupSafely()
+    return
+  }
+
+  pendingRevealMoveEndHandler = openPopupSafely
+  map.once('moveend', openPopupSafely)
+  map.flyTo(target, targetZoom, {
+    animate: shouldAnimate,
+    duration: shouldAnimate ? 0.8 : 0
   })
+}
+
+const clearSelectedTruck = () => {
+  selectedTruckId.value = null
+  mobileDetailOpen.value = false
+  mapInstance.value?.closePopup()
+}
+
+const alignSelectedTruck = () => {
+  if (!selectedTruckId.value) {
+    return
+  }
+
+  if (!visibleTrucks.value.length) {
+    selectedTruckId.value = null
+    mobileDetailOpen.value = false
+    return
+  }
+
+  if (!visibleTrucks.value.some((truck) => truck.id_truck === selectedTruckId.value)) {
+    selectedTruckId.value = null
+    mobileDetailOpen.value = false
+  }
 }
 
 const initMap = () => {
@@ -725,26 +1289,27 @@ const initMap = () => {
   mapInstance.value = map
 }
 
-const syncMarkers = () => {
+const syncMarkers = (options?: MarkerSyncOptions) => {
   if (!mapInstance.value || !markerClusterLayer.value) {
     return
   }
 
+  cancelPendingReveal()
+  mapInstance.value.closePopup()
   markerClusterLayer.value.clearLayers()
   markerIndex = new Map<number, L.Marker>()
 
-  const trucks = withCoordinates.value
+  const focusSelected = options?.focusSelected ?? false
+  const openPopupForSelected = options?.openPopupForSelected ?? false
+  const preserveView = options?.preserveView ?? false
+  const trucksWithCoordinates = visibleTrucks.value.filter((truck) => hasCoordinates(truck))
   const bounds = L.latLngBounds([])
 
-  trucks.forEach((truck) => {
-    if (!hasCoordinates(truck)) {
-      return
-    }
-
+  trucksWithCoordinates.forEach((truck) => {
     const lat = Number(truck.gps.lat)
     const lon = Number(truck.gps.lon)
     const marker = L.marker([lat, lon], {
-      icon: createTruckIcon(),
+      icon: createTruckIcon(selectedTruckId.value === truck.id_truck),
       truck
     })
 
@@ -755,6 +1320,7 @@ const syncMarkers = () => {
 
     marker.on('click', () => {
       selectedTruckId.value = truck.id_truck
+      mobileDetailOpen.value = true
       void scrollTruckCardIntoView(truck.id_truck)
     })
 
@@ -763,13 +1329,22 @@ const syncMarkers = () => {
     bounds.extend([lat, lon])
   })
 
-  if (selectedTruckId.value && markerIndex.has(selectedTruckId.value)) {
-    void scrollTruckCardIntoView(selectedTruckId.value, 'auto')
-    revealTruckMarker(selectedTruckId.value, {
-      animate: false,
-      openPopup: true
+  if (selectedTruckId.value && markerIndex.has(selectedTruckId.value) && focusSelected) {
+    pendingRevealAnimationFrame = window.requestAnimationFrame(() => {
+      pendingRevealAnimationFrame = null
+      revealTruckMarker(selectedTruckId.value as number, {
+        animate: false,
+        openPopup: openPopupForSelected
+      })
     })
-  } else if (bounds.isValid()) {
+    return
+  }
+
+  if (preserveView) {
+    return
+  }
+
+  if (bounds.isValid()) {
     mapInstance.value.fitBounds(bounds.pad(0.18))
   } else {
     mapInstance.value.setView(defaultCenter, defaultZoom)
@@ -779,12 +1354,19 @@ const syncMarkers = () => {
 const refreshLocations = async () => {
   loading.value = true
   errorMessage.value = ''
+
   try {
     const response = (await truckLocationService.fetchTruckLocations()) as TruckLocationPayload
     trackingData.value = response
+    alignSelectedTruck()
     await nextTick()
-    syncMarkers()
+    syncMarkers({
+      focusSelected: false,
+      openPopupForSelected: false,
+      preserveView: hasInitialized.value
+    })
     hasInitialized.value = true
+
     if (!response.meta.wialon_available) {
       errorMessage.value = response.meta.wialon_error
         ? `Wialon sedang tidak tersedia: ${response.meta.wialon_error}`
@@ -801,14 +1383,52 @@ const refreshLocations = async () => {
 
 const focusTruck = (truck: TruckLocation) => {
   selectedTruckId.value = truck.id_truck
+  mobileDetailOpen.value = true
+  mobileFleetOpen.value = true
   void scrollTruckCardIntoView(truck.id_truck)
 
-  if (!mapInstance.value || !hasCoordinates(truck)) {
+  if (!hasCoordinates(truck)) {
     return
   }
 
-  revealTruckMarker(truck.id_truck)
+  revealTruckMarker(truck.id_truck, {
+    animate: true,
+    openPopup: true
+  })
 }
+
+const focusSelectedTruckOnMap = () => {
+  if (!selectedTruck.value || !hasCoordinates(selectedTruck.value)) {
+    return
+  }
+
+  mapRef.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+
+  revealTruckMarker(selectedTruck.value.id_truck, {
+    animate: true,
+    openPopup: true
+  })
+}
+
+watch(selectedTruckId, () => {
+  updateMarkerSelection()
+})
+
+watch([searchInput, gpsFilter], async () => {
+  alignSelectedTruck()
+  if (!hasInitialized.value) {
+    return
+  }
+
+  await nextTick()
+  syncMarkers({
+    focusSelected: false,
+    openPopupForSelected: false
+  })
+})
 
 onMounted(async () => {
   initMap()
@@ -823,6 +1443,7 @@ onBeforeUnmount(() => {
     window.clearInterval(refreshTimer)
   }
   refreshTimer = null
+  cancelPendingReveal()
   markerIndex.clear()
   markerClusterLayer.value?.remove()
   mapInstance.value?.remove()
@@ -838,6 +1459,21 @@ onBeforeUnmount(() => {
   height: 52px;
   transform: translate(-50%, -100%);
   filter: drop-shadow(0 10px 16px rgba(15, 23, 42, 0.22));
+}
+
+.truck-pin__halo {
+  position: absolute;
+  inset: -7px -7px 3px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.18);
+  opacity: 0;
+  transform: scale(0.84);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.truck-pin--selected .truck-pin__halo {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .truck-pin__badge {
@@ -908,7 +1544,7 @@ onBeforeUnmount(() => {
 }
 
 .cluster-pin--no_position {
-  background: linear-gradient(135deg, #f43f5e, #e11d48);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
 }
 
 .cluster-pin--unknown {

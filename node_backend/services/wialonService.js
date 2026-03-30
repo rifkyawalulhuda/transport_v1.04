@@ -354,34 +354,6 @@ const pickBestWialonUnitMatch = (truck, units, usedUnitIds, overwrite = false) =
   };
 };
 
-const normalizeTruckLocation = ({ truck, item, fetchedAt, fallbackStatus }) => {
-  const position = resolvePosition(item);
-  const status = resolveStatus(position, fallbackStatus);
-
-  return {
-    id_truck: Number(truck.id_truck),
-    no_police: truck.no_police || null,
-    jenis_kendaraan: truck.jenis_kendaraan || null,
-    merk_mobil: truck.merk_mobil || null,
-    model: truck.model || null,
-    type_truck: truck.type_truck || null,
-    wialon_unit_id: truck.wialon_unit_id || null,
-    wialon_unit_name: item?.n || truck.no_police || null,
-    status,
-    gps: {
-      lat: position.lat,
-      lon: position.lon,
-      speed: position.speed,
-      heading: position.heading,
-      altitude: position.altitude,
-      satellites: position.satellites,
-      device_time: position.deviceTime,
-      fetched_at: fetchedAt
-    },
-    synced_at: position.deviceTime || fetchedAt
-  };
-};
-
 const fetchWialonUnitCatalog = async () => {
   const response = await wialonRequest("core/search_items", {
     spec: {
@@ -420,6 +392,252 @@ const fetchWialonUnitCatalog = async () => {
     .filter(Boolean);
 };
 
+const toDateString = (value) => {
+  if (!value || value === "0000-00-00") {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime())
+      ? null
+      : value.toISOString().slice(0, 10);
+  }
+
+  const text = String(value);
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : parsed.toISOString().slice(0, 10);
+};
+
+const fetchOperationalContext = async () => {
+  const todayString = toDateString(new Date());
+
+  const repairSql = `
+    SELECT
+      repair.id_repair,
+      repair.id_truck,
+      repair.kategori_repair,
+      repair.jenis_kerusakan,
+      repair.keterangan,
+      repair.no_spk_perbaikan,
+      repair.status_repair,
+      repair.tgl_kerusakan,
+      repair.tgl_input,
+      repair.tgl_proses,
+      repair.tgl_selesai
+    FROM repair
+    WHERE repair.id_truck IS NOT NULL
+      AND (repair.status_repair IS NULL OR repair.status_repair = 'PROSES')
+    ORDER BY repair.tgl_input DESC, repair.id_repair DESC
+  `;
+
+  const trxSql = `
+    SELECT
+      sc.id_sales_cost,
+      sc.id_truck,
+      sc.id_driver,
+      sc.delivery_order,
+      sc.arrival_order,
+      sc.finish_order,
+      sc.trip,
+      sc.jenis_trip,
+      sc.no_po,
+      sc.no_aju,
+      sc.no_container,
+      d.nama_driver,
+      a.nama_area
+    FROM sales_cost sc
+    LEFT JOIN driver d ON sc.id_driver = d.id_driver
+    LEFT JOIN area a ON sc.id_area = a.id_area
+    WHERE sc.id_truck IS NOT NULL
+      AND (
+        (sc.finish_order IS NOT NULL AND sc.finish_order <> '0000-00-00' AND sc.finish_order > ?)
+        OR
+        (
+          (sc.finish_order IS NULL OR sc.finish_order = '0000-00-00')
+          AND
+          (sc.arrival_order IS NULL OR sc.arrival_order = '0000-00-00' OR sc.arrival_order >= ?)
+        )
+      )
+    ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+  `;
+
+  const lastSql = `
+    SELECT
+      sc.id_sales_cost,
+      sc.id_truck,
+      sc.id_driver,
+      sc.delivery_order,
+      sc.arrival_order,
+      sc.finish_order,
+      d.nama_driver,
+      a.nama_area
+    FROM sales_cost sc
+    INNER JOIN (
+      SELECT id_truck, MAX(delivery_order) AS max_delivery
+      FROM sales_cost
+      WHERE id_truck IS NOT NULL
+      GROUP BY id_truck
+    ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.delivery_order
+    LEFT JOIN driver d ON sc.id_driver = d.id_driver
+    LEFT JOIN area a ON sc.id_area = a.id_area
+    ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+  `;
+
+  const [[repairRows], [trxRows], [lastRows]] = await Promise.all([
+    db.query(repairSql),
+    db.query(trxSql, [todayString, todayString]),
+    db.query(lastSql)
+  ]);
+
+  const repairsByTruck = new Map();
+  repairRows.forEach((row) => {
+    const key = String(row.id_truck || "");
+    if (!key || repairsByTruck.has(key)) {
+      return;
+    }
+    repairsByTruck.set(key, row);
+  });
+
+  const transaksiByTruck = new Map();
+  trxRows.forEach((row) => {
+    const key = String(row.id_truck || "");
+    if (!key || transaksiByTruck.has(key)) {
+      return;
+    }
+    transaksiByTruck.set(key, row);
+  });
+
+  const lastByTruck = new Map();
+  lastRows.forEach((row) => {
+    const key = String(row.id_truck || "");
+    if (!key || lastByTruck.has(key)) {
+      return;
+    }
+    lastByTruck.set(key, row);
+  });
+
+  return {
+    repairsByTruck,
+    transaksiByTruck,
+    lastByTruck
+  };
+};
+
+const buildOperationalDetails = (truck, operationalContext) => {
+  const key = String(truck.id_truck || "");
+  const repair = operationalContext.repairsByTruck.get(key) || null;
+  const transaksi = operationalContext.transaksiByTruck.get(key) || null;
+  const last = operationalContext.lastByTruck.get(key) || null;
+
+  const lastTransaction = last
+    ? {
+        id_sales_cost: last.id_sales_cost ?? null,
+        delivery_order: toDateString(last.delivery_order),
+        arrival_order: toDateString(last.arrival_order),
+        finish_order: toDateString(last.finish_order),
+        driver_name: last.nama_driver || null,
+        route: last.nama_area || null
+      }
+    : null;
+
+  if (repair) {
+    return {
+      driver_name: last?.nama_driver || null,
+      operational_status: "repair",
+      transaksi: null,
+      repair: {
+        id_repair: repair.id_repair ?? null,
+        no_spk_perbaikan: repair.no_spk_perbaikan || null,
+        kategori_repair: repair.kategori_repair || null,
+        jenis_kerusakan: repair.jenis_kerusakan || null,
+        status_repair: repair.status_repair || null,
+        tgl_kerusakan:
+          toDateString(repair.tgl_kerusakan) || toDateString(repair.tgl_input),
+        tgl_input: toDateString(repair.tgl_input),
+        tgl_proses: toDateString(repair.tgl_proses),
+        tgl_selesai: toDateString(repair.tgl_selesai)
+      },
+      last_transaction: lastTransaction
+    };
+  }
+
+  if (transaksi) {
+    return {
+      driver_name: transaksi.nama_driver || null,
+      operational_status: "transaksi",
+      transaksi: {
+        id_sales_cost: transaksi.id_sales_cost ?? null,
+        no_spk: transaksi.id_sales_cost ?? null,
+        delivery_order: toDateString(transaksi.delivery_order),
+        arrival_order: toDateString(transaksi.arrival_order),
+        finish_order: toDateString(transaksi.finish_order),
+        trip: transaksi.trip || null,
+        jenis_trip: transaksi.jenis_trip || null,
+        no_po: transaksi.no_po || null,
+        no_aju: transaksi.no_aju || null,
+        no_container: transaksi.no_container || null,
+        route: transaksi.nama_area || null
+      },
+      repair: null,
+      last_transaction: lastTransaction
+    };
+  }
+
+  return {
+    driver_name: last?.nama_driver || null,
+    operational_status: "idle",
+    transaksi: null,
+    repair: null,
+    last_transaction: lastTransaction
+  };
+};
+
+const normalizeTruckLocation = ({
+  truck,
+  item,
+  fetchedAt,
+  fallbackStatus,
+  operationalDetails
+}) => {
+  const position = resolvePosition(item);
+  const status = resolveStatus(position, fallbackStatus);
+
+  return {
+    id_truck: Number(truck.id_truck),
+    no_police: truck.no_police || null,
+    jenis_kendaraan: truck.jenis_kendaraan || null,
+    merk_mobil: truck.merk_mobil || null,
+    model: truck.model || null,
+    type_truck: truck.type_truck || null,
+    wialon_unit_id: truck.wialon_unit_id || null,
+    wialon_unit_name: item?.n || truck.no_police || null,
+    status,
+    gps: {
+      lat: position.lat,
+      lon: position.lon,
+      speed: position.speed,
+      heading: position.heading,
+      altitude: position.altitude,
+      satellites: position.satellites,
+      device_time: position.deviceTime,
+      fetched_at: fetchedAt
+    },
+    synced_at: position.deviceTime || fetchedAt,
+    driver_name: operationalDetails.driver_name,
+    operational_status: operationalDetails.operational_status,
+    transaksi: operationalDetails.transaksi,
+    repair: operationalDetails.repair,
+    last_transaction: operationalDetails.last_transaction
+  };
+};
+
 const getTruckLocations = async () => {
   const [truckRows] = await db.query(
     `
@@ -437,6 +655,7 @@ const getTruckLocations = async () => {
   );
 
   const fetchedAt = new Date().toISOString();
+  const operationalContext = await fetchOperationalContext();
   const mappedTrucks = truckRows.filter((truck) => toPositiveIntString(truck.wialon_unit_id));
   const unitIds = mappedTrucks
     .map((truck) => toPositiveIntString(truck.wialon_unit_id))
@@ -468,13 +687,15 @@ const getTruckLocations = async () => {
   }
 
   const trucks = truckRows.map((truck) => {
+    const operationalDetails = buildOperationalDetails(truck, operationalContext);
     const unitId = toPositiveIntString(truck.wialon_unit_id);
     if (!unitId) {
       return normalizeTruckLocation({
         truck,
         item: null,
         fetchedAt,
-        fallbackStatus: "unlinked"
+        fallbackStatus: "unlinked",
+        operationalDetails
       });
     }
 
@@ -484,14 +705,16 @@ const getTruckLocations = async () => {
         truck,
         item: null,
         fetchedAt,
-        fallbackStatus: "offline"
+        fallbackStatus: "offline",
+        operationalDetails
       });
     }
 
     return normalizeTruckLocation({
       truck,
       item,
-      fetchedAt
+      fetchedAt,
+      operationalDetails
     });
   });
 
