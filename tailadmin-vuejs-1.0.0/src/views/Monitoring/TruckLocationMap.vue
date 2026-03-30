@@ -129,11 +129,12 @@
               </div>
             </div>
 
-            <div class="max-h-[72vh] space-y-3 overflow-y-auto pr-1">
+            <div ref="truckListRef" class="max-h-[72vh] space-y-3 overflow-y-auto pr-1">
               <button
                 v-for="truck in visibleTrucks"
                 :key="truck.id_truck"
                 type="button"
+                :data-truck-id="truck.id_truck"
                 class="w-full rounded-2xl border p-4 text-left transition"
                 :class="selectedTruckId === truck.id_truck
                   ? 'border-brand-500 bg-brand-50 shadow-sm dark:border-brand-400/40 dark:bg-brand-500/10'
@@ -245,6 +246,7 @@ type TruckLocationPayload = {
 const pageTitle = 'Lokasi Truk'
 const toast = useToast()
 const mapRef = ref<HTMLDivElement | null>(null)
+const truckListRef = ref<HTMLDivElement | null>(null)
 const mapInstance = ref<L.Map | null>(null)
 const markerClusterLayer = ref<L.MarkerClusterGroup | null>(null)
 const hasInitialized = ref(false)
@@ -272,6 +274,7 @@ const trackingData = ref<TruckLocationPayload>({
 
 const defaultCenter: [number, number] = [-2.5489, 118.0149]
 const defaultZoom = 5
+const detailZoom = 17
 let refreshTimer: number | null = null
 let markerIndex = new Map<number, L.Marker>()
 
@@ -624,18 +627,69 @@ const createClusterIcon = (cluster: L.MarkerCluster) => {
   })
 }
 
-const createTruckIcon = (status: string) =>
+const createTruckIcon = () =>
   L.divIcon({
     className: '',
     html: `
-      <div class="truck-pin truck-pin--${escapeHtml(status)}">
-        <span class="truck-pin__inner"></span>
+      <div class="truck-pin">
+        <div class="truck-pin__badge">
+          <svg viewBox="0 0 64 64" aria-hidden="true" class="truck-pin__icon">
+            <path
+              d="M10 20c0-3.314 2.686-6 6-6h18c3.314 0 6 2.686 6 6v4h8.191c2.071 0 4.02.975 5.258 2.629l4.809 6.412A6 6 0 0 1 60 36.641V44a4 4 0 0 1-4 4h-2.382a8 8 0 0 1-15.236 0H25.618a8 8 0 0 1-15.236 0H8a4 4 0 0 1-4-4v-8a6 6 0 0 1 6-6zm6 22a4 4 0 1 0 0 8 4 4 0 0 0 0-8m30 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8M40 30v6h13.5l-4.2-5.6a2 2 0 0 0-1.6-.8z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+        <span class="truck-pin__tip"></span>
       </div>
     `,
-    iconSize: [32, 44],
-    iconAnchor: [16, 42],
-    popupAnchor: [0, -40]
+    iconSize: [42, 52],
+    iconAnchor: [21, 48],
+    popupAnchor: [0, -42]
   })
+
+const scrollTruckCardIntoView = async (truckId: number, behavior: ScrollBehavior = 'smooth') => {
+  await nextTick()
+
+  const container = truckListRef.value
+  if (!container) {
+    return
+  }
+
+  const target = container.querySelector<HTMLElement>(`[data-truck-id="${truckId}"]`)
+  target?.scrollIntoView({
+    behavior,
+    block: 'nearest'
+  })
+}
+
+const revealTruckMarker = (truckId: number, options?: { animate?: boolean; openPopup?: boolean }) => {
+  if (!mapInstance.value || !markerClusterLayer.value) {
+    return
+  }
+
+  const marker = markerIndex.get(truckId)
+  if (!marker) {
+    return
+  }
+
+  const map = mapInstance.value
+  const clusterLayer = markerClusterLayer.value
+  const target = marker.getLatLng()
+  const shouldAnimate = options?.animate ?? true
+  const shouldOpenPopup = options?.openPopup ?? true
+
+  clusterLayer.zoomToShowLayer(marker, () => {
+    map.flyTo(target, Math.max(map.getZoom(), detailZoom), {
+      animate: shouldAnimate,
+      duration: shouldAnimate ? 0.8 : 0
+    })
+
+    if (shouldOpenPopup) {
+      marker.openPopup()
+    }
+  })
+}
 
 const initMap = () => {
   if (!mapRef.value || mapInstance.value) {
@@ -690,7 +744,7 @@ const syncMarkers = () => {
     const lat = Number(truck.gps.lat)
     const lon = Number(truck.gps.lon)
     const marker = L.marker([lat, lon], {
-      icon: createTruckIcon(truck.status),
+      icon: createTruckIcon(),
       truck
     })
 
@@ -701,6 +755,7 @@ const syncMarkers = () => {
 
     marker.on('click', () => {
       selectedTruckId.value = truck.id_truck
+      void scrollTruckCardIntoView(truck.id_truck)
     })
 
     marker.addTo(markerClusterLayer.value as L.MarkerClusterGroup)
@@ -708,17 +763,16 @@ const syncMarkers = () => {
     bounds.extend([lat, lon])
   })
 
-  if (bounds.isValid()) {
+  if (selectedTruckId.value && markerIndex.has(selectedTruckId.value)) {
+    void scrollTruckCardIntoView(selectedTruckId.value, 'auto')
+    revealTruckMarker(selectedTruckId.value, {
+      animate: false,
+      openPopup: true
+    })
+  } else if (bounds.isValid()) {
     mapInstance.value.fitBounds(bounds.pad(0.18))
   } else {
     mapInstance.value.setView(defaultCenter, defaultZoom)
-  }
-
-  if (selectedTruckId.value && markerIndex.has(selectedTruckId.value)) {
-    const marker = markerIndex.get(selectedTruckId.value)
-    if (marker) {
-      marker.openPopup()
-    }
   }
 }
 
@@ -747,18 +801,13 @@ const refreshLocations = async () => {
 
 const focusTruck = (truck: TruckLocation) => {
   selectedTruckId.value = truck.id_truck
+  void scrollTruckCardIntoView(truck.id_truck)
+
   if (!mapInstance.value || !hasCoordinates(truck)) {
     return
   }
 
-  const marker = markerIndex.get(truck.id_truck)
-  if (marker) {
-    mapInstance.value.flyTo([Number(truck.gps.lat), Number(truck.gps.lon)], 14, {
-      animate: true,
-      duration: 0.8
-    })
-    marker.openPopup()
-  }
+  revealTruckMarker(truck.id_truck)
 }
 
 onMounted(async () => {
@@ -785,51 +834,42 @@ onBeforeUnmount(() => {
 <style>
 .truck-pin {
   position: relative;
-  width: 32px;
-  height: 42px;
+  width: 42px;
+  height: 52px;
   transform: translate(-50%, -100%);
   filter: drop-shadow(0 10px 16px rgba(15, 23, 42, 0.22));
 }
 
-.truck-pin::before {
+.truck-pin__badge {
+  position: absolute;
+  inset: 0 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid rgba(255, 255, 255, 0.98);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 12px 20px rgba(37, 99, 235, 0.28);
+}
+
+.truck-pin__icon {
+  width: 24px;
+  height: 24px;
+}
+
+.truck-pin__tip {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: 999px 999px 999px 0;
-  transform: rotate(-45deg);
-  background: currentColor;
-}
-
-.truck-pin__inner {
-  position: absolute;
-  inset: 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  transform: rotate(45deg);
-}
-
-.truck-pin--moving {
-  color: #059669;
-}
-
-.truck-pin--idle {
-  color: #2563eb;
-}
-
-.truck-pin--unlinked {
-  color: #d97706;
-}
-
-.truck-pin--offline {
-  color: #64748b;
-}
-
-.truck-pin--no_position {
-  color: #e11d48;
-}
-
-.truck-pin--unknown {
-  color: #64748b;
+  left: 50%;
+  bottom: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #2563eb;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 3px solid rgba(255, 255, 255, 0.98);
+  border-bottom: 3px solid rgba(255, 255, 255, 0.98);
 }
 
 .cluster-pin {
