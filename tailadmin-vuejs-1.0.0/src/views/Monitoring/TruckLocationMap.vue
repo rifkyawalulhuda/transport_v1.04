@@ -451,6 +451,179 @@ const buildPopupContent = (truck: TruckLocation) => {
   `
 }
 
+type ClusterStatusSummary = {
+  moving: number
+  idle: number
+  offline: number
+  unlinked: number
+  no_position: number
+  total: number
+}
+
+const getClusterStatusSummary = (markers: L.Marker[]) => {
+  return markers.reduce<ClusterStatusSummary>(
+    (summary, marker) => {
+      const truck = (marker.options as { truck?: TruckLocation }).truck
+      if (!truck) {
+        return summary
+      }
+
+      summary.total += 1
+      switch (truck.status) {
+        case 'moving':
+          summary.moving += 1
+          break
+        case 'idle':
+          summary.idle += 1
+          break
+        case 'offline':
+          summary.offline += 1
+          break
+        case 'unlinked':
+          summary.unlinked += 1
+          break
+        case 'no_position':
+          summary.no_position += 1
+          break
+        default:
+          break
+      }
+      return summary
+    },
+    {
+      moving: 0,
+      idle: 0,
+      offline: 0,
+      unlinked: 0,
+      no_position: 0,
+      total: 0
+    }
+  )
+}
+
+const getClusterPrimaryStatus = (summary: ClusterStatusSummary) => {
+  const ranked = [
+    { status: 'moving', count: summary.moving },
+    { status: 'idle', count: summary.idle },
+    { status: 'offline', count: summary.offline },
+    { status: 'unlinked', count: summary.unlinked },
+    { status: 'no_position', count: summary.no_position }
+  ].sort((left, right) => right.count - left.count)
+
+  const primary = ranked[0]
+  if (!primary || primary.count === 0) {
+    return 'unknown'
+  }
+  return primary.status
+}
+
+const clusterStatusLabel = (summary: ClusterStatusSummary) => {
+  const pieces = [
+    summary.moving ? `Moving ${summary.moving}` : null,
+    summary.idle ? `Idle ${summary.idle}` : null,
+    summary.offline ? `Offline ${summary.offline}` : null,
+    summary.unlinked ? `Belum Terhubung ${summary.unlinked}` : null,
+    summary.no_position ? `No Pos ${summary.no_position}` : null
+  ].filter(Boolean)
+
+  return pieces.length ? pieces.join(' · ') : 'Tidak ada data'
+}
+
+const buildClusterPopupContent = (cluster: L.Marker) => {
+  const childMarkers = (cluster as L.MarkerCluster).getAllChildMarkers() as L.Marker[]
+  const summary = getClusterStatusSummary(childMarkers)
+  const sampleTrucks = childMarkers
+    .map((marker) => (marker.options as { truck?: TruckLocation }).truck)
+    .filter((truck): truck is TruckLocation => Boolean(truck))
+    .slice(0, 8)
+
+  return `
+    <div class="space-y-3 min-w-[260px] max-w-[320px]">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cluster Truk</div>
+        <div class="text-sm font-semibold text-slate-900">${escapeHtml(summary.total)} truk</div>
+        <div class="text-xs text-slate-500">${escapeHtml(clusterStatusLabel(summary))}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs text-slate-600">
+        <div>
+          <div class="text-slate-400">Moving</div>
+          <div class="font-semibold">${escapeHtml(summary.moving)}</div>
+        </div>
+        <div>
+          <div class="text-slate-400">Idle</div>
+          <div class="font-semibold">${escapeHtml(summary.idle)}</div>
+        </div>
+        <div>
+          <div class="text-slate-400">Offline</div>
+          <div class="font-semibold">${escapeHtml(summary.offline)}</div>
+        </div>
+        <div>
+          <div class="text-slate-400">Belum Terhubung</div>
+          <div class="font-semibold">${escapeHtml(summary.unlinked + summary.no_position)}</div>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Isi Cluster</div>
+        <div class="max-h-44 space-y-1 overflow-y-auto pr-1 text-xs text-slate-600">
+          ${sampleTrucks
+            .map(
+              (truck) => `
+                <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div class="font-semibold text-slate-900">${escapeHtml(truck.no_police || `Truck ${truck.id_truck}`)}</div>
+                  <div class="text-slate-500">${escapeHtml(resolveVehicleName(truck))}</div>
+                  <div class="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                    <span>${escapeHtml(statusLabel(truck.status))}</span>
+                    <span>${escapeHtml(truck.wialon_unit_id || '-')}</span>
+                  </div>
+                </div>
+              `
+            )
+            .join('')}
+          ${
+            summary.total > sampleTrucks.length
+              ? `<div class="text-[11px] text-slate-400">+${summary.total - sampleTrucks.length} truk lainnya</div>`
+              : ''
+          }
+        </div>
+      </div>
+    </div>
+  `
+}
+
+const getClusterIconClass = (status: string) => {
+  switch (status) {
+    case 'moving':
+      return 'cluster-pin--moving'
+    case 'idle':
+      return 'cluster-pin--idle'
+    case 'offline':
+      return 'cluster-pin--offline'
+    case 'unlinked':
+      return 'cluster-pin--unlinked'
+    case 'no_position':
+      return 'cluster-pin--no_position'
+    default:
+      return 'cluster-pin--unknown'
+  }
+}
+
+const createClusterIcon = (cluster: L.MarkerCluster) => {
+  const childMarkers = cluster.getAllChildMarkers() as L.Marker[]
+  const summary = getClusterStatusSummary(childMarkers)
+  const primaryStatus = getClusterPrimaryStatus(summary)
+
+  return L.divIcon({
+    className: '',
+    html: `
+      <div class="cluster-pin ${getClusterIconClass(primaryStatus)}">
+        <span class="cluster-pin__count">${escapeHtml(summary.total)}</span>
+      </div>
+    `,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22]
+  })
+}
+
 const createTruckIcon = (status: string) =>
   L.divIcon({
     className: '',
@@ -482,10 +655,19 @@ const initMap = () => {
   markerClusterLayer.value = L.markerClusterGroup({
     chunkedLoading: true,
     disableClusteringAtZoom: 16,
+    zoomToBoundsOnClick: false,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
-    maxClusterRadius: 58
+    maxClusterRadius: 58,
+    iconCreateFunction: (cluster) => createClusterIcon(cluster)
   }).addTo(map)
+
+  markerClusterLayer.value.on('clusterclick', (event) => {
+    const cluster = event.layer
+    cluster.bindPopup(buildClusterPopupContent(cluster))
+    cluster.openPopup()
+  })
+
   mapInstance.value = map
 }
 
@@ -508,7 +690,8 @@ const syncMarkers = () => {
     const lat = Number(truck.gps.lat)
     const lon = Number(truck.gps.lon)
     const marker = L.marker([lat, lon], {
-      icon: createTruckIcon(truck.status)
+      icon: createTruckIcon(truck.status),
+      truck
     })
 
     marker.bindPopup(buildPopupContent(truck), {
@@ -599,7 +782,7 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style>
 .truck-pin {
   position: relative;
   width: 32px;
@@ -647,5 +830,48 @@ onBeforeUnmount(() => {
 
 .truck-pin--unknown {
   color: #64748b;
+}
+
+.cluster-pin {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.18);
+}
+
+.cluster-pin__count {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+}
+
+.cluster-pin--moving {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.cluster-pin--idle {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.cluster-pin--offline {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+
+.cluster-pin--unlinked {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.cluster-pin--no_position {
+  background: linear-gradient(135deg, #f43f5e, #e11d48);
+}
+
+.cluster-pin--unknown {
+  background: linear-gradient(135deg, #64748b, #334155);
 }
 </style>
