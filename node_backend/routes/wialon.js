@@ -3,7 +3,8 @@ const { authenticateToken } = require("../middleware/auth");
 const {
   getTruckLocations,
   reverseGeocodeCoordinates,
-  autoMapTruckWialonUnits
+  autoMapTruckWialonUnits,
+  fetchWialonGeofences
 } = require("../services/wialonService");
 
 const router = express.Router();
@@ -57,6 +58,21 @@ router.post("/trucks/auto-map", async (req, res) => {
     console.error("Wialon auto-map error:", error);
     res.status(500).json({
       message: "Gagal menjalankan auto mapping Wialon"
+    });
+  }
+});
+
+router.get("/geofences", async (_req, res) => {
+  try {
+    const geofences = await fetchWialonGeofences();
+    res.json({
+      rows: geofences,
+      total: geofences.length
+    });
+  } catch (error) {
+    console.error("Wialon geofence error:", error);
+    res.status(500).json({
+      message: "Gagal mengambil daftar geofence Wialon"
     });
   }
 });

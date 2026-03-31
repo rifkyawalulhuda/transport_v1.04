@@ -63,6 +63,7 @@ INSERT INTO `admin` (`id_admin`, `nik_admin`, `nama_admin`, `password`, `level`,
 
 CREATE TABLE `area` (
   `id_area` int(13) NOT NULL,
+  `kode_area` varchar(50) DEFAULT NULL,
   `nama_area` varchar(200) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -154,6 +155,26 @@ INSERT INTO `area` (`id_area`, `nama_area`) VALUES
 (196, '196-SOETTA AIRPORT-GIIC'),
 (197, 'CLC-TANJUNG PRIOK-CLC (VIA TOL MARUNDA)'),
 (198, 'PIKET MALAM HARIAN');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `area_route_step`
+--
+
+CREATE TABLE `area_route_step` (
+  `id_area_route_step` int(13) NOT NULL AUTO_INCREMENT,
+  `id_area` int(13) NOT NULL,
+  `step_order` int(11) NOT NULL,
+  `step_name` varchar(100) NOT NULL,
+  `wialon_resource_id` bigint(20) NOT NULL,
+  `wialon_zone_id` bigint(20) NOT NULL,
+  `wialon_zone_name` varchar(255) NOT NULL,
+  PRIMARY KEY (`id_area_route_step`),
+  UNIQUE KEY `uniq_area_route_step_order` (`id_area`,`step_order`),
+  UNIQUE KEY `uniq_area_route_step_zone` (`id_area`,`wialon_resource_id`,`wialon_zone_id`),
+  KEY `idx_area_route_step_area` (`id_area`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
 
@@ -401,6 +422,38 @@ CREATE TABLE `sales_cost` (
   `total` int(30) NOT NULL,
   `margin` varchar(30) NOT NULL,
   `id_print` varchar(250) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sales_cost_route_history`
+--
+
+CREATE TABLE `sales_cost_route_history` (
+  `id_sales_cost_route_history` int(13) NOT NULL AUTO_INCREMENT,
+  `id_sales_cost` int(30) NOT NULL,
+  `id_area` int(13) NOT NULL,
+  `id_area_route_step` int(13) DEFAULT NULL,
+  `step_key` varchar(100) NOT NULL,
+  `system_step_code` varchar(50) DEFAULT NULL,
+  `id_truck` int(30) NOT NULL,
+  `step_order_snapshot` int(11) NOT NULL,
+  `step_name_snapshot` varchar(100) NOT NULL,
+  `wialon_resource_id` bigint(20) NOT NULL,
+  `wialon_zone_id` bigint(20) NOT NULL,
+  `wialon_zone_name` varchar(255) NOT NULL,
+  `gps_time` datetime NOT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `lat` decimal(10,6) DEFAULT NULL,
+  `lon` decimal(10,6) DEFAULT NULL,
+  PRIMARY KEY (`id_sales_cost_route_history`),
+  UNIQUE KEY `uniq_sales_cost_route_step` (`id_sales_cost`,`id_area_route_step`),
+  UNIQUE KEY `uniq_sales_cost_step_key` (`id_sales_cost`,`step_key`),
+  KEY `idx_sales_cost_route_history_sales_cost` (`id_sales_cost`),
+  KEY `idx_sales_cost_route_history_area` (`id_area`),
+  KEY `idx_sales_cost_route_history_truck` (`id_truck`),
+  KEY `idx_sales_cost_route_history_step` (`id_area_route_step`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 --

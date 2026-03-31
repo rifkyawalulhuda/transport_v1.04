@@ -1,7 +1,15 @@
 const express = require("express");
 const db = require("../db");
 const { authenticateToken } = require("../middleware/auth");
-const { createNotification, getActorFromRequest } = require("../services/notificationService");
+const {
+  createNotification,
+  getActorFromRequest
+} = require("../services/notificationService");
+const {
+  attachRouteStepsToAreas,
+  parseLegacyAreaName,
+  resolveAreaPayload
+} = require("../services/areaRouteService");
 
 const router = express.Router();
 
@@ -26,12 +34,82 @@ const notifyMasterChange = async ({ req, type, title, action, identifier, entity
   }
 };
 
-router.get("/", async (req, res) => {
+const loadAreas = async (queryable = db) => {
+  const [rows] = await queryable.query(
+    "SELECT id_area, kode_area, nama_area FROM area ORDER BY id_area ASC"
+  );
+  return attachRouteStepsToAreas(rows, queryable);
+};
+
+const loadAreaById = async (id, queryable = db) => {
+  const [rows] = await queryable.query(
+    "SELECT id_area, kode_area, nama_area FROM area WHERE id_area = ?",
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const [area] = await attachRouteStepsToAreas(rows, queryable);
+  return area;
+};
+
+const persistRouteSteps = async (queryable, idArea, routeSteps) => {
+  await queryable.query("DELETE FROM area_route_step WHERE id_area = ?", [idArea]);
+  if (!Array.isArray(routeSteps) || routeSteps.length === 0) {
+    return;
+  }
+
+  const values = routeSteps.map((step) => [
+    idArea,
+    step.step_order,
+    step.step_name,
+    step.wialon_resource_id,
+    step.wialon_zone_id,
+    step.wialon_zone_name
+  ]);
+
+  await queryable.query(
+    `
+      INSERT INTO area_route_step (
+        id_area,
+        step_order,
+        step_name,
+        wialon_resource_id,
+        wialon_zone_id,
+        wialon_zone_name
+      )
+      VALUES ?
+    `,
+    [values]
+  );
+};
+
+const buildDraftRouteSteps = (area) => {
+  if (Array.isArray(area?.route_steps) && area.route_steps.length > 0) {
+    return area.route_steps;
+  }
+
+  const parsed = parseLegacyAreaName(area?.nama_area);
+  return parsed.step_names.map((stepName, index) => ({
+    id_area_route_step: null,
+    step_order: index + 1,
+    step_name: stepName,
+    wialon_resource_id: null,
+    wialon_zone_id: null,
+    wialon_zone_name: ""
+  }));
+};
+
+router.get("/", async (_req, res) => {
   try {
-    const [rows] = await db.query(
-      "SELECT id_area, nama_area FROM area ORDER BY id_area ASC"
-    );
-    res.json(rows);
+    const areas = await loadAreas();
+    const enriched = areas.map((area) => ({
+      ...area,
+      draft_route_steps: buildDraftRouteSteps(area)
+    }));
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
@@ -40,15 +118,15 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const id = req.params.id;
-    const [rows] = await db.query(
-      "SELECT id_area, nama_area FROM area WHERE id_area = ?",
-      [id]
-    );
-    if (rows.length === 0) {
+    const area = await loadAreaById(req.params.id);
+    if (!area) {
       return res.status(404).json({ message: "Area not found" });
     }
-    res.json(rows[0]);
+
+    res.json({
+      ...area,
+      draft_route_steps: buildDraftRouteSteps(area)
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
@@ -56,21 +134,25 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/", authenticateToken, async (req, res) => {
+  const payload = resolveAreaPayload(req.body || {});
+  if (!payload.ok) {
+    return res.status(400).json({ message: payload.message });
+  }
+
+  const connection = await db.getConnection();
   try {
-    const body = req.body || {};
-    const namaArea = body.nama_area || "";
+    await connection.beginTransaction();
 
-    const [result] = await db.query(
-      "INSERT INTO area (nama_area) VALUES (?)",
-      [namaArea]
+    const [result] = await connection.query(
+      "INSERT INTO area (kode_area, nama_area) VALUES (?, ?)",
+      [payload.kodeArea, payload.namaArea]
     );
 
-    const [rows] = await db.query(
-      "SELECT id_area, nama_area FROM area WHERE id_area = ?",
-      [result.insertId]
-    );
+    await persistRouteSteps(connection, result.insertId, payload.routeSteps);
+    await connection.commit();
 
-    const identifier = rows[0]?.nama_area || `ID ${result.insertId}`;
+    const area = await loadAreaById(result.insertId);
+    const identifier = area?.nama_area || `ID ${result.insertId}`;
     await notifyMasterChange({
       req,
       type: "Created-MasterArea",
@@ -80,71 +162,86 @@ router.post("/", authenticateToken, async (req, res) => {
       entityId: result.insertId
     });
 
-    res.status(201).json(rows[0]);
+    res.status(201).json({
+      ...area,
+      draft_route_steps: buildDraftRouteSteps(area)
+    });
   } catch (err) {
+    await connection.rollback();
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
+  } finally {
+    connection.release();
   }
 });
 
 router.put("/:id", authenticateToken, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const body = req.body || {};
-    const namaArea = body.nama_area || "";
+  const payload = resolveAreaPayload(req.body || {});
+  if (!payload.ok) {
+    return res.status(400).json({ message: payload.message });
+  }
 
-    const [result] = await db.query(
-      "UPDATE area SET nama_area = ? WHERE id_area = ?",
-      [namaArea, id]
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [result] = await connection.query(
+      "UPDATE area SET kode_area = ?, nama_area = ? WHERE id_area = ?",
+      [payload.kodeArea, payload.namaArea, req.params.id]
     );
 
     if (result.affectedRows === 0) {
+      await connection.rollback();
       return res.status(404).json({ message: "Area not found" });
     }
 
-    const [rows] = await db.query(
-      "SELECT id_area, nama_area FROM area WHERE id_area = ?",
-      [id]
-    );
+    await persistRouteSteps(connection, req.params.id, payload.routeSteps);
+    await connection.commit();
 
-    const identifier = rows[0]?.nama_area || `ID ${id}`;
+    const area = await loadAreaById(req.params.id);
+    const identifier = area?.nama_area || `ID ${req.params.id}`;
     await notifyMasterChange({
       req,
       type: "Updated-MasterArea",
       title: "Master Area diperbarui",
       action: "memperbarui",
       identifier,
-      entityId: id
+      entityId: req.params.id
     });
 
-    res.json(rows[0]);
+    res.json({
+      ...area,
+      draft_route_steps: buildDraftRouteSteps(area)
+    });
   } catch (err) {
+    await connection.rollback();
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
+  } finally {
+    connection.release();
   }
 });
 
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
-    const id = req.params.id;
     const [existingRows] = await db.query(
       "SELECT nama_area FROM area WHERE id_area = ?",
-      [id]
+      [req.params.id]
     );
     const [result] = await db.query("DELETE FROM area WHERE id_area = ?", [
-      id
+      req.params.id
     ]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Area not found" });
     }
-    const identifier = existingRows[0]?.nama_area || `ID ${id}`;
+    const identifier = existingRows[0]?.nama_area || `ID ${req.params.id}`;
     await notifyMasterChange({
       req,
       type: "Deleted-MasterArea",
       title: "Master Area dihapus",
       action: "menghapus",
       identifier,
-      entityId: id
+      entityId: req.params.id
     });
     res.json({ message: "Area deleted" });
   } catch (err) {

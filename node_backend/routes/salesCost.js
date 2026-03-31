@@ -6,6 +6,11 @@ const { authenticateToken, requireAdmin } = require("../middleware/auth");
 const { logAuditEvent } = require("../services/auditLogger");
 const { createNotification, getActorFromRequest } = require("../services/notificationService");
 const SalesCostDN = require("../models/SalesCostDN");
+const { fetchAreaRouteStepsMap } = require("../services/areaRouteService");
+
+const DEFAULT_FINISH_GEOFENCE_NAME = String(
+  process.env.DEFAULT_FINISH_GEOFENCE_NAME || "Sankyu"
+).trim();
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -1223,13 +1228,80 @@ router.get("/:id", async (req, res) => {
   try {
     const id = req.params.id;
     const [rows] = await db.query(
-      "SELECT sales_cost.*, truck.no_police, truck.jenis_kendaraan, driver.nama_driver, area.nama_area, customer.nama_customer, admin.nama_admin AS created_by_name FROM sales_cost LEFT JOIN truck ON sales_cost.id_truck = truck.id_truck LEFT JOIN driver ON sales_cost.id_driver = driver.id_driver LEFT JOIN area ON sales_cost.id_area = area.id_area LEFT JOIN customer ON sales_cost.id_customer = customer.id_customer LEFT JOIN admin ON admin.id_admin = sales_cost.id_admin OR admin.nik_admin = sales_cost.id_admin WHERE sales_cost.id_sales_cost = ?",
+      "SELECT sales_cost.*, truck.no_police, truck.jenis_kendaraan, driver.nama_driver, area.nama_area, area.kode_area, customer.nama_customer, admin.nama_admin AS created_by_name FROM sales_cost LEFT JOIN truck ON sales_cost.id_truck = truck.id_truck LEFT JOIN driver ON sales_cost.id_driver = driver.id_driver LEFT JOIN area ON sales_cost.id_area = area.id_area LEFT JOIN customer ON sales_cost.id_customer = customer.id_customer LEFT JOIN admin ON admin.id_admin = sales_cost.id_admin OR admin.nik_admin = sales_cost.id_admin WHERE sales_cost.id_sales_cost = ?",
       [id]
     );
     if (rows.length === 0) {
       return res.status(404).json({ message: "Sales cost not found" });
     }
-    res.json(rows[0]);
+    const detail = rows[0];
+    const routeStepsMap = await fetchAreaRouteStepsMap([detail.id_area]);
+    const plannedSteps = routeStepsMap.get(Number(detail.id_area)) || [];
+    const [historyRows] = await db.query(
+      `
+        SELECT
+          id_sales_cost_route_history,
+          id_sales_cost,
+          id_area,
+          id_area_route_step,
+          step_key,
+          system_step_code,
+          id_truck,
+          step_order_snapshot,
+          step_name_snapshot,
+          wialon_resource_id,
+          wialon_zone_id,
+          wialon_zone_name,
+          gps_time,
+          recorded_at,
+          lat,
+          lon
+        FROM sales_cost_route_history
+        WHERE id_sales_cost = ?
+        ORDER BY gps_time ASC, id_sales_cost_route_history ASC
+      `,
+      [id]
+    );
+
+    res.json({
+      ...detail,
+      route_steps: plannedSteps,
+      finish_step: {
+        id_area_route_step: null,
+        step_key: "system:finish_order",
+        system_step_code: "finish_order",
+        step_order: plannedSteps.length + 1,
+        step_name: "Finish Order",
+        wialon_resource_id: null,
+        wialon_zone_id: null,
+        wialon_zone_name: DEFAULT_FINISH_GEOFENCE_NAME
+      },
+      route_history: historyRows.map((row) => ({
+        id_sales_cost_route_history: Number(row.id_sales_cost_route_history),
+        id_sales_cost: Number(row.id_sales_cost),
+        id_area: Number(row.id_area),
+        id_area_route_step:
+          row.id_area_route_step === null || row.id_area_route_step === undefined
+            ? null
+            : Number(row.id_area_route_step),
+        step_key:
+          row.step_key ||
+          (row.id_area_route_step === null || row.id_area_route_step === undefined
+            ? "system:finish_order"
+            : `route:${Number(row.id_area_route_step)}`),
+        system_step_code: row.system_step_code || null,
+        id_truck: Number(row.id_truck),
+        step_order: Number(row.step_order_snapshot),
+        step_name: row.step_name_snapshot || "",
+        wialon_resource_id: Number(row.wialon_resource_id),
+        wialon_zone_id: Number(row.wialon_zone_id),
+        wialon_zone_name: row.wialon_zone_name || "",
+        gps_time: row.gps_time,
+        recorded_at: row.recorded_at,
+        lat: row.lat === null || row.lat === undefined ? null : Number(row.lat),
+        lon: row.lon === null || row.lon === undefined ? null : Number(row.lon)
+      }))
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });

@@ -413,6 +413,124 @@
                </div>
             </div>
           </div>
+
+          <div class="mt-8 border-t border-gray-200 pt-6 dark:border-gray-700">
+            <div class="mb-4 flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                Riwayat Geofence Pengiriman
+              </h3>
+            </div>
+
+            <div v-if="plannedRouteSteps.length === 0" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
+              Rute ini belum memiliki langkah geofence yang terdaftar.
+            </div>
+
+            <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,360px),minmax(0,1fr)]">
+              <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Rencana Langkah Rute
+                </p>
+                <div class="space-y-3">
+                  <div
+                    v-for="step in plannedRouteSteps"
+                    :key="step.step_key"
+                    class="rounded-lg border px-3 py-3"
+                    :class="
+                      routeHistoryByStepKey.has(step.step_key)
+                        ? 'border-brand-200 bg-brand-50/60 dark:border-brand-500/30 dark:bg-brand-500/10'
+                        : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
+                    "
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                          {{ step.step_order }}. {{ step.step_name }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {{ step.wialon_zone_name || '-' }}
+                        </div>
+                      </div>
+                      <span
+                        class="rounded-full px-2.5 py-1 text-[11px] font-medium"
+                        :class="
+                          routeHistoryByStepKey.has(step.step_key)
+                            ? 'bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-200'
+                            : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-200'
+                        "
+                      >
+                        {{ routeHistoryByStepKey.has(step.step_key) ? 'Visited' : 'Pending' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  History Aktual
+                </p>
+
+                <div v-if="routeHistory.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  Belum ada timestamp geofence yang tercatat untuk transaksi ini.
+                </div>
+
+                <div v-else class="space-y-4">
+                  <div
+                    v-for="(history, index) in routeHistory"
+                    :key="history.id_sales_cost_route_history"
+                    class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50"
+                  >
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                            {{ history.step_name }}
+                          </span>
+                          <span class="rounded-full bg-brand-100 px-2.5 py-1 text-[11px] font-medium text-brand-700 dark:bg-brand-500/20 dark:text-brand-200">
+                            Actual #{{ index + 1 }}
+                          </span>
+                          <span class="rounded-full bg-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                            Rencana #{{ history.step_order }}
+                          </span>
+                          <span
+                            v-if="isOutOfOrder(history, index)"
+                            class="rounded-full bg-warning-100 px-2.5 py-1 text-[11px] font-medium text-warning-700 dark:bg-warning-500/20 dark:text-warning-200"
+                          >
+                            Di luar urutan rencana
+                          </span>
+                        </div>
+                        <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                          {{ history.wialon_zone_name }}
+                        </div>
+                      </div>
+                      <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {{ formatDateTime(history.gps_time) }}
+                      </div>
+                    </div>
+
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        <div class="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                          Koordinat
+                        </div>
+                        <div class="mt-1">
+                          {{ formatCoordinate(history.lat, history.lon) }}
+                        </div>
+                      </div>
+                      <div class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        <div class="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                          Dicatat Pada
+                        </div>
+                        <div class="mt-1">
+                          {{ formatDateTime(history.recorded_at) }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </ComponentCard>
     </div>
@@ -431,6 +549,7 @@ type DetailData = {
   id_sales_cost: number | null
   nama_customer: string
   nama_area: string
+  kode_area?: string | null
   created_by_name: string | null
   no_police: string
   jenis_kendaraan: string
@@ -459,6 +578,50 @@ type DetailData = {
   bills?: string | null
   lift_on?: number | null
   lift_of?: number | null
+  route_steps?: RouteStepItem[]
+  route_history?: RouteHistoryItem[]
+  finish_step?: PlannedStepItem | null
+}
+
+type RouteStepItem = {
+  id_area_route_step: number
+  step_order: number
+  step_name: string
+  step_key?: string
+  system_step_code?: string | null
+  wialon_resource_id: number
+  wialon_zone_id: number
+  wialon_zone_name: string
+}
+
+type PlannedStepItem = {
+  id_area_route_step: number | null
+  step_order: number
+  step_name: string
+  step_key: string
+  system_step_code: string | null
+  wialon_resource_id: number | null
+  wialon_zone_id: number | null
+  wialon_zone_name: string
+}
+
+type RouteHistoryItem = {
+  id_sales_cost_route_history: number
+  id_sales_cost: number
+  id_area: number
+  id_area_route_step: number | null
+  step_key: string
+  system_step_code: string | null
+  id_truck: number
+  step_order: number
+  step_name: string
+  wialon_resource_id: number
+  wialon_zone_id: number
+  wialon_zone_name: string
+  gps_time: string | null
+  recorded_at: string | null
+  lat: number | null
+  lon: number | null
 }
 
 type DnItem = {
@@ -509,7 +672,10 @@ const detail = ref<DetailData>({
   no_po: '',
   bills: '',
   lift_on: 0,
-  lift_of: 0
+  lift_of: 0,
+  route_steps: [],
+  route_history: [],
+  finish_step: null
 })
 
 const resolveIdParam = () => {
@@ -611,6 +777,35 @@ const shippingDurationLabel = computed(() => {
   return `${shippingDurationDays.value} Hari`
 })
 
+const plannedRouteSteps = computed<PlannedStepItem[]>(() => {
+  const routeSteps = (detail.value.route_steps || []).map((step) => ({
+    id_area_route_step: step.id_area_route_step,
+    step_order: step.step_order,
+    step_name: step.step_name,
+    step_key: step.step_key || `route:${step.id_area_route_step}`,
+    system_step_code: step.system_step_code || null,
+    wialon_resource_id: step.wialon_resource_id,
+    wialon_zone_id: step.wialon_zone_id,
+    wialon_zone_name: step.wialon_zone_name
+  }))
+
+  if (detail.value.finish_step) {
+    routeSteps.push(detail.value.finish_step)
+  }
+
+  return routeSteps
+})
+
+const routeHistory = computed(() => detail.value.route_history || [])
+
+const routeHistoryByStepKey = computed(() => {
+  const mapped = new Map<string, RouteHistoryItem>()
+  routeHistory.value.forEach((history) => {
+    mapped.set(history.step_key, history)
+  })
+  return mapped
+})
+
 const totalPages = computed(() => Math.ceil(dnItems.value.length / itemsPerPage))
 
 const paginatedDnItems = computed(() => {
@@ -645,6 +840,32 @@ const loadDetail = async () => {
     dnLoading.value = false
   }
 }
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) {
+    return '-'
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date)
+}
+
+const formatCoordinate = (lat?: number | null, lon?: number | null) => {
+  if (lat === null || lat === undefined || lon === null || lon === undefined) {
+    return '-'
+  }
+  return `${lat.toFixed(5)}, ${lon.toFixed(5)}`
+}
+
+const isOutOfOrder = (history: RouteHistoryItem, index: number) => history.step_order !== index + 1
 
 watch(
   () => route.params.id,

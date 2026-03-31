@@ -4,7 +4,6 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const db = require("./db");
 const dashboardRouter = require("./routes/dashboard");
 const truckRouter = require("./routes/truck");
 const driverRouter = require("./routes/driver");
@@ -27,6 +26,8 @@ const wialonRouter = require("./routes/wialon");
 const { restrictCsAccess } = require("./middleware/rbac");
 const addressBookRouter = require("./routes/addressBook");
 const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
+const { ensureTrackingSchema } = require("./services/schemaSyncService");
+const { startGeofenceTracking } = require("./services/geofenceTrackingService");
 
 const app = express();
 
@@ -81,30 +82,6 @@ app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 
-const ensureTruckWialonColumn = async () => {
-  const databaseName = process.env.DB_NAME || "trucking";
-  const [rows] = await db.query(
-    `
-      SELECT COUNT(*) AS total
-      FROM information_schema.columns
-      WHERE table_schema = ?
-        AND table_name = 'truck'
-        AND column_name = 'wialon_unit_id'
-    `,
-    [databaseName]
-  );
-
-  const total = Number(rows?.[0]?.total || 0);
-  if (total > 0) {
-    return;
-  }
-
-  await db.query(
-    "ALTER TABLE truck ADD COLUMN wialon_unit_id varchar(64) NULL DEFAULT NULL AFTER type_truck"
-  );
-  console.log("Added missing truck.wialon_unit_id column");
-};
-
 const startServer = async () => {
   try {
     const mongoUri = process.env.MONGO_URI;
@@ -116,13 +93,14 @@ const startServer = async () => {
     }
 
     try {
-      await ensureTruckWialonColumn();
+      await ensureTrackingSchema();
     } catch (schemaError) {
-      console.error("Failed to ensure truck.wialon_unit_id column", schemaError);
+      console.error("Failed to ensure tracking schema", schemaError);
     }
 
     app.listen(PORT, HOST, () => {
       console.log(`Node backend listening on ${HOST}:${PORT}`);
+      startGeofenceTracking();
     });
   } catch (error) {
     console.error("Failed to start backend server", error);

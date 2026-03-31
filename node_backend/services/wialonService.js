@@ -23,7 +23,7 @@ const DEFAULT_GEOAPIFY_TIMEOUT_MS = Number.parseInt(
   10
 );
 const DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS = Number.parseInt(
-  process.env.REVERSE_GEOCODE_CACHE_TTL_MS || `${12 * 60 * 60 * 1000}`,
+  process.env.REVERSE_GEOCODE_CACHE_TTL_MS || `${24 * 60 * 60 * 1000}`,
   10
 );
 
@@ -41,7 +41,7 @@ const REVERSE_GEOCODE_CACHE_TTL_MS = Number.isFinite(
   DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS
 )
   ? DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS
-  : 12 * 60 * 60 * 1000;
+  : 24 * 60 * 60 * 1000;
 
 class WialonError extends Error {
   constructor(message, code, payload) {
@@ -106,6 +106,15 @@ const buildReverseGeocodeCacheKey = (lat, lon) => {
   return `${safeLat.toFixed(5)},${safeLon.toFixed(5)}`;
 };
 
+// Cache remains valid only while its age is still inside the configured TTL.
+const isReverseGeocodeCacheValid = (entry) => {
+  if (!entry || !Number.isFinite(entry.cachedAt)) {
+    return false;
+  }
+
+  return Date.now() - Number(entry.cachedAt) < REVERSE_GEOCODE_CACHE_TTL_MS;
+};
+
 const getCachedReverseGeocode = (cacheKey) => {
   if (!cacheKey) {
     return null;
@@ -116,12 +125,12 @@ const getCachedReverseGeocode = (cacheKey) => {
     return null;
   }
 
-  if (entry.expiresAt <= Date.now()) {
+  if (!isReverseGeocodeCacheValid(entry)) {
     reverseGeocodeCache.delete(cacheKey);
     return null;
   }
 
-  return entry.payload;
+  return entry.value;
 };
 
 const setCachedReverseGeocode = (cacheKey, payload) => {
@@ -130,8 +139,8 @@ const setCachedReverseGeocode = (cacheKey, payload) => {
   }
 
   reverseGeocodeCache.set(cacheKey, {
-    payload,
-    expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS
+    value: payload,
+    cachedAt: Date.now()
   });
 
   if (reverseGeocodeCache.size > 1000) {
@@ -155,6 +164,16 @@ const extractUnitId = (item) => {
 };
 
 const extractUnitName = (item) =>
+  String(item?.nm ?? item?.n ?? item?.name ?? item?.sys_name ?? "").trim();
+
+const extractResourceId = (item) => {
+  const resourceId = toPositiveIntString(
+    item?.id ?? item?.i ?? item?.itemId ?? item?.sys_id
+  );
+  return resourceId;
+};
+
+const extractResourceName = (item) =>
   String(item?.nm ?? item?.n ?? item?.name ?? item?.sys_name ?? "").trim();
 
 const toIsoDate = (value) => {
@@ -470,6 +489,43 @@ const fetchWialonUnitCatalog = async () => {
     .filter(Boolean);
 };
 
+const fetchWialonResourceCatalog = async () => {
+  const response = await wialonRequest("core/search_items", {
+    spec: {
+      itemsType: "avl_resource",
+      propName: "sys_name",
+      propValueMask: "*",
+      sortType: "sys_name",
+      propType: "property"
+    },
+    force: 1,
+    flags: 1,
+    from: 0,
+    to: 0
+  });
+
+  const items = Array.isArray(response)
+    ? response
+    : Array.isArray(response?.items)
+      ? response.items
+      : [];
+
+  return items
+    .map((item) => {
+      const id = extractResourceId(item);
+      const name = extractResourceName(item);
+      if (!id || !name) {
+        return null;
+      }
+
+      return {
+        id,
+        name
+      };
+    })
+    .filter(Boolean);
+};
+
 const fetchWialonUnitSnapshot = async () => {
   const response = await wialonRequest("core/search_items", {
     spec: {
@@ -507,6 +563,225 @@ const fetchWialonUnitSnapshot = async () => {
       };
     })
     .filter(Boolean);
+};
+
+const normalizeZoneDataRows = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.zones)) {
+    return payload.zones;
+  }
+
+  if (payload && typeof payload === "object") {
+    return Object.entries(payload).map(([zoneId, zoneValue]) => ({
+      ...(zoneValue && typeof zoneValue === "object" ? zoneValue : {}),
+      id: zoneValue?.id ?? zoneId
+    }));
+  }
+
+  return [];
+};
+
+const fetchResourceZoneData = async (resourceId) => {
+  const safeResourceId = normalizePositiveIntString(resourceId);
+  if (!safeResourceId) {
+    return [];
+  }
+
+  // Some Wialon accounts return an empty array when `col: []` is provided.
+  // Omitting `col` is the reliable way to request all zones from a resource.
+  const attempts = [{ flags: 28 }, { flags: 1 }];
+  for (const attempt of attempts) {
+    try {
+      const payload = await wialonRequest("resource/get_zone_data", {
+        itemId: Number(safeResourceId),
+        flags: attempt.flags
+      });
+
+      const rows = normalizeZoneDataRows(payload);
+      if (rows.length > 0 || attempt.flags === 1) {
+        return rows;
+      }
+    } catch (error) {
+      if (attempt.flags === 1) {
+        throw error;
+      }
+    }
+  }
+
+  return [];
+};
+
+const normalizePositiveIntString = (value) => {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return String(parsed);
+};
+
+const fetchWialonGeofences = async () => {
+  const resources = await fetchWialonResourceCatalog();
+  const geofenceCollections = await Promise.all(
+    resources.map(async (resource) => {
+      const zones = await fetchResourceZoneData(resource.id);
+      return zones
+        .map((zone) => {
+          const zoneId = normalizePositiveIntString(zone?.id ?? zone?.i ?? zone?.zone_id);
+          const zoneName = String(zone?.n ?? zone?.nm ?? zone?.name ?? "").trim();
+          if (!zoneId || !zoneName) {
+            return null;
+          }
+
+          return {
+            resource_id: Number(resource.id),
+            resource_name: resource.name,
+            zone_id: Number(zoneId),
+            zone_name: zoneName
+          };
+        })
+        .filter(Boolean);
+    })
+  );
+
+  return geofenceCollections
+    .flat()
+    .sort((left, right) => {
+      const leftKey = `${left.resource_name} ${left.zone_name}`.toLowerCase();
+      const rightKey = `${right.resource_name} ${right.zone_name}`.toLowerCase();
+      return leftKey.localeCompare(rightKey);
+    });
+};
+
+const normalizeZoneMembershipPayload = (payload, zoneIds) => {
+  const membership = new Map();
+  const targetZoneIds = Array.isArray(zoneIds)
+    ? zoneIds.map((zoneId) => normalizePositiveIntString(zoneId)).filter(Boolean)
+    : [];
+
+  const consumeUnits = (zoneId, value) => {
+    const normalizedZoneId = normalizePositiveIntString(zoneId);
+    if (!normalizedZoneId) {
+      return;
+    }
+
+    const unitIds = [];
+    if (Array.isArray(value)) {
+      value.forEach((unitId) => {
+        const normalizedUnitId = normalizePositiveIntString(unitId);
+        if (normalizedUnitId) {
+          unitIds.push(normalizedUnitId);
+        }
+      });
+    } else if (value && typeof value === "object") {
+      const nestedCandidates = [
+        value.units,
+        value.u,
+        value.items,
+        value.data,
+        Object.keys(value)
+      ];
+      nestedCandidates.forEach((candidate) => {
+        if (!Array.isArray(candidate)) {
+          return;
+        }
+        candidate.forEach((unitId) => {
+          const normalizedUnitId = normalizePositiveIntString(
+            unitId?.id ?? unitId?.i ?? unitId
+          );
+          if (normalizedUnitId) {
+            unitIds.push(normalizedUnitId);
+          }
+        });
+      });
+    }
+
+    membership.set(
+      normalizedZoneId,
+      new Set(unitIds)
+    );
+  };
+
+  if (Array.isArray(payload)) {
+    payload.forEach((item) => {
+      const zoneId = item?.zone_id ?? item?.id ?? item?.i;
+      consumeUnits(zoneId, item?.units ?? item?.u ?? item?.items ?? item);
+    });
+  } else if (payload && typeof payload === "object") {
+    Object.entries(payload).forEach(([key, value]) => {
+      if (targetZoneIds.includes(normalizePositiveIntString(key))) {
+        consumeUnits(key, value);
+        return;
+      }
+
+      if (value && typeof value === "object") {
+        const nestedZoneId = value.zone_id ?? value.id ?? value.i ?? key;
+        consumeUnits(nestedZoneId, value.units ?? value.u ?? value.items ?? value);
+      }
+    });
+  }
+
+  targetZoneIds.forEach((zoneId) => {
+    if (!membership.has(zoneId)) {
+      membership.set(zoneId, new Set());
+    }
+  });
+
+  return membership;
+};
+
+const fetchUnitsInZonesByResource = async ({ resourceId, zoneIds, unitIds }) => {
+  const safeResourceId = normalizePositiveIntString(resourceId);
+  const safeZoneIds = Array.isArray(zoneIds)
+    ? Array.from(new Set(zoneIds.map((zoneId) => normalizePositiveIntString(zoneId)).filter(Boolean)))
+    : [];
+  const safeUnitIds = Array.isArray(unitIds)
+    ? Array.from(new Set(unitIds.map((unitId) => normalizePositiveIntString(unitId)).filter(Boolean)))
+    : [];
+
+  if (!safeResourceId || safeZoneIds.length === 0 || safeUnitIds.length === 0) {
+    return new Map();
+  }
+
+  const payload = await wialonRequest("resource/get_zones_by_unit", {
+    itemId: Number(safeResourceId),
+    col: safeZoneIds.map(Number),
+    units: safeUnitIds.map(Number),
+    time: 0
+  });
+
+  return normalizeZoneMembershipPayload(payload, safeZoneIds);
+};
+
+const getUnitPositionMap = async (unitIds = []) => {
+  const snapshot = await fetchWialonUnitSnapshot();
+  const allowedUnitIds = new Set(
+    unitIds.map((unitId) => normalizePositiveIntString(unitId)).filter(Boolean)
+  );
+  const positionMap = new Map();
+
+  snapshot.forEach((unit) => {
+    if (allowedUnitIds.size > 0 && !allowedUnitIds.has(unit.id)) {
+      return;
+    }
+
+    const position = resolvePosition(unit.item);
+    positionMap.set(unit.id, {
+      unit_id: Number(unit.id),
+      unit_name: unit.name,
+      lat: position.lat,
+      lon: position.lon,
+      speed: position.speed,
+      heading: position.heading,
+      altitude: position.altitude,
+      satellites: position.satellites,
+      gps_time: position.deviceTime
+    });
+  });
+
+  return positionMap;
 };
 
 const toDateString = (value) => {
@@ -1098,5 +1373,8 @@ module.exports = {
   getTruckLocations,
   reverseGeocodeCoordinates,
   autoMapTruckWialonUnits,
+  fetchWialonGeofences,
+  fetchUnitsInZonesByResource,
+  getUnitPositionMap,
   clearSession
 };

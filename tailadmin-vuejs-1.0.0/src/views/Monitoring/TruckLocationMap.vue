@@ -665,6 +665,16 @@ type ReverseGeocodePayload = {
   error: string | null
 }
 
+type AddressCacheEntry = {
+  value: string
+  cachedAt: number
+}
+
+type AddressCacheStoragePayload = {
+  version?: number
+  entries?: unknown
+}
+
 type MarkerRevealOptions = {
   animate?: boolean
   openPopup?: boolean
@@ -732,12 +742,56 @@ let addressLookupRequestId = 0
 let pendingRevealRequestId = 0
 let pendingRevealAnimationFrame: number | null = null
 let pendingRevealMoveEndHandler: (() => void) | null = null
-const addressCache = new Map<string, string>()
+const addressCache = new Map<string, AddressCacheEntry>()
 const addressCacheStorageKey = 'transport_v1_04:wialon_reverse_geocode_cache_v1'
 const addressCacheMaxEntries = 250
+const addressCacheTtlMs = 24 * 60 * 60 * 1000
 
 const isLocalStorageAvailable = () =>
   typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+
+const isAddressCacheEntryFresh = (entry: AddressCacheEntry | null | undefined) =>
+  Boolean(entry) &&
+  Number.isFinite(entry.cachedAt) &&
+  Date.now() - entry.cachedAt < addressCacheTtlMs
+
+const removeAddressCache = (cacheKey: string, persist = true) => {
+  if (!cacheKey || !addressCache.has(cacheKey)) {
+    return
+  }
+
+  addressCache.delete(cacheKey)
+  if (persist) {
+    persistAddressCache()
+  }
+}
+
+const readAddressCache = (cacheKey: string | null) => {
+  if (!cacheKey) {
+    return null
+  }
+
+  const entry = addressCache.get(cacheKey)
+  if (!isAddressCacheEntryFresh(entry)) {
+    removeAddressCache(cacheKey)
+    return null
+  }
+
+  return entry.value
+}
+
+const removeExpiredAddressCacheEntries = () => {
+  let hasExpiredEntries = false
+
+  addressCache.forEach((entry, cacheKey) => {
+    if (!isAddressCacheEntryFresh(entry)) {
+      addressCache.delete(cacheKey)
+      hasExpiredEntries = true
+    }
+  })
+
+  return hasExpiredEntries
+}
 
 const persistAddressCache = () => {
   if (!isLocalStorageAvailable()) {
@@ -745,11 +799,12 @@ const persistAddressCache = () => {
   }
 
   try {
+    removeExpiredAddressCacheEntries()
     const entries = Array.from(addressCache.entries()).slice(-addressCacheMaxEntries)
     window.localStorage.setItem(
       addressCacheStorageKey,
       JSON.stringify({
-        version: 1,
+        version: 2,
         entries
       })
     )
@@ -767,7 +822,10 @@ const rememberAddressCache = (cacheKey: string, address: string) => {
     addressCache.delete(cacheKey)
   }
 
-  addressCache.set(cacheKey, address)
+  addressCache.set(cacheKey, {
+    value: address,
+    cachedAt: Date.now()
+  })
 
   while (addressCache.size > addressCacheMaxEntries) {
     const oldestKey = addressCache.keys().next().value
@@ -791,31 +849,56 @@ const hydrateAddressCache = () => {
       return
     }
 
-    const parsed = JSON.parse(raw) as {
-      version?: number
-      entries?: unknown
-    }
+    const parsed = JSON.parse(raw) as AddressCacheStoragePayload
 
     const entries = Array.isArray(parsed.entries) ? parsed.entries : []
-    if (!entries.length) {
-      return
-    }
-
     addressCache.clear()
+    let shouldPersistNormalizedCache = parsed.version !== 2
+
     entries.slice(-addressCacheMaxEntries).forEach((entry) => {
       if (!Array.isArray(entry) || entry.length < 2) {
+        shouldPersistNormalizedCache = true
         return
       }
 
       const [key, value] = entry
-      if (typeof key !== 'string' || typeof value !== 'string' || !key || !value) {
+      if (typeof key !== 'string' || !key) {
+        shouldPersistNormalizedCache = true
         return
       }
 
-      addressCache.set(key, value)
+      // Legacy cache values without cachedAt are treated as expired and ignored.
+      if (
+        !value ||
+        typeof value !== 'object' ||
+        typeof (value as AddressCacheEntry).value !== 'string' ||
+        !Number.isFinite((value as AddressCacheEntry).cachedAt)
+      ) {
+        shouldPersistNormalizedCache = true
+        return
+      }
+
+      const normalizedEntry = value as AddressCacheEntry
+      if (!isAddressCacheEntryFresh(normalizedEntry)) {
+        shouldPersistNormalizedCache = true
+        return
+      }
+
+      addressCache.set(key, normalizedEntry)
     })
+
+    if (removeExpiredAddressCacheEntries()) {
+      shouldPersistNormalizedCache = true
+    }
+
+    if (shouldPersistNormalizedCache) {
+      persistAddressCache()
+    }
   } catch {
     addressCache.clear()
+    if (isLocalStorageAvailable()) {
+      window.localStorage.removeItem(addressCacheStorageKey)
+    }
   }
 }
 
@@ -987,6 +1070,7 @@ const buildCoordinateCacheKey = (truck: TruckLocation) => {
     return null
   }
 
+  // Fixed precision keeps the cache key stable for nearly identical GPS readings.
   return `${Number(truck.gps.lat).toFixed(5)},${Number(truck.gps.lon).toFixed(5)}`
 }
 
@@ -1373,15 +1457,19 @@ const loadSelectedTruckAddress = async (truck: TruckLocation | null) => {
 
   const cacheKey = buildCoordinateCacheKey(truck)
   if (cacheKey && selectedTruckAddressCacheKey.value === cacheKey && selectedTruckAddress.value) {
-    return
+    const cachedAddress = readAddressCache(cacheKey)
+    if (cachedAddress && cachedAddress === selectedTruckAddress.value) {
+      return
+    }
   }
 
   selectedTruckAddress.value = null
   selectedTruckAddressError.value = null
   selectedTruckAddressLoading.value = false
 
-  if (cacheKey && addressCache.has(cacheKey)) {
-    selectedTruckAddress.value = addressCache.get(cacheKey) || null
+  const cachedAddress = readAddressCache(cacheKey)
+  if (cachedAddress) {
+    selectedTruckAddress.value = cachedAddress
     selectedTruckAddressCacheKey.value = cacheKey
     return
   }
