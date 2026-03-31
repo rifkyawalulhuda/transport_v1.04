@@ -72,6 +72,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - cluster popup summary
   - truck status colors
   - 30-second auto refresh
+  - reverse geocode cache that survives page refresh via browser `localStorage`
   - adaptive 3-panel workspace layout:
     - left: main live map
     - middle: `Vehicle Detail` panel shown only when a truck is selected
@@ -90,7 +91,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 ### Backend Flow
 
 1. Backend logs in to Wialon using the token stored in `node_backend/.env`.
-2. Backend fetches last known positions for mapped units.
+2. Backend fetches the latest mapped unit snapshot from Wialon and reads position data from `core/search_items` output.
 3. Backend enriches GPS data with operational context from existing app tables:
    - active transaction
    - active repair
@@ -98,14 +99,15 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
    - driver name
 4. Backend normalizes the response into a truck-friendly combined payload.
 5. Frontend requests only the normalized backend endpoint for map/list/detail data.
-6. When a user selects a truck, frontend can optionally request reverse geocoding for the selected coordinate only.
+6. When a user selects a truck, frontend can request reverse geocoding for the selected coordinate only.
+7. Reverse geocode results are cached on the server and also persisted in browser `localStorage` so repeated clicks after refresh do not always hit Geoapify again.
 
 ### Important Backend Files
 
 - `node_backend/services/wialonService.js`
   - token login
   - session reuse and retry
-  - location normalization
+  - location normalization from Wialon snapshot data
   - auto mapping helper
   - operational data enrichment for map payload
   - Geoapify reverse geocoding with in-memory cache
@@ -133,6 +135,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 - `GET /api/wialon/reverse-geocode?lat=...&lon=...`
   - returns reverse geocoding result for one selected truck coordinate
   - uses Geoapify and backend cache
+  - frontend also keeps a localStorage cache keyed by coordinate
 - `POST /api/wialon/trucks/auto-map`
   - tries to fill `wialon_unit_id` for trucks that are still empty
 
@@ -200,6 +203,7 @@ Required or currently used variables:
 - Preserve manual mapping if a truck already has a valid `wialon_unit_id`.
 - Reverse geocoding is intentionally done server-side, not directly from the browser.
 - Reverse geocoding should only be requested for the selected truck, not every truck on every refresh.
+- Reverse geocode lookup is cached both server-side and in browser `localStorage` so repeated clicks on the same coordinates stay cheap.
 - Keep a fallback to raw coordinates when no address is available.
 - The primary filter meaning on the map page is GPS status, not business/operational status.
 
@@ -237,6 +241,8 @@ npm run build-only
 - Auto-refresh keeps map data fresh, but should not aggressively re-focus the map on every refresh.
 - Address lookup depends on a valid `GEOAPIFY_API_KEY` in backend `.env`.
 - When Geoapify is unavailable or quota is exhausted, the UI falls back to showing coordinates in the `Lokasi` card.
+- Browser `localStorage` can be cleared if you want to force Geoapify to resolve the same coordinates again.
+- Wialon status derivation was corrected to use searchable snapshot data; if every truck suddenly appears offline again, restart the backend and check that the Wialon token still logs in successfully.
 
 ## Suggested Next Improvements
 
@@ -244,5 +250,5 @@ npm run build-only
 - Add an overwrite mode for remapping existing truck rows.
 - Add cluster summaries by status percentage.
 - Add a small legend panel for moving / idle / offline / unlinked statuses.
-- Consider persisting reverse geocode cache in a database or Redis if server restarts become frequent.
 - Consider adding an explicit loading skeleton for address lookup in the detail panel.
+- Consider adding cache TTL / invalidation rules for browser and server-side reverse geocode caches if map coordinates change very frequently.
