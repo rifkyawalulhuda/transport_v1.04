@@ -210,7 +210,10 @@ const requestWialon = async (svc, params, sid) => {
     }
 
     if (typeof payload === "number") {
-      throw new WialonError(`Wialon returned error ${payload}`, payload, payload);
+      if (payload !== 0) {
+        throw new WialonError(`Wialon returned error ${payload}`, payload, payload);
+      }
+      return payload;
     }
 
     if (
@@ -218,7 +221,8 @@ const requestWialon = async (svc, params, sid) => {
       typeof payload === "object" &&
       Object.prototype.hasOwnProperty.call(payload, "error") &&
       payload.error !== undefined &&
-      payload.error !== null
+      payload.error !== null &&
+      Number(payload.error) !== 0
     ) {
       throw new WialonError(
         `Wialon returned error ${payload.error}`,
@@ -299,6 +303,9 @@ const resolvePosition = (item) => {
       item?.t ??
         item?.time ??
         item?.tm ??
+        item?.lmsg?.t ??
+        item?.lmsg?.time ??
+        item?.lmsg?.tm ??
         item?.lastTime ??
         item?.last_time ??
         pos?.t ??
@@ -458,6 +465,45 @@ const fetchWialonUnitCatalog = async () => {
         id,
         name,
         matchKey: normalizeMatchKey(name)
+      };
+    })
+    .filter(Boolean);
+};
+
+const fetchWialonUnitSnapshot = async () => {
+  const response = await wialonRequest("core/search_items", {
+    spec: {
+      itemsType: "avl_unit",
+      propName: "sys_name",
+      propValueMask: "*",
+      sortType: "sys_name",
+      propType: "property"
+    },
+    force: 1,
+    flags: 1025,
+    from: 0,
+    to: 0
+  });
+
+  const items = Array.isArray(response)
+    ? response
+    : Array.isArray(response?.items)
+      ? response.items
+      : [];
+
+  return items
+    .map((item) => {
+      const id = extractUnitId(item);
+      const name = extractUnitName(item);
+      if (!id || !name) {
+        return null;
+      }
+
+      return {
+        id,
+        name,
+        matchKey: normalizeMatchKey(name),
+        item
       };
     })
     .filter(Boolean);
@@ -825,27 +871,19 @@ const getTruckLocations = async () => {
   const fetchedAt = new Date().toISOString();
   const operationalContext = await fetchOperationalContext();
   const mappedTrucks = truckRows.filter((truck) => toPositiveIntString(truck.wialon_unit_id));
-  const unitIds = mappedTrucks
-    .map((truck) => toPositiveIntString(truck.wialon_unit_id))
-    .filter(Boolean)
-    .map((value) => Number.parseInt(value, 10));
 
   const resultsByUnitId = new Map();
   let wialonAvailable = true;
   let wialonError = null;
 
-  if (unitIds.length > 0) {
+  if (mappedTrucks.length > 0) {
     try {
-      const response = await wialonRequest("unit/calc_last", {
-        itemIds: unitIds
-      });
-      const items = Array.isArray(response) ? response : response?.items || [];
-      items.forEach((item) => {
-        const unitId = toPositiveIntString(item?.i ?? item?.id ?? item?.itemId);
-        if (!unitId || resultsByUnitId.has(unitId)) {
+      const response = await fetchWialonUnitSnapshot();
+      response.forEach((unit) => {
+        if (!unit?.id || resultsByUnitId.has(unit.id)) {
           return;
         }
-        resultsByUnitId.set(unitId, item);
+        resultsByUnitId.set(unit.id, unit.item);
       });
     } catch (error) {
       wialonAvailable = false;

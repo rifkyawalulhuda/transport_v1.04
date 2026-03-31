@@ -705,6 +705,7 @@ const selectedTruckId = ref<number | null>(null)
 const selectedTruckAddress = ref<string | null>(null)
 const selectedTruckAddressLoading = ref(false)
 const selectedTruckAddressError = ref<string | null>(null)
+const selectedTruckAddressCacheKey = ref<string | null>(null)
 const mobileDetailOpen = ref(false)
 const mobileFleetOpen = ref(true)
 const trackingData = ref<TruckLocationPayload>({
@@ -732,6 +733,91 @@ let pendingRevealRequestId = 0
 let pendingRevealAnimationFrame: number | null = null
 let pendingRevealMoveEndHandler: (() => void) | null = null
 const addressCache = new Map<string, string>()
+const addressCacheStorageKey = 'transport_v1_04:wialon_reverse_geocode_cache_v1'
+const addressCacheMaxEntries = 250
+
+const isLocalStorageAvailable = () =>
+  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+
+const persistAddressCache = () => {
+  if (!isLocalStorageAvailable()) {
+    return
+  }
+
+  try {
+    const entries = Array.from(addressCache.entries()).slice(-addressCacheMaxEntries)
+    window.localStorage.setItem(
+      addressCacheStorageKey,
+      JSON.stringify({
+        version: 1,
+        entries
+      })
+    )
+  } catch {
+    // Ignore storage quota or parsing issues; in-memory cache still works.
+  }
+}
+
+const rememberAddressCache = (cacheKey: string, address: string) => {
+  if (!cacheKey || !address) {
+    return
+  }
+
+  if (addressCache.has(cacheKey)) {
+    addressCache.delete(cacheKey)
+  }
+
+  addressCache.set(cacheKey, address)
+
+  while (addressCache.size > addressCacheMaxEntries) {
+    const oldestKey = addressCache.keys().next().value
+    if (!oldestKey) {
+      break
+    }
+    addressCache.delete(oldestKey)
+  }
+
+  persistAddressCache()
+}
+
+const hydrateAddressCache = () => {
+  if (!isLocalStorageAvailable()) {
+    return
+  }
+
+  try {
+    const raw = window.localStorage.getItem(addressCacheStorageKey)
+    if (!raw) {
+      return
+    }
+
+    const parsed = JSON.parse(raw) as {
+      version?: number
+      entries?: unknown
+    }
+
+    const entries = Array.isArray(parsed.entries) ? parsed.entries : []
+    if (!entries.length) {
+      return
+    }
+
+    addressCache.clear()
+    entries.slice(-addressCacheMaxEntries).forEach((entry) => {
+      if (!Array.isArray(entry) || entry.length < 2) {
+        return
+      }
+
+      const [key, value] = entry
+      if (typeof key !== 'string' || typeof value !== 'string' || !key || !value) {
+        return
+      }
+
+      addressCache.set(key, value)
+    })
+  } catch {
+    addressCache.clear()
+  }
+}
 
 const cancelPendingReveal = () => {
   pendingRevealRequestId += 1
@@ -1268,6 +1354,7 @@ const clearSelectedTruck = () => {
   selectedTruckAddress.value = null
   selectedTruckAddressError.value = null
   selectedTruckAddressLoading.value = false
+  selectedTruckAddressCacheKey.value = null
   mobileDetailOpen.value = false
   mapInstance.value?.closePopup()
 }
@@ -1276,21 +1363,31 @@ const loadSelectedTruckAddress = async (truck: TruckLocation | null) => {
   addressLookupRequestId += 1
   const requestId = addressLookupRequestId
 
-  selectedTruckAddress.value = null
-  selectedTruckAddressError.value = null
-  selectedTruckAddressLoading.value = false
-
   if (!truck || !hasCoordinates(truck)) {
+    selectedTruckAddress.value = null
+    selectedTruckAddressError.value = null
+    selectedTruckAddressLoading.value = false
+    selectedTruckAddressCacheKey.value = null
     return
   }
 
   const cacheKey = buildCoordinateCacheKey(truck)
+  if (cacheKey && selectedTruckAddressCacheKey.value === cacheKey && selectedTruckAddress.value) {
+    return
+  }
+
+  selectedTruckAddress.value = null
+  selectedTruckAddressError.value = null
+  selectedTruckAddressLoading.value = false
+
   if (cacheKey && addressCache.has(cacheKey)) {
     selectedTruckAddress.value = addressCache.get(cacheKey) || null
+    selectedTruckAddressCacheKey.value = cacheKey
     return
   }
 
   selectedTruckAddressLoading.value = true
+  selectedTruckAddressCacheKey.value = cacheKey
 
   try {
     const payload = (await truckLocationService.reverseGeocode(
@@ -1305,7 +1402,8 @@ const loadSelectedTruckAddress = async (truck: TruckLocation | null) => {
     if (payload.formatted_address) {
       selectedTruckAddress.value = payload.formatted_address
       if (cacheKey) {
-        addressCache.set(cacheKey, payload.formatted_address)
+        rememberAddressCache(cacheKey, payload.formatted_address)
+        selectedTruckAddressCacheKey.value = cacheKey
       }
       return
     }
@@ -1408,6 +1506,7 @@ const syncMarkers = (options?: MarkerSyncOptions) => {
       selectedTruckId.value = truck.id_truck
       mobileDetailOpen.value = true
       void scrollTruckCardIntoView(truck.id_truck)
+      void loadSelectedTruckAddress(truck)
     })
 
     marker.addTo(markerClusterLayer.value as L.MarkerClusterGroup)
@@ -1472,6 +1571,7 @@ const focusTruck = (truck: TruckLocation) => {
   mobileDetailOpen.value = true
   mobileFleetOpen.value = true
   void scrollTruckCardIntoView(truck.id_truck)
+  void loadSelectedTruckAddress(truck)
 
   if (!hasCoordinates(truck)) {
     return
@@ -1503,14 +1603,6 @@ watch(selectedTruckId, () => {
   updateMarkerSelection()
 })
 
-watch(
-  selectedTruck,
-  (truck) => {
-    void loadSelectedTruckAddress(truck)
-  },
-  { immediate: true }
-)
-
 watch([searchInput, gpsFilter], async () => {
   alignSelectedTruck()
   if (!hasInitialized.value) {
@@ -1525,6 +1617,7 @@ watch([searchInput, gpsFilter], async () => {
 })
 
 onMounted(async () => {
+  hydrateAddressCache()
   initMap()
   await refreshLocations()
   refreshTimer = window.setInterval(() => {
