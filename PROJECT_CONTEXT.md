@@ -16,6 +16,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 - Node.js
 - Express
 - MySQL via `mysql2`
+- `dbmate` for SQL migration workflow
 - MongoDB via `mongoose` for existing features
 - JWT authentication
 - File import/export with `xlsx` and `exceljs`
@@ -36,6 +37,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 
 - `node_backend/server.js` - Express app bootstrap and route registration.
 - `node_backend/db.js` - MySQL pool connection.
+- `node_backend/db/` - SQL migrations and generated schema snapshot.
 - `node_backend/routes/` - API route handlers.
 - `node_backend/services/` - business logic and external integrations.
 - `node_backend/middleware/` - auth and access control.
@@ -65,6 +67,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 
 - Truck master now supports `wialon_unit_id`.
 - Wialon data is fetched server-side only.
+- Reverse geocode cache now uses a 24-hour TTL on both backend in-memory cache and frontend `localStorage`.
 - The frontend uses a dedicated truck location page:
   - Leaflet map
   - OpenStreetMap tiles
@@ -81,6 +84,27 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - GPS-only filter chips: `All`, `Moving`, `Idle`, `Offline`, `Belum Terhubung`
   - simplified fleet cards that only show truck number and GPS status
   - custom truck marker icon embedded inline in the frontend code so it does not depend on an external image file at runtime
+
+### Geofence Route Flow for Sales Cost
+
+- Master Area now supports route-step modeling:
+  - `kode_area`
+  - generated `nama_area`
+  - `route_steps[]` mapped to Wialon geofences
+- Wialon geofences remain managed in Wialon, not drawn manually inside this project.
+- Sales Cost still stores and displays the route using the familiar `nama_area` string such as `117-CLC-GIIC-HEKIKAI`.
+- The backend now tracks geofence history for active Sales Cost deliveries:
+  - first entry only per planned step
+  - supports out-of-order arrival
+  - keeps planned route and actual route history separate
+- A default final system step named `Finish Order` is recorded when:
+  - all planned route steps have been visited, and
+  - the truck later enters the default company geofence `Sankyu`
+- Sales Cost detail now includes a `Riwayat Geofence Pengiriman` section that shows:
+  - planned steps
+  - visited steps with timestamps
+  - pending steps
+  - light badge for out-of-order visits
 
 ## Wialon Integration
 
@@ -102,6 +126,15 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 6. When a user selects a truck, frontend can request reverse geocoding for the selected coordinate only.
 7. Reverse geocode results are cached on the server and also persisted in browser `localStorage` so repeated clicks after refresh do not always hit Geoapify again.
 
+### Geofence Tracking Flow
+
+1. Backend loads active Sales Cost candidates for trucks that already have `wialon_unit_id`.
+2. Backend loads route-step to geofence mappings from `area_route_step`.
+3. Backend polls Wialon zone membership on an interval.
+4. If the truck is currently inside a mapped geofence and that step has not been recorded yet, backend inserts one history row into `sales_cost_route_history`.
+5. After all planned steps are completed, backend also watches the default company geofence `Sankyu` to record the system step `Finish Order`.
+6. Re-entry to the same step is ignored in phase 1 to avoid noisy duplicate history rows.
+
 ### Important Backend Files
 
 - `node_backend/services/wialonService.js`
@@ -111,8 +144,18 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - auto mapping helper
   - operational data enrichment for map payload
   - Geoapify reverse geocoding with in-memory cache
+- `node_backend/services/geofenceTrackingService.js`
+  - polls Wialon geofence membership for active deliveries
+  - writes first-entry route history
+  - records system `Finish Order` step using default company geofence
+- `node_backend/services/schemaSyncService.js`
+  - legacy runtime schema safety net for tracking-related columns/tables
 - `node_backend/routes/wialon.js`
-  - protected API routes for truck location, reverse geocoding, and auto mapping
+  - protected API routes for truck location, reverse geocoding, auto mapping, and geofence listing
+- `node_backend/routes/area.js`
+  - CRUD for area master with `kode_area`, generated `nama_area`, and `route_steps`
+- `node_backend/routes/salesCost.js`
+  - sales cost detail now includes route plan and geofence route history
 - `tailadmin-vuejs-1.0.0/src/views/Monitoring/TruckLocationMap.vue`
   - 3-panel operational workspace UI
   - Leaflet marker sync and focus behavior
@@ -135,9 +178,22 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 - `GET /api/wialon/reverse-geocode?lat=...&lon=...`
   - returns reverse geocoding result for one selected truck coordinate
   - uses Geoapify and backend cache
-  - frontend also keeps a localStorage cache keyed by coordinate
+  - frontend also keeps a localStorage cache keyed by normalized coordinate
+  - backend and frontend cache entries expire after 24 hours
 - `POST /api/wialon/trucks/auto-map`
   - tries to fill `wialon_unit_id` for trucks that are still empty
+- `GET /api/wialon/geofences`
+  - returns Wialon geofence options for route-step mapping in Master Area
+- `GET /api/areas`
+  - now also returns `kode_area`, `route_steps`, and `draft_route_steps`
+- `GET /api/areas/:id`
+  - returns one area plus route-step configuration
+- `POST /api/areas`
+  - now accepts `kode_area` and `route_steps`
+- `PUT /api/areas/:id`
+  - updates route-step configuration and regenerates `nama_area`
+- `GET /api/sales-costs/:id`
+  - now also returns `route_steps` and `route_history`
 
 ## Database Notes
 
@@ -148,6 +204,17 @@ The `truck` table now includes:
 - `wialon_unit_id VARCHAR(64) NULL`
 
 This field is used as the primary mapping between local truck records and Wialon units.
+
+### Area and Route Tracking Tables
+
+The project now also uses:
+
+- `area.kode_area`
+- `area_route_step`
+  - stores route step order, step name, and mapped Wialon geofence
+- `sales_cost_route_history`
+  - stores actual timestamped visits for each Sales Cost route step
+  - includes support for system step keys such as `Finish Order`
 
 ### Why No New Table Is Required
 
@@ -169,9 +236,11 @@ Use `node_backend/.env` locally. Do not commit it.
 Required or currently used variables:
 
 - `DB_HOST`
+- `DB_PORT`
 - `DB_USER`
 - `DB_PASS`
 - `DB_NAME`
+- `DATABASE_URL` (optional explicit override for migration tooling)
 - `JWT_SECRET`
 - `PORT`
 - `WIALON_BASE_URL`
@@ -183,6 +252,8 @@ Required or currently used variables:
 - `GEOAPIFY_BASE_URL`
 - `GEOAPIFY_TIMEOUT_MS`
 - `REVERSE_GEOCODE_CACHE_TTL_MS`
+- `GEOFENCE_TRACKING_INTERVAL_MS`
+- `DEFAULT_FINISH_GEOFENCE_NAME`
 
 ### Example File
 
@@ -217,6 +288,28 @@ npm install
 npm start
 ```
 
+### Database Migration CLI
+
+```bash
+cd node_backend
+npm run migrate
+```
+
+Useful commands:
+
+```bash
+npm run migrate:status
+npm run migrate:new -- add_some_change
+npm run migrate:adopt-existing
+npm run migrate:dump
+```
+
+Notes:
+
+- `npm run migrate` is the default bootstrap path for a fresh database on another device.
+- `npm run migrate:adopt-existing` is meant for an already-populated database that already matches the latest schema and only needs `schema_migrations` to be initialized.
+- Baseline migration is generated from `trucking.sql` as schema-only by default for better portability and stability.
+
 ### Frontend
 
 ```bash
@@ -241,8 +334,10 @@ npm run build-only
 - Auto-refresh keeps map data fresh, but should not aggressively re-focus the map on every refresh.
 - Address lookup depends on a valid `GEOAPIFY_API_KEY` in backend `.env`.
 - When Geoapify is unavailable or quota is exhausted, the UI falls back to showing coordinates in the `Lokasi` card.
-- Browser `localStorage` can be cleared if you want to force Geoapify to resolve the same coordinates again.
+- Browser `localStorage` can be cleared if you want to force Geoapify to resolve the same coordinates again before the 24-hour TTL expires.
 - Wialon status derivation was corrected to use searchable snapshot data; if every truck suddenly appears offline again, restart the backend and check that the Wialon token still logs in successfully.
+- Geofence route history is polling-based, so events are recorded when Wialon reports the truck is inside a mapped zone during a polling cycle.
+- If a truck is parked inside a zone while GPS/device is inactive, history may only be recorded after the device reports position again and Wialon reflects zone membership.
 
 ## Suggested Next Improvements
 
@@ -251,4 +346,5 @@ npm run build-only
 - Add cluster summaries by status percentage.
 - Add a small legend panel for moving / idle / offline / unlinked statuses.
 - Consider adding an explicit loading skeleton for address lookup in the detail panel.
-- Consider adding cache TTL / invalidation rules for browser and server-side reverse geocode caches if map coordinates change very frequently.
+- Consider moving legacy runtime schema sync fully into migrations only, after migration workflow is used consistently across environments.
+- Consider adding dedicated data seeding flow separate from baseline schema migration if a fresh environment also needs starter master data.

@@ -3,7 +3,14 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node scripts/run-dbmate.js up",
+    "migrate:down": "node scripts/run-dbmate.js down",
+    "migrate:status": "node scripts/run-dbmate.js status",
+    "migrate:new": "node scripts/run-dbmate.js new",
+    "migrate:adopt-existing": "node scripts/adopt-existing-migrations.js",
+    "migrate:dump": "node scripts/dump-schema.js",
+    "migrate:baseline:build": "node scripts/build-baseline-migration.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,5 +22,8 @@
     "multer": "^2.0.2",
     "mysql2": "^3.9.7",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "dbmate": "^2.32.0"
   }
 }
