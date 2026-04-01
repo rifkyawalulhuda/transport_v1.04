@@ -91,6 +91,8 @@ const toPositiveIntString = (value) => {
   return String(parsed);
 };
 
+const pad2 = (value) => String(value).padStart(2, "0");
+
 const ensureFiniteCoordinate = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -793,9 +795,12 @@ const toDateString = (value) => {
   }
 
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime())
-      ? null
-      : value.toISOString().slice(0, 10);
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(
+      value.getDate()
+    )}`;
   }
 
   const text = String(value);
@@ -807,7 +812,9 @@ const toDateString = (value) => {
   const parsed = new Date(text);
   return Number.isNaN(parsed.getTime())
     ? null
-    : parsed.toISOString().slice(0, 10);
+    : `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(
+        parsed.getDate()
+      )}`;
 };
 
 const fetchOperationalContext = async () => {
