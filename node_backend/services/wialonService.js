@@ -746,10 +746,13 @@ const fetchUnitsInZonesByResource = async ({ resourceId, zoneIds, unitIds }) => 
   }
 
   const payload = await wialonRequest("resource/get_zones_by_unit", {
-    itemId: Number(safeResourceId),
-    col: safeZoneIds.map(Number),
-    units: safeUnitIds.map(Number),
-    time: 0
+    spec: {
+      zoneId: {
+        [safeResourceId]: safeZoneIds.map(Number)
+      },
+      units: safeUnitIds.map(Number),
+      time: 0
+    }
   });
 
   return normalizeZoneMembershipPayload(payload, safeZoneIds);

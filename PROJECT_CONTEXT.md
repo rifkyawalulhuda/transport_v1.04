@@ -210,6 +210,7 @@ This field is used as the primary mapping between local truck records and Wialon
 The project now also uses:
 
 - `area.kode_area`
+- `area.finish_geofence_resource_id`, `area.finish_geofence_zone_id`, `area.finish_geofence_zone_name`
 - `area_route_step`
   - stores route step order, step name, and mapped Wialon geofence
 - `sales_cost_route_history`
@@ -307,7 +308,7 @@ npm run migrate:dump
 Notes:
 
 - `npm run migrate` is the default bootstrap path for a fresh database on another device.
-- `npm run migrate:adopt-existing` is meant for an already-populated database that already matches the latest schema and only needs `schema_migrations` to be initialized.
+- `npm run migrate:adopt-existing` is meant for an already-populated database that is close to the latest schema; it will fill in the tracked schema gaps safely and then initialize `schema_migrations`.
 - Baseline migration is generated from `trucking.sql` as schema-only by default for better portability and stability.
 
 ### Frontend

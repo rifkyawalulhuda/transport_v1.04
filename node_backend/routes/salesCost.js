@@ -1228,7 +1228,27 @@ router.get("/:id", async (req, res) => {
   try {
     const id = req.params.id;
     const [rows] = await db.query(
-      "SELECT sales_cost.*, truck.no_police, truck.jenis_kendaraan, driver.nama_driver, area.nama_area, area.kode_area, customer.nama_customer, admin.nama_admin AS created_by_name FROM sales_cost LEFT JOIN truck ON sales_cost.id_truck = truck.id_truck LEFT JOIN driver ON sales_cost.id_driver = driver.id_driver LEFT JOIN area ON sales_cost.id_area = area.id_area LEFT JOIN customer ON sales_cost.id_customer = customer.id_customer LEFT JOIN admin ON admin.id_admin = sales_cost.id_admin OR admin.nik_admin = sales_cost.id_admin WHERE sales_cost.id_sales_cost = ?",
+      `
+        SELECT
+          sales_cost.*,
+          truck.no_police,
+          truck.jenis_kendaraan,
+          driver.nama_driver,
+          area.nama_area,
+          area.kode_area,
+          area.finish_geofence_resource_id,
+          area.finish_geofence_zone_id,
+          area.finish_geofence_zone_name,
+          customer.nama_customer,
+          admin.nama_admin AS created_by_name
+        FROM sales_cost
+        LEFT JOIN truck ON sales_cost.id_truck = truck.id_truck
+        LEFT JOIN driver ON sales_cost.id_driver = driver.id_driver
+        LEFT JOIN area ON sales_cost.id_area = area.id_area
+        LEFT JOIN customer ON sales_cost.id_customer = customer.id_customer
+        LEFT JOIN admin ON admin.id_admin = sales_cost.id_admin OR admin.nik_admin = sales_cost.id_admin
+        WHERE sales_cost.id_sales_cost = ?
+      `,
       [id]
     );
     if (rows.length === 0) {
@@ -1237,6 +1257,9 @@ router.get("/:id", async (req, res) => {
     const detail = rows[0];
     const routeStepsMap = await fetchAreaRouteStepsMap([detail.id_area]);
     const plannedSteps = routeStepsMap.get(Number(detail.id_area)) || [];
+    const finishGeofenceName = String(
+      detail.finish_geofence_zone_name || DEFAULT_FINISH_GEOFENCE_NAME
+    ).trim();
     const [historyRows] = await db.query(
       `
         SELECT
@@ -1265,17 +1288,21 @@ router.get("/:id", async (req, res) => {
 
     res.json({
       ...detail,
-      route_steps: plannedSteps,
-      finish_step: {
-        id_area_route_step: null,
-        step_key: "system:finish_order",
-        system_step_code: "finish_order",
-        step_order: plannedSteps.length + 1,
-        step_name: "Finish Order",
-        wialon_resource_id: null,
-        wialon_zone_id: null,
-        wialon_zone_name: DEFAULT_FINISH_GEOFENCE_NAME
-      },
+        route_steps: plannedSteps,
+        finish_step: {
+          id_area_route_step: null,
+          step_key: "system:finish_order",
+          system_step_code: "finish_order",
+          step_order: plannedSteps.length + 1,
+          step_name: "Finish Order",
+          wialon_resource_id: detail.finish_geofence_resource_id
+            ? Number(detail.finish_geofence_resource_id)
+            : null,
+          wialon_zone_id: detail.finish_geofence_zone_id
+            ? Number(detail.finish_geofence_zone_id)
+            : null,
+          wialon_zone_name: finishGeofenceName
+        },
       route_history: historyRows.map((row) => ({
         id_sales_cost_route_history: Number(row.id_sales_cost_route_history),
         id_sales_cost: Number(row.id_sales_cost),

@@ -48,7 +48,7 @@ Gunakan:
 npm run migrate:adopt-existing
 ```
 
-Perintah ini akan membuat tabel `schema_migrations` lalu menandai semua migration repo sebagai sudah diterapkan, tanpa mengubah tabel data yang sudah ada.
+Perintah ini akan melengkapi bagian schema yang masih kurang untuk tabel tracking yang baru, tanpa menghapus data lama, lalu menandai migration repo sebagai sudah diterapkan.
 
 Setelah itu, migration berikutnya tinggal pakai:
 

@@ -177,6 +177,46 @@
                 </div>
               </div>
 
+              <div class="mt-5 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <div class="mb-3">
+                  <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    Finish Order Geofence
+                  </h4>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    Pilih geofence yang dipakai saat sistem mencatat Finish Order. Nilai ini tidak masuk ke Nama Area.
+                  </p>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                      Geofence Finish Order
+                    </label>
+                    <SearchableSelect
+                      :model-value="getFinishGeofenceValue()"
+                      :options="geofenceSelectOptions"
+                      value-key="value"
+                      label-key="label"
+                      :search-keys="['label', 'resource_name', 'zone_name']"
+                      placeholder="-Pilih finish geofence-"
+                      search-placeholder="Cari resource atau geofence"
+                      :disabled="isSubmitting || geofenceLoading"
+                      @update:model-value="updateFinishGeofence"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  v-if="form.finish_geofence_zone_name"
+                  class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300"
+                >
+                  Finish Order terpilih: {{ form.finish_geofence_zone_name }}
+                  <span class="text-gray-400 dark:text-gray-500">
+                    (Resource ID {{ form.finish_geofence_resource_id }}, Zone ID {{ form.finish_geofence_zone_id }})
+                  </span>
+                </div>
+              </div>
+
               <p
                 v-if="geofenceError"
                 class="mt-4 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
@@ -338,6 +378,9 @@ type AreaItem = {
   id_area: number
   kode_area: string | null
   nama_area: string
+  finish_geofence_resource_id?: number | null
+  finish_geofence_zone_id?: number | null
+  finish_geofence_zone_name?: string | null
   route_steps: Array<{
     id_area_route_step: number
     step_order: number
@@ -360,6 +403,9 @@ type FormState = {
   id: number | null
   kode_area: string
   route_steps: RouteStep[]
+  finish_geofence_resource_id: string
+  finish_geofence_zone_id: string
+  finish_geofence_zone_name: string
 }
 
 type WialonGeofenceRow = {
@@ -383,7 +429,10 @@ const geofenceError = ref('')
 const form = reactive<FormState>({
   id: null,
   kode_area: '',
-  route_steps: []
+  route_steps: [],
+  finish_geofence_resource_id: '',
+  finish_geofence_zone_id: '',
+  finish_geofence_zone_name: ''
 })
 
 const apiBase = API_BASE
@@ -403,6 +452,12 @@ const createEmptyRouteStep = (stepOrder: number): RouteStep => ({
   wialon_resource_id: '',
   wialon_zone_id: '',
   wialon_zone_name: ''
+})
+
+const createEmptyFinishGeofence = () => ({
+  finish_geofence_resource_id: '',
+  finish_geofence_zone_id: '',
+  finish_geofence_zone_name: ''
 })
 
 const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
@@ -426,6 +481,18 @@ const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
     wialon_zone_name: step.wialon_zone_name || ''
   }))
 }
+
+const normalizeDraftFinishGeofence = (item?: AreaItem | null) => ({
+  finish_geofence_resource_id:
+    item?.finish_geofence_resource_id === null || item?.finish_geofence_resource_id === undefined
+      ? ''
+      : String(item.finish_geofence_resource_id),
+  finish_geofence_zone_id:
+    item?.finish_geofence_zone_id === null || item?.finish_geofence_zone_id === undefined
+      ? ''
+      : String(item.finish_geofence_zone_id),
+  finish_geofence_zone_name: item?.finish_geofence_zone_name || ''
+})
 
 const geofenceSelectOptions = computed(() =>
   geofenceRows.value.map((row) => ({
@@ -572,6 +639,29 @@ const updateStepGeofence = (index: number, value: string) => {
   form.route_steps[index].wialon_zone_name = selected.zone_name
 }
 
+const getFinishGeofenceValue = () => {
+  if (!form.finish_geofence_resource_id || !form.finish_geofence_zone_id) {
+    return ''
+  }
+  return `${form.finish_geofence_resource_id}:${form.finish_geofence_zone_id}`
+}
+
+const updateFinishGeofence = (value: string) => {
+  const selected = geofenceRows.value.find(
+    (row) => `${row.resource_id}:${row.zone_id}` === value
+  )
+  if (!selected) {
+    form.finish_geofence_resource_id = ''
+    form.finish_geofence_zone_id = ''
+    form.finish_geofence_zone_name = ''
+    return
+  }
+
+  form.finish_geofence_resource_id = String(selected.resource_id)
+  form.finish_geofence_zone_id = String(selected.zone_id)
+  form.finish_geofence_zone_name = selected.zone_name
+}
+
 const openForm = async (item?: AreaItem) => {
   if (item) {
     formTitle.value = 'Edit Area'
@@ -579,12 +669,14 @@ const openForm = async (item?: AreaItem) => {
     form.id = item.id_area
     form.kode_area = item.kode_area || ''
     form.route_steps = normalizeDraftRouteSteps(item)
+    Object.assign(form, normalizeDraftFinishGeofence(item))
   } else {
     formTitle.value = 'Tambah Area'
     editingId.value = null
     form.id = null
     form.kode_area = ''
     form.route_steps = [createEmptyRouteStep(1)]
+    Object.assign(form, createEmptyFinishGeofence())
   }
   showForm.value = true
   await loadGeofences()
@@ -602,6 +694,13 @@ const submitForm = async () => {
 
   const payload = {
     kode_area: form.kode_area.trim(),
+    finish_geofence_resource_id: form.finish_geofence_resource_id
+      ? Number(form.finish_geofence_resource_id)
+      : null,
+    finish_geofence_zone_id: form.finish_geofence_zone_id
+      ? Number(form.finish_geofence_zone_id)
+      : null,
+    finish_geofence_zone_name: form.finish_geofence_zone_name.trim(),
     route_steps: form.route_steps.map((step, index) => ({
       id_area_route_step: step.id_area_route_step,
       step_order: index + 1,
