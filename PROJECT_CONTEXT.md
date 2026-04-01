@@ -99,7 +99,12 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - keeps planned route and actual route history separate
 - A default final system step named `Finish Order` is recorded when:
   - all planned route steps have been visited, and
-  - the truck later enters the default company geofence `Sankyu`
+  - the truck later enters the configured finish geofence on the related `area`
+- `Finish Order` geofence is now configured per Master Area via:
+  - `area.finish_geofence_resource_id`
+  - `area.finish_geofence_zone_id`
+  - `area.finish_geofence_zone_name`
+- Legacy fallback to default company geofence `Sankyu` still exists for older areas that do not have finish geofence configured yet.
 - Sales Cost detail now includes a `Riwayat Geofence Pengiriman` section that shows:
   - planned steps
   - visited steps with timestamps
@@ -132,8 +137,18 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 2. Backend loads route-step to geofence mappings from `area_route_step`.
 3. Backend polls Wialon zone membership on an interval.
 4. If the truck is currently inside a mapped geofence and that step has not been recorded yet, backend inserts one history row into `sales_cost_route_history`.
-5. After all planned steps are completed, backend also watches the default company geofence `Sankyu` to record the system step `Finish Order`.
+5. After all planned steps are completed, backend also watches the finish geofence configured on the area to record the system step `Finish Order`.
 6. Re-entry to the same step is ignored in phase 1 to avoid noisy duplicate history rows.
+
+### Wialon Response Notes
+
+- `resource/get_zones_by_unit` may return nested payloads shaped like `{resourceId: {zoneId: [unitIds]}}`.
+- Do not assume the response is already flattened by zone ID.
+- `node_backend/services/wialonService.js` must keep support for nested parsing in `normalizeZoneMembershipPayload`.
+- A previous bug caused geofence history to stay `Pending` even when a truck was already inside `Sankyu`, because the nested Wialon membership payload was parsed incorrectly.
+- When debugging geofence history, verify both:
+  - raw Wialon membership result for the truck/unit
+  - parsed membership map returned by `fetchUnitsInZonesByResource`
 
 ### Important Backend Files
 
@@ -162,6 +177,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - selected truck inspector
   - fleet search/filter/list behavior
   - inline SVG truck marker icon
+  - local-safe date formatting for `YYYY-MM-DD` values in `Vehicle Detail`
 - `tailadmin-vuejs-1.0.0/src/services/truckLocationService.ts`
   - frontend API wrapper for truck locations and reverse geocoding
 
@@ -339,6 +355,9 @@ npm run build-only
 - Wialon status derivation was corrected to use searchable snapshot data; if every truck suddenly appears offline again, restart the backend and check that the Wialon token still logs in successfully.
 - Geofence route history is polling-based, so events are recorded when Wialon reports the truck is inside a mapped zone during a polling cycle.
 - If a truck is parked inside a zone while GPS/device is inactive, history may only be recorded after the device reports position again and Wialon reflects zone membership.
+- `resource/get_zones_by_unit` from Wialon does not always return a flat map; if geofence history suddenly stays `Pending` for trucks that are visibly inside a polygon, inspect the raw payload shape first.
+- MySQL `DATE` values can shift by one day if they are converted through UTC-style helpers such as `toISOString().slice(0, 10)` or blindly rendered with `new Date('YYYY-MM-DD')`.
+- For this project, backend date normalization should preserve local calendar parts, and frontend display for `YYYY-MM-DD` should parse to a local `Date(year, month - 1, day)` instead of relying on UTC parsing.
 
 ## Suggested Next Improvements
 

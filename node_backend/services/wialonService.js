@@ -706,24 +706,46 @@ const normalizeZoneMembershipPayload = (payload, zoneIds) => {
     );
   };
 
-  if (Array.isArray(payload)) {
-    payload.forEach((item) => {
-      const zoneId = item?.zone_id ?? item?.id ?? item?.i;
-      consumeUnits(zoneId, item?.units ?? item?.u ?? item?.items ?? item);
-    });
-  } else if (payload && typeof payload === "object") {
-    Object.entries(payload).forEach(([key, value]) => {
-      if (targetZoneIds.includes(normalizePositiveIntString(key))) {
-        consumeUnits(key, value);
+  const walkPayload = (node, nodeKey = null) => {
+    if (Array.isArray(node)) {
+      const normalizedNodeKey = normalizePositiveIntString(nodeKey);
+      if (normalizedNodeKey && targetZoneIds.includes(normalizedNodeKey)) {
+        consumeUnits(normalizedNodeKey, node);
         return;
       }
 
-      if (value && typeof value === "object") {
-        const nestedZoneId = value.zone_id ?? value.id ?? value.i ?? key;
-        consumeUnits(nestedZoneId, value.units ?? value.u ?? value.items ?? value);
+      node.forEach((item) => {
+        walkPayload(item, nodeKey);
+      });
+      return;
+    }
+
+    if (!node || typeof node !== "object") {
+      return;
+    }
+
+    const directZoneId = node.zone_id ?? node.id ?? node.i ?? null;
+    const directUnits = node.units ?? node.u ?? node.items ?? node.data;
+    if (directZoneId && directUnits !== undefined) {
+      consumeUnits(directZoneId, directUnits);
+    }
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (["zone_id", "id", "i", "units", "u", "items", "data"].includes(key)) {
+        return;
       }
+
+      const normalizedKey = normalizePositiveIntString(key);
+      if (normalizedKey && targetZoneIds.includes(normalizedKey)) {
+        consumeUnits(normalizedKey, value);
+        return;
+      }
+
+      walkPayload(value, key);
     });
-  }
+  };
+
+  walkPayload(payload);
 
   targetZoneIds.forEach((zoneId) => {
     if (!membership.has(zoneId)) {
