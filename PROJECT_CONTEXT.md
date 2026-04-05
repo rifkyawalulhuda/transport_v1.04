@@ -68,6 +68,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 - Truck master now supports `wialon_unit_id`.
 - Wialon data is fetched server-side only.
 - Reverse geocode cache now uses a 24-hour TTL on both backend in-memory cache and frontend `localStorage`.
+- Monitoring now also includes monthly truck mileage calculation based on Wialon trip data per month.
 - The frontend uses a dedicated truck location page:
   - Leaflet map
   - OpenStreetMap tiles
@@ -84,6 +85,18 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - GPS-only filter chips: `All`, `Moving`, `Idle`, `Offline`, `Belum Terhubung`
   - simplified fleet cards that only show truck number and GPS status
   - custom truck marker icon embedded inline in the frontend code so it does not depend on an external image file at runtime
+
+### Monthly Truck Mileage
+
+- A dedicated monitoring page `KM Bulanan Truk` now exists in the frontend.
+- The page lets users:
+  - choose a calendar month
+  - search trucks by plate / vehicle / Wialon unit
+  - export the filtered monthly mileage dataset to Excel
+  - see total KM, active trucks, and trip counts for the selected month
+- Mileage is calculated from Wialon trip history, not from simple current-position deltas.
+- Backend keeps a short in-memory cache for monthly mileage responses to avoid hammering Wialon on repeated refreshes.
+- Backend now validates local `wialon_unit_id` against the live Wialon unit catalog before requesting mileage, so stale mappings are shown as invalid GPS mapping instead of generic trip errors.
 
 ### Geofence Route Flow for Sales Cost
 
@@ -131,6 +144,19 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 6. When a user selects a truck, frontend can request reverse geocoding for the selected coordinate only.
 7. Reverse geocode results are cached on the server and also persisted in browser `localStorage` so repeated clicks after refresh do not always hit Geoapify again.
 
+### Monthly Mileage Flow
+
+1. Frontend requests monthly mileage for a selected `YYYY-MM` period.
+2. Backend loads all local trucks and checks `wialon_unit_id`.
+3. For each mapped truck, backend uses Wialon message loader for the selected monthly interval.
+4. Backend calls `unit/get_trips` and sums trip mileage for the month.
+5. Backend returns one row per truck with:
+   - total distance
+   - trip count
+   - first trip time
+   - last trip time
+   - status such as `has_trip`, `no_trip`, `unlinked`, or `error`
+
 ### Geofence Tracking Flow
 
 1. Backend loads active Sales Cost candidates for trucks that already have `wialon_unit_id`.
@@ -159,6 +185,8 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - auto mapping helper
   - operational data enrichment for map payload
   - Geoapify reverse geocoding with in-memory cache
+  - monthly truck mileage calculation from Wialon trip history
+  - short in-memory cache for monthly mileage results
 - `node_backend/services/geofenceTrackingService.js`
   - polls Wialon geofence membership for active deliveries
   - writes first-entry route history
@@ -178,8 +206,14 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - fleet search/filter/list behavior
   - inline SVG truck marker icon
   - local-safe date formatting for `YYYY-MM-DD` values in `Vehicle Detail`
+- `tailadmin-vuejs-1.0.0/src/views/Monitoring/TruckMonthlyMileage.vue`
+  - monthly mileage monitoring UI
+  - month filter and search
+  - KPI summary cards and truck mileage table
 - `tailadmin-vuejs-1.0.0/src/services/truckLocationService.ts`
   - frontend API wrapper for truck locations and reverse geocoding
+- `tailadmin-vuejs-1.0.0/src/services/truckMileageService.ts`
+  - frontend API wrapper for monthly truck mileage
 
 ### Important Routes
 
@@ -198,6 +232,13 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - backend and frontend cache entries expire after 24 hours
 - `POST /api/wialon/trucks/auto-map`
   - tries to fill `wialon_unit_id` for trucks that are still empty
+- `GET /api/wialon/trucks/monthly-distance?month=YYYY-MM`
+  - returns monthly mileage per truck for the selected month
+  - uses Wialon trip history
+  - returns rows for mapped, unlinked, and error cases
+- `GET /api/wialon/trucks/monthly-distance/export?month=YYYY-MM`
+  - exports the filtered monthly mileage result to `.xlsx`
+  - includes a summary sheet and a detailed truck sheet
 - `GET /api/wialon/geofences`
   - returns Wialon geofence options for route-step mapping in Master Area
 - `GET /api/areas`
@@ -269,6 +310,7 @@ Required or currently used variables:
 - `GEOAPIFY_BASE_URL`
 - `GEOAPIFY_TIMEOUT_MS`
 - `REVERSE_GEOCODE_CACHE_TTL_MS`
+- `WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS`
 - `GEOFENCE_TRACKING_INTERVAL_MS`
 - `DEFAULT_FINISH_GEOFENCE_NAME`
 

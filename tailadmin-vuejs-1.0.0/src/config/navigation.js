@@ -35,7 +35,8 @@ export const getMenuGroups = (userLevel) => {
             { name: 'Home', path: '/', pro: false },
             { name: 'Schedule Pengiriman', path: '/schedule-pengiriman', pro: false },
             { name: 'Monitoring Kendaraan', path: '/monitoring-kendaraan', pro: false },
-            { name: 'Lokasi Truk', path: '/truck-locations', pro: false }
+            { name: 'Lokasi Truk', path: '/truck-locations', pro: false },
+            { name: 'KM Bulanan Truk', path: '/truck-monthly-mileage', pro: false }
           ],
         },
         {

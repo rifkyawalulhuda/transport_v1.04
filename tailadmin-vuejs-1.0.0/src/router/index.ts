@@ -139,6 +139,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/truck-monthly-mileage',
+      name: 'KM Bulanan Truk',
+      component: () => import('../views/Monitoring/TruckMonthlyMileage.vue'),
+      meta: {
+        title: 'KM Bulanan Truk',
+      },
+    },
+    {
       path: '/repair',
       name: 'Repair',
       component: () => import('../pages/Repair/RepairList.vue'),

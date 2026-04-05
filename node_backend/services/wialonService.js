@@ -26,6 +26,14 @@ const DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS = Number.parseInt(
   process.env.REVERSE_GEOCODE_CACHE_TTL_MS || `${24 * 60 * 60 * 1000}`,
   10
 );
+const DEFAULT_MONTHLY_DISTANCE_CACHE_TTL_MS = Number.parseInt(
+  process.env.WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS || `${10 * 60 * 1000}`,
+  10
+);
+const DEFAULT_MONTHLY_DISTANCE_WORKER_COUNT = Number.parseInt(
+  process.env.WIALON_MONTHLY_DISTANCE_WORKER_COUNT || "4",
+  10
+);
 
 const SESSION_TTL_MS = Number.isFinite(DEFAULT_SESSION_TTL_MS)
   ? DEFAULT_SESSION_TTL_MS
@@ -42,6 +50,16 @@ const REVERSE_GEOCODE_CACHE_TTL_MS = Number.isFinite(
 )
   ? DEFAULT_REVERSE_GEOCODE_CACHE_TTL_MS
   : 24 * 60 * 60 * 1000;
+const MONTHLY_DISTANCE_CACHE_TTL_MS = Number.isFinite(
+  DEFAULT_MONTHLY_DISTANCE_CACHE_TTL_MS
+)
+  ? DEFAULT_MONTHLY_DISTANCE_CACHE_TTL_MS
+  : 10 * 60 * 1000;
+const MONTHLY_DISTANCE_WORKER_COUNT = Number.isFinite(
+  DEFAULT_MONTHLY_DISTANCE_WORKER_COUNT
+)
+  ? Math.max(1, DEFAULT_MONTHLY_DISTANCE_WORKER_COUNT)
+  : 4;
 
 class WialonError extends Error {
   constructor(message, code, payload) {
@@ -58,6 +76,7 @@ const sessionState = {
   loginPromise: null
 };
 const reverseGeocodeCache = new Map();
+const monthlyDistanceCache = new Map();
 
 const parseJsonSafely = (value) => {
   if (!value) {
@@ -149,6 +168,47 @@ const setCachedReverseGeocode = (cacheKey, payload) => {
     const oldestKey = reverseGeocodeCache.keys().next().value;
     if (oldestKey) {
       reverseGeocodeCache.delete(oldestKey);
+    }
+  }
+};
+
+const getMonthlyDistanceCacheEntry = (cacheKey) => {
+  if (!cacheKey) {
+    return null;
+  }
+
+  const entry = monthlyDistanceCache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+
+  if (!Number.isFinite(entry.cachedAt)) {
+    monthlyDistanceCache.delete(cacheKey);
+    return null;
+  }
+
+  if (Date.now() - Number(entry.cachedAt) >= MONTHLY_DISTANCE_CACHE_TTL_MS) {
+    monthlyDistanceCache.delete(cacheKey);
+    return null;
+  }
+
+  return entry.value;
+};
+
+const setMonthlyDistanceCacheEntry = (cacheKey, payload) => {
+  if (!cacheKey) {
+    return;
+  }
+
+  monthlyDistanceCache.set(cacheKey, {
+    value: payload,
+    cachedAt: Date.now()
+  });
+
+  if (monthlyDistanceCache.size > 24) {
+    const oldestKey = monthlyDistanceCache.keys().next().value;
+    if (oldestKey) {
+      monthlyDistanceCache.delete(oldestKey);
     }
   }
 };
@@ -280,6 +340,35 @@ const loginWithToken = async () => {
   sessionState.sid = String(payload.eid);
   sessionState.expiresAt = Date.now() + SESSION_TTL_MS;
   return sessionState.sid;
+};
+
+const loginIsolatedSession = async () => {
+  if (!DEFAULT_TOKEN) {
+    throw new Error("WIALON_TOKEN belum dikonfigurasi");
+  }
+
+  const payload = await requestWialon("token/login", {
+    token: DEFAULT_TOKEN,
+    fl: LOGIN_FLAGS
+  });
+
+  if (!payload || typeof payload !== "object" || !payload.eid) {
+    throw new Error("Wialon login gagal: session id tidak ditemukan");
+  }
+
+  return String(payload.eid);
+};
+
+const logoutIsolatedSession = async (sid) => {
+  if (!sid) {
+    return;
+  }
+
+  try {
+    await requestWialon("core/logout", {}, sid);
+  } catch {
+    // ignore isolated session cleanup failures
+  }
 };
 
 const getSessionId = async () => {
@@ -837,6 +926,482 @@ const toDateString = (value) => {
     : `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(
         parsed.getDate()
       )}`;
+};
+
+const normalizeMonthParts = (monthValue) => {
+  const rawValue =
+    monthValue === null || monthValue === undefined || monthValue === ""
+      ? null
+      : String(monthValue).trim();
+
+  if (!rawValue) {
+    const now = new Date();
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1
+    };
+  }
+
+  const match = rawValue.match(/^(\d{4})-(\d{2})$/);
+  if (!match) {
+    throw new Error("Parameter month wajib berformat YYYY-MM.");
+  }
+
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    throw new Error("Parameter month tidak valid.");
+  }
+
+  return {
+    year,
+    month
+  };
+};
+
+const buildMonthlyDistancePeriod = (monthValue) => {
+  const { year, month } = normalizeMonthParts(monthValue);
+  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const endExclusiveDate = new Date(year, month, 1, 0, 0, 0, 0);
+  const timeFrom = Math.floor(startDate.getTime() / 1000);
+  const timeTo = Math.max(timeFrom, Math.floor(endExclusiveDate.getTime() / 1000) - 1);
+
+  return {
+    year,
+    month,
+    month_key: `${year}-${pad2(month)}`,
+    start_at: startDate.toISOString(),
+    end_at: new Date(timeTo * 1000).toISOString(),
+    timeFrom,
+    timeTo
+  };
+};
+
+const normalizePagination = ({ page, limit } = {}) => {
+  const safePage = Number.parseInt(String(page || "1"), 10);
+  const safeLimit = Number.parseInt(String(limit || "10"), 10);
+
+  return {
+    page: Number.isFinite(safePage) && safePage > 0 ? safePage : 1,
+    limit:
+      Number.isFinite(safeLimit) && safeLimit > 0
+        ? Math.min(safeLimit, 50)
+        : 10
+  };
+};
+
+const formatTripTimestamp = (value) => {
+  if (!Number.isFinite(Number(value))) {
+    return null;
+  }
+
+  return new Date(Number(value) * 1000).toISOString();
+};
+
+const buildTruckDisplayName = (truck) =>
+  [truck.merk_mobil, truck.model, truck.type_truck, truck.jenis_kendaraan]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+const fetchTruckMileageCatalog = async ({ search, page, limit } = {}) => {
+  const normalizedSearch = String(search || "").trim();
+  const pagination = normalizePagination({ page, limit });
+  const whereClause = normalizedSearch
+    ? `
+      WHERE CONCAT_WS(' ', no_police, merk_mobil, model, type_truck, jenis_kendaraan, wialon_unit_id)
+        LIKE ?
+    `
+    : "";
+  const params = normalizedSearch ? [`%${normalizedSearch}%`] : [];
+  const [countRows] = await db.query(
+    `
+      SELECT COUNT(*) AS total
+      FROM truck
+      ${whereClause}
+    `,
+    params
+  );
+  const offset = (pagination.page - 1) * pagination.limit;
+  const [rows] = await db.query(
+    `
+      SELECT
+        id_truck,
+        no_police,
+        jenis_kendaraan,
+        merk_mobil,
+        model,
+        type_truck,
+        wialon_unit_id
+      FROM truck
+      ${whereClause}
+      ORDER BY no_police ASC, id_truck ASC
+      LIMIT ?
+      OFFSET ?
+    `,
+    [...params, pagination.limit, offset]
+  );
+
+  return {
+    rows: rows.map((row) => ({
+    id_truck: Number(row.id_truck),
+    no_police: row.no_police || null,
+    jenis_kendaraan: row.jenis_kendaraan || null,
+    merk_mobil: row.merk_mobil || null,
+    model: row.model || null,
+    type_truck: row.type_truck || null,
+    wialon_unit_id: toPositiveIntString(row.wialon_unit_id),
+    vehicle_name: buildTruckDisplayName(row) || null
+    })),
+    pagination: {
+      page: pagination.page,
+      limit: pagination.limit,
+      total_rows: Number(countRows?.[0]?.total || 0),
+      total_pages: Math.max(
+        1,
+        Math.ceil(Number(countRows?.[0]?.total || 0) / pagination.limit)
+      )
+    }
+  };
+};
+
+const fetchTripsForUnitInPeriod = async ({ sid, unitId, timeFrom, timeTo }) => {
+  try {
+    try {
+      await requestWialon("messages/unload", {}, sid);
+    } catch {
+      // ignore stale loader cleanup errors
+    }
+
+    await requestWialon(
+      "messages/load_interval",
+      {
+        itemId: Number(unitId),
+        timeFrom,
+        timeTo,
+        flags: 1,
+        flagsMask: 65281,
+        loadCount: 0xffffffff
+      },
+      sid
+    );
+
+    const tripsPayload = await requestWialon(
+      "unit/get_trips",
+      {
+        itemId: Number(unitId),
+        timeFrom,
+        timeTo,
+        msgsSource: 1
+      },
+      sid
+    );
+
+    return Array.isArray(tripsPayload)
+      ? tripsPayload
+      : Array.isArray(tripsPayload?.trips)
+        ? tripsPayload.trips
+        : [];
+  } finally {
+    try {
+      await requestWialon("messages/unload", {}, sid);
+    } catch {
+      // ignore cleanup errors after trip extraction
+    }
+  }
+};
+
+const buildMileageRowWithoutTrips = (truck, status, extra = {}) => ({
+  id_truck: truck.id_truck,
+  no_police: truck.no_police,
+  vehicle_name: truck.vehicle_name,
+  jenis_kendaraan: truck.jenis_kendaraan,
+  merk_mobil: truck.merk_mobil,
+  model: truck.model,
+  type_truck: truck.type_truck,
+  wialon_unit_id: truck.wialon_unit_id || null,
+  total_distance_m: 0,
+  total_distance_km: 0,
+  trips_count: 0,
+  first_trip_at: null,
+  last_trip_at: null,
+  status,
+  error: null,
+  ...extra
+});
+
+const buildTruckMonthlyDistanceRow = async (truck, period, sid, options = {}) => {
+  if (!truck.wialon_unit_id) {
+    return buildMileageRowWithoutTrips(truck, "unlinked");
+  }
+
+  const knownUnitIds = options?.knownUnitIds instanceof Set ? options.knownUnitIds : null;
+  if (knownUnitIds && !knownUnitIds.has(String(truck.wialon_unit_id))) {
+    return buildMileageRowWithoutTrips(truck, "missing_unit", {
+      error: "Mapping Wialon tidak ditemukan di akun GPS aktif."
+    });
+  }
+
+  try {
+    const trips = await fetchTripsForUnitInPeriod({
+      sid,
+      unitId: truck.wialon_unit_id,
+      timeFrom: period.timeFrom,
+      timeTo: period.timeTo
+    });
+
+    if (trips.length === 0) {
+      return buildMileageRowWithoutTrips(truck, "no_trip");
+    }
+
+    let totalDistanceMeters = 0;
+    let firstTripAt = null;
+    let lastTripAt = null;
+
+    trips.forEach((trip) => {
+      const distanceMeters = Number(trip?.m);
+      if (Number.isFinite(distanceMeters) && distanceMeters > 0) {
+        totalDistanceMeters += distanceMeters;
+      }
+
+      const fromTime = formatTripTimestamp(trip?.from?.t);
+      const toTime = formatTripTimestamp(trip?.to?.t);
+      if (fromTime && (!firstTripAt || fromTime < firstTripAt)) {
+        firstTripAt = fromTime;
+      }
+      if (toTime && (!lastTripAt || toTime > lastTripAt)) {
+        lastTripAt = toTime;
+      }
+    });
+
+    return {
+      id_truck: truck.id_truck,
+      no_police: truck.no_police,
+      vehicle_name: truck.vehicle_name,
+      jenis_kendaraan: truck.jenis_kendaraan,
+      merk_mobil: truck.merk_mobil,
+      model: truck.model,
+      type_truck: truck.type_truck,
+      wialon_unit_id: truck.wialon_unit_id,
+      total_distance_m: Math.round(totalDistanceMeters),
+      total_distance_km: Number((totalDistanceMeters / 1000).toFixed(2)),
+      trips_count: trips.length,
+      first_trip_at: firstTripAt,
+      last_trip_at: lastTripAt,
+      status: totalDistanceMeters > 0 ? "has_trip" : "no_trip",
+      error: null
+    };
+  } catch (error) {
+    return buildMileageRowWithoutTrips(truck, "error", {
+      error: String(error?.message || error || "Gagal mengambil mileage Wialon.")
+    });
+  }
+};
+
+const buildTruckMonthlyDistanceRows = async (trucks, period, options = {}) => {
+  const unlinkedRows = trucks
+    .filter((truck) => !truck.wialon_unit_id)
+    .map((truck) => buildMileageRowWithoutTrips(truck, "unlinked"));
+  const mappedTrucks = trucks.filter((truck) => truck.wialon_unit_id);
+
+  if (mappedTrucks.length === 0) {
+    return unlinkedRows;
+  }
+
+  const truckQueue = [...mappedTrucks];
+  const mappedRows = [];
+  let workerFailure = null;
+  const workerCount = Math.min(MONTHLY_DISTANCE_WORKER_COUNT, mappedTrucks.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      let sid = null;
+
+      try {
+        sid = await loginIsolatedSession();
+
+        while (truckQueue.length > 0) {
+          const truck = truckQueue.shift();
+          if (!truck) {
+            break;
+          }
+
+          const row = await buildTruckMonthlyDistanceRow(truck, period, sid, options);
+          mappedRows.push(row);
+        }
+      } catch (error) {
+        if (!workerFailure) {
+          workerFailure = String(
+            error?.message || error || "Gagal membuka sesi mileage Wialon."
+          );
+        }
+      } finally {
+        await logoutIsolatedSession(sid);
+      }
+    })
+  );
+
+  while (truckQueue.length > 0) {
+    const truck = truckQueue.shift();
+    if (!truck) {
+      break;
+    }
+
+    mappedRows.push(
+      buildMileageRowWithoutTrips(truck, "error", {
+        error: workerFailure || "Sebagian request mileage Wialon gagal diproses."
+      })
+    );
+  }
+
+  return [...mappedRows, ...unlinkedRows];
+};
+
+const getTruckMonthlyDistance = async ({ month, search, page, limit } = {}) => {
+  const period = buildMonthlyDistancePeriod(month);
+  const pagination = normalizePagination({ page, limit });
+  const normalizedSearch = String(search || "").trim().toLowerCase();
+  const cacheKey = `${period.month_key}|${normalizedSearch}|${pagination.page}|${pagination.limit}`;
+  const cachedPayload = getMonthlyDistanceCacheEntry(cacheKey);
+  if (cachedPayload) {
+    return {
+      ...cachedPayload,
+      meta: {
+        ...cachedPayload.meta,
+        cached: true
+      }
+    };
+  }
+
+  const truckCatalog = await fetchTruckMileageCatalog({
+    search: normalizedSearch,
+    page: pagination.page,
+    limit: pagination.limit
+  });
+  const knownUnitIds = new Set(
+    (await fetchWialonUnitCatalog()).map((unit) => String(unit.id))
+  );
+  const rows = await buildTruckMonthlyDistanceRows(truckCatalog.rows, period, {
+    knownUnitIds
+  });
+
+  rows.sort((left, right) => {
+    if (right.total_distance_m !== left.total_distance_m) {
+      return right.total_distance_m - left.total_distance_m;
+    }
+    return String(left.no_police || "").localeCompare(String(right.no_police || ""));
+  });
+
+  const summary = rows.reduce(
+    (accumulator, row) => {
+      accumulator.total_trucks += 1;
+      if (row.wialon_unit_id && row.status !== "missing_unit") {
+        accumulator.mapped_trucks += 1;
+      } else {
+        accumulator.unlinked_trucks += 1;
+      }
+
+      if (row.status === "has_trip") {
+        accumulator.active_trucks += 1;
+      }
+      if (row.status === "error") {
+        accumulator.error_trucks += 1;
+      }
+
+      accumulator.total_distance_m += row.total_distance_m;
+      accumulator.total_trips += row.trips_count;
+      return accumulator;
+    },
+    {
+      total_trucks: 0,
+      mapped_trucks: 0,
+      unlinked_trucks: 0,
+      active_trucks: 0,
+      error_trucks: 0,
+      total_distance_m: 0,
+      total_trips: 0
+    }
+  );
+
+  summary.total_distance_km = Number((summary.total_distance_m / 1000).toFixed(2));
+
+  const payload = {
+    summary,
+    rows,
+    period,
+    pagination: truckCatalog.pagination,
+    meta: {
+      fetched_at: new Date().toISOString(),
+      cached: false,
+      cache_ttl_ms: MONTHLY_DISTANCE_CACHE_TTL_MS,
+      source: "wialon-unit-get-trips",
+      worker_count: MONTHLY_DISTANCE_WORKER_COUNT,
+      search: normalizedSearch
+    }
+  };
+
+  setMonthlyDistanceCacheEntry(cacheKey, payload);
+  return payload;
+};
+
+const getTruckMonthlyDistanceExportRows = async ({ month, search } = {}) => {
+  const period = buildMonthlyDistancePeriod(month);
+  const normalizedSearch = String(search || "").trim().toLowerCase();
+  const [rows] = await db.query(
+    `
+      SELECT
+        id_truck,
+        no_police,
+        jenis_kendaraan,
+        merk_mobil,
+        model,
+        type_truck,
+        wialon_unit_id
+      FROM truck
+      ${
+        normalizedSearch
+          ? `
+      WHERE CONCAT_WS(' ', no_police, merk_mobil, model, type_truck, jenis_kendaraan, wialon_unit_id)
+        LIKE ?
+      `
+          : ""
+      }
+      ORDER BY no_police ASC, id_truck ASC
+    `,
+    normalizedSearch ? [`%${normalizedSearch}%`] : []
+  );
+
+  const truckRows = rows.map((row) => ({
+    id_truck: Number(row.id_truck),
+    no_police: row.no_police || null,
+    jenis_kendaraan: row.jenis_kendaraan || null,
+    merk_mobil: row.merk_mobil || null,
+    model: row.model || null,
+    type_truck: row.type_truck || null,
+    wialon_unit_id: toPositiveIntString(row.wialon_unit_id),
+    vehicle_name: buildTruckDisplayName(row) || null
+  }));
+
+  const knownUnitIds = new Set(
+    (await fetchWialonUnitCatalog()).map((unit) => String(unit.id))
+  );
+
+  const mileageRows = await buildTruckMonthlyDistanceRows(truckRows, period, {
+    knownUnitIds
+  });
+
+  mileageRows.sort((left, right) => {
+    if (right.total_distance_m !== left.total_distance_m) {
+      return right.total_distance_m - left.total_distance_m;
+    }
+    return String(left.no_police || "").localeCompare(String(right.no_police || ""));
+  });
+
+  return {
+    rows: mileageRows,
+    period,
+    search: normalizedSearch
+  };
 };
 
 const fetchOperationalContext = async () => {
@@ -1403,6 +1968,8 @@ const autoMapTruckWialonUnits = async ({ overwrite = false } = {}) => {
 
 module.exports = {
   getTruckLocations,
+  getTruckMonthlyDistance,
+  getTruckMonthlyDistanceExportRows,
   reverseGeocodeCoordinates,
   autoMapTruckWialonUnits,
   fetchWialonGeofences,
