@@ -1,0 +1,329 @@
+<mxfile host="app.diagrams.net" modified="2026-04-05T15:30:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="transport-component" name="1. Component Diagram">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="&lt;b&gt;Transport v1.04&lt;/b&gt;&lt;br/&gt;UML Component Diagram" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1f4e78;strokeColor=#0f2f4d;fontColor=#ffffff;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="360" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="3" value="&lt;b&gt;Pengguna Sistem&lt;/b&gt;&lt;br/&gt;Admin&lt;br/&gt;User&lt;br/&gt;Mekanik&lt;br/&gt;CS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="170" width="150" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="&lt;b&gt;Vue 3 Frontend&lt;/b&gt;&lt;br/&gt;tailadmin-vuejs-1.0.0" style="swimlane;html=1;startSize=34;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="230" y="100" width="340" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="&lt;b&gt;Router &amp;amp; App Shell&lt;/b&gt;&lt;br/&gt;main.ts&lt;br/&gt;router/index.ts&lt;br/&gt;navigation.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="10">
+          <mxGeometry x="20" y="55" width="300" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="&lt;b&gt;Auth Layer&lt;/b&gt;&lt;br/&gt;services/auth.js&lt;br/&gt;JWT di localStorage&lt;br/&gt;authFetch()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="10">
+          <mxGeometry x="20" y="165" width="300" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="&lt;b&gt;Views / UI Modules&lt;/b&gt;&lt;br/&gt;Dashboard&lt;br/&gt;Master&lt;br/&gt;Data Transport&lt;br/&gt;Transaksi&lt;br/&gt;Repair" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="10">
+          <mxGeometry x="20" y="275" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="&lt;b&gt;Monitoring Modules&lt;/b&gt;&lt;br/&gt;TruckLocationMap.vue&lt;br/&gt;TruckMonthlyMileage.vue&lt;br/&gt;MonitoringKendaraan.vue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="10">
+          <mxGeometry x="20" y="405" width="300" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" value="&lt;b&gt;Node Backend&lt;/b&gt;&lt;br/&gt;Express + Node.js" style="swimlane;html=1;startSize=34;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="640" y="80" width="580" height="580" as="geometry"/>
+        </mxCell>
+        <mxCell id="21" value="&lt;b&gt;App Bootstrap&lt;/b&gt;&lt;br/&gt;server.js&lt;br/&gt;route registration&lt;br/&gt;static file serving" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="20" y="55" width="250" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="22" value="&lt;b&gt;Middleware&lt;/b&gt;&lt;br/&gt;auth.js&lt;br/&gt;rbac.js&lt;br/&gt;requireAdmin / restrictCsAccess" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="300" y="55" width="250" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="23" value="&lt;b&gt;REST Routes&lt;/b&gt;&lt;br/&gt;auth, master, data transport&lt;br/&gt;salesCost, repair, subcontractor&lt;br/&gt;wialon, notifications" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="20" y="170" width="250" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="24" value="&lt;b&gt;Business Services&lt;/b&gt;&lt;br/&gt;wialonService&lt;br/&gt;geofenceTrackingService&lt;br/&gt;notificationService&lt;br/&gt;repairService&lt;br/&gt;schemaSyncService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="300" y="170" width="250" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="25" value="&lt;b&gt;Persistence Layer&lt;/b&gt;&lt;br/&gt;db.js (MySQL pool)&lt;br/&gt;mongoose models&lt;br/&gt;upload/img storage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="20" y="325" width="250" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="26" value="&lt;b&gt;Background Tracking Worker&lt;/b&gt;&lt;br/&gt;startGeofenceTracking()&lt;br/&gt;polling interval&lt;br/&gt;write route history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="300" y="335" width="250" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="27" value="&lt;b&gt;Import / Export&lt;/b&gt;&lt;br/&gt;ExcelJS / xlsx&lt;br/&gt;multer uploads&lt;br/&gt;document templates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;" vertex="1" parent="20">
+          <mxGeometry x="160" y="455" width="250" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="30" value="&lt;b&gt;MySQL&lt;/b&gt;&lt;br/&gt;master, transaksi, tracking schema" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="150" width="180" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="31" value="&lt;b&gt;MongoDB&lt;/b&gt;&lt;br/&gt;notifications&lt;br/&gt;data transport docs" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="280" width="180" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="32" value="&lt;b&gt;Wialon API&lt;/b&gt;&lt;br/&gt;unit snapshot&lt;br/&gt;trip history&lt;br/&gt;geofence membership" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="420" width="180" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="33" value="&lt;b&gt;Geoapify&lt;/b&gt;&lt;br/&gt;reverse geocoding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="570" width="180" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="34" value="&lt;b&gt;Browser Local Storage&lt;/b&gt;&lt;br/&gt;auth_token&lt;br/&gt;auth_user&lt;br/&gt;reverse geocode cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="230" y="670" width="240" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;" edge="1" parent="1" source="3" target="10">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="41" value="HTTPS + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="10" target="20">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="42" value="uses" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="10" source="11" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="43" value="navigates" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="10" source="11" target="13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="44" value="calls monitoring API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="10" source="14" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="45" value="guards" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="20" source="22" target="23">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="46" value="delegates" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="20" source="23" target="24">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="47" value="query / persist" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="20" source="24" target="25">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="48" value="scheduled polling" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;dashed=1;dashPattern=6 6;" edge="1" parent="20" source="26" target="24">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="49" value="CRUD + joins" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="1" source="25" target="30">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="50" value="documents" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="1" source="25" target="31">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="51" value="GPS / trips / geofences" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#9673a6;" edge="1" parent="1" source="24" target="32">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="52" value="address lookup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#666666;" edge="1" parent="1" source="24" target="33">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="53" value="cache auth + geocode" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#d6b656;" edge="1" parent="1" source="10" target="34">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="54" value="files / templates" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="20" source="27" target="25">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="55" value="bootstraps" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;" edge="1" parent="20" source="21" target="23">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="56" value="startGeofenceTracking()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;dashed=1;dashPattern=6 6;" edge="1" parent="20" source="21" target="26">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="57" value="catatan:&lt;br/&gt;Monitoring GPS dan geofence tracking adalah pembeda utama proyek ini." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="640" y="690" width="420" height="80" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="transport-class" name="2. Class Diagram">
+    <mxGraphModel dx="1800" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="&lt;b&gt;Transport v1.04&lt;/b&gt;&lt;br/&gt;UML Class Diagram - Core Domain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1f4e78;strokeColor=#0f2f4d;fontColor=#ffffff;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="430" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="&lt;b&gt;Admin&lt;/b&gt;&lt;hr/&gt;+ id_admin: int&lt;br/&gt;+ nik_admin: string&lt;br/&gt;+ nama_admin: string&lt;br/&gt;+ level: enum&lt;br/&gt;+ email: string&lt;br/&gt;+ nomor_telp: string" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="70" y="120" width="240" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="&lt;b&gt;Truck&lt;/b&gt;&lt;hr/&gt;+ id_truck: int&lt;br/&gt;+ no_police: string&lt;br/&gt;+ jenis_kendaraan: string&lt;br/&gt;+ merk_mobil: string&lt;br/&gt;+ model: string&lt;br/&gt;+ type_truck: string&lt;br/&gt;+ wialon_unit_id: string?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="360" y="120" width="260" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="&lt;b&gt;Driver&lt;/b&gt;&lt;hr/&gt;+ id_driver: int&lt;br/&gt;+ no_polisi: string&lt;br/&gt;+ nama_driver: string&lt;br/&gt;+ no_telp: string&lt;br/&gt;+ no_ktp: string&lt;br/&gt;+ alamat: text" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="360" y="340" width="260" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="&lt;b&gt;Customer&lt;/b&gt;&lt;hr/&gt;+ id_customer: int&lt;br/&gt;+ nama_customer: string&lt;br/&gt;+ alamat: text&lt;br/&gt;+ no_telp: string&lt;br/&gt;+ pic: string" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="360" y="540" width="260" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="&lt;b&gt;Area&lt;/b&gt;&lt;hr/&gt;+ id_area: int&lt;br/&gt;+ kode_area: string?&lt;br/&gt;+ nama_area: string&lt;br/&gt;+ finish_geofence_resource_id: bigint?&lt;br/&gt;+ finish_geofence_zone_id: bigint?&lt;br/&gt;+ finish_geofence_zone_name: string?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="690" y="120" width="290" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="&lt;b&gt;AreaRouteStep&lt;/b&gt;&lt;hr/&gt;+ id_area_route_step: int&lt;br/&gt;+ id_area: int&lt;br/&gt;+ step_order: int&lt;br/&gt;+ step_name: string&lt;br/&gt;+ wialon_resource_id: bigint&lt;br/&gt;+ wialon_zone_id: bigint&lt;br/&gt;+ wialon_zone_name: string" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="120" width="300" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="&lt;b&gt;SalesCost&lt;/b&gt;&lt;hr/&gt;+ id_sales_cost: int&lt;br/&gt;+ tgl_order: date&lt;br/&gt;+ delivery_order: date&lt;br/&gt;+ arrival_order: date&lt;br/&gt;+ finish_order: date?&lt;br/&gt;+ bills: string&lt;br/&gt;+ jenis_trip: enum&lt;br/&gt;+ total: int&lt;br/&gt;+ margin: string" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="710" y="390" width="280" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="&lt;b&gt;SalesCostRouteHistory&lt;/b&gt;&lt;hr/&gt;+ id_sales_cost_route_history: int&lt;br/&gt;+ id_sales_cost: int&lt;br/&gt;+ id_area: int&lt;br/&gt;+ id_area_route_step: int?&lt;br/&gt;+ step_key: string&lt;br/&gt;+ system_step_code: string?&lt;br/&gt;+ gps_time: datetime&lt;br/&gt;+ recorded_at: datetime&lt;br/&gt;+ lat: decimal?&lt;br/&gt;+ lon: decimal?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="380" width="320" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" value="&lt;b&gt;Repair&lt;/b&gt;&lt;hr/&gt;+ id_repair: int&lt;br/&gt;+ id_truck: int&lt;br/&gt;+ kategori_repair: string&lt;br/&gt;+ tgl_input: date&lt;br/&gt;+ tgl_kerusakan: date?&lt;br/&gt;+ no_spk_perbaikan: string&lt;br/&gt;+ biaya_perbaikan: int&lt;br/&gt;+ status_repair: enum" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="700" y="670" width="290" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="19" value="&lt;b&gt;Notification&lt;/b&gt; &amp;lt;&amp;lt;Mongo Document&amp;gt;&amp;gt;&lt;hr/&gt;+ _id: ObjectId&lt;br/&gt;+ type: string&lt;br/&gt;+ title: string&lt;br/&gt;+ message: string&lt;br/&gt;+ actor: Actor&lt;br/&gt;+ entity: string&lt;br/&gt;+ entityId: string&lt;br/&gt;+ createdAt: Date" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="680" width="300" height="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" value="&lt;b&gt;NotificationRead&lt;/b&gt; &amp;lt;&amp;lt;Mongo Document&amp;gt;&amp;gt;&lt;hr/&gt;+ _id: ObjectId&lt;br/&gt;+ notificationId: ObjectId&lt;br/&gt;+ id_admin: int&lt;br/&gt;+ readAt: Date&lt;br/&gt;+ deletedAt: Date?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="690" width="270" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="30" value="1 manages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="10" target="16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="31" value="1 uses&#xa;1..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="11" target="16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="32" value="1 assigned&#xa;1..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="12" target="16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="33" value="1 orders&#xa;1..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="13" target="16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="34" value="1 defines&#xa;1..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="14" target="15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="35" value="1 route&#xa;1..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="14" target="16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="36" value="1 tracked&#xa;0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;strokeWidth=2;" edge="1" parent="1" source="16" target="17">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="37" value="0..1 step&#xa;0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="15" target="17">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="38" value="1 repaired&#xa;0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="11" target="18">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="39" value="1 creates&#xa;0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;dashed=1;dashPattern=6 6;" edge="1" parent="1" source="10" target="19">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="40" value="1 notification&#xa;0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="19" target="20">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="41" value="1 admin&#xa;0..*" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="10" target="20">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="42" value="core relational schema" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="640" y="30" width="170" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="43" value="hybrid persistence: MySQL + MongoDB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="910" width="260" height="50" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="transport-sequence" name="3. Sequence Diagram">
+    <mxGraphModel dx="1800" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="&lt;b&gt;Transport v1.04&lt;/b&gt;&lt;br/&gt;UML Sequence Diagram - Monitoring Lokasi Truk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1f4e78;strokeColor=#0f2f4d;fontColor=#ffffff;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="500" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="User" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="110" width="110" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="TruckLocationMap.vue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="110" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="truckLocationService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="110" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="/api/wialon routes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="110" width="150" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="authenticateToken" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="110" width="150" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="wialonService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="110" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="MySQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="110" width="110" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="Wialon API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1590" y="110" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" value="Geoapify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1590" y="700" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="135" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="21" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="340" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="22" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="580" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="23" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="835" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="24" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="25" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="26" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="1475" y="160" width="1" height="690" as="geometry"/>
+        </mxCell>
+        <mxCell id="27" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="1650" y="160" width="1" height="460" as="geometry"/>
+        </mxCell>
+        <mxCell id="28" value="" style="shape=line;strokeColor=#666666;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="1650" y="750" width="1" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="40" value="1. buka halaman lokasi truk" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="41" value="2. fetchTruckLocations()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="42" value="3. GET /wialon/trucks/location" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="12" target="13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="43" value="4. verifikasi JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="13" target="14">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="44" value="5. getTruckLocations()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="13" target="15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="45" value="6. load truck + transaksi + repair context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="15" target="16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="46" value="7. fetch unit snapshot" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#9673a6;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="15" target="17">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="47" value="8. normalized truck payload" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=6 6;endArrow=open;endFill=0;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="15" target="13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="48" value="9. JSON response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=6 6;endArrow=open;endFill=0;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="13" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="49" value="10. render map + fleet list" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=6 6;endArrow=open;endFill=0;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="12" target="11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="50" value="11. pilih truck" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="51" value="12. reverseGeocode(lat, lon)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="52" value="13. GET /wialon/reverse-geocode" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="12" target="13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="53" value="14. reverseGeocodeCoordinates()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="13" target="15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="54" value="15. cache miss? call Geoapify" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeColor=#666666;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="15" target="18">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="55" value="16. address payload" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=6 6;endArrow=open;endFill=0;strokeColor=#666666;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="18" target="15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="56" value="17. alamat tampil di Vehicle Detail" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=6 6;endArrow=open;endFill=0;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="12" target="11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="57" value="background note:&lt;br/&gt;geofenceTrackingService berjalan periodik dari server untuk mengisi sales_cost_route_history." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="680" y="910" width="500" height="70" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
