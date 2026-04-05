@@ -36,14 +36,34 @@ const notifyMasterChange = async ({ req, type, title, action, identifier, entity
 
 const loadAreas = async (queryable = db) => {
   const [rows] = await queryable.query(
-    "SELECT id_area, kode_area, nama_area FROM area ORDER BY id_area ASC"
+    `
+      SELECT
+        id_area,
+        kode_area,
+        nama_area,
+        finish_geofence_resource_id,
+        finish_geofence_zone_id,
+        finish_geofence_zone_name
+      FROM area
+      ORDER BY id_area ASC
+    `
   );
   return attachRouteStepsToAreas(rows, queryable);
 };
 
 const loadAreaById = async (id, queryable = db) => {
   const [rows] = await queryable.query(
-    "SELECT id_area, kode_area, nama_area FROM area WHERE id_area = ?",
+    `
+      SELECT
+        id_area,
+        kode_area,
+        nama_area,
+        finish_geofence_resource_id,
+        finish_geofence_zone_id,
+        finish_geofence_zone_name
+      FROM area
+      WHERE id_area = ?
+    `,
     [id]
   );
 
@@ -144,8 +164,22 @@ router.post("/", authenticateToken, async (req, res) => {
     await connection.beginTransaction();
 
     const [result] = await connection.query(
-      "INSERT INTO area (kode_area, nama_area) VALUES (?, ?)",
-      [payload.kodeArea, payload.namaArea]
+      `
+        INSERT INTO area (
+          kode_area,
+          nama_area,
+          finish_geofence_resource_id,
+          finish_geofence_zone_id,
+          finish_geofence_zone_name
+        ) VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        payload.kodeArea,
+        payload.namaArea,
+        payload.finishGeofence?.finish_geofence_resource_id || null,
+        payload.finishGeofence?.finish_geofence_zone_id || null,
+        payload.finishGeofence?.finish_geofence_zone_name || null
+      ]
     );
 
     await persistRouteSteps(connection, result.insertId, payload.routeSteps);
@@ -186,8 +220,24 @@ router.put("/:id", authenticateToken, async (req, res) => {
     await connection.beginTransaction();
 
     const [result] = await connection.query(
-      "UPDATE area SET kode_area = ?, nama_area = ? WHERE id_area = ?",
-      [payload.kodeArea, payload.namaArea, req.params.id]
+      `
+        UPDATE area
+        SET
+          kode_area = ?,
+          nama_area = ?,
+          finish_geofence_resource_id = ?,
+          finish_geofence_zone_id = ?,
+          finish_geofence_zone_name = ?
+        WHERE id_area = ?
+      `,
+      [
+        payload.kodeArea,
+        payload.namaArea,
+        payload.finishGeofence?.finish_geofence_resource_id || null,
+        payload.finishGeofence?.finish_geofence_zone_id || null,
+        payload.finishGeofence?.finish_geofence_zone_name || null,
+        req.params.id
+      ]
     );
 
     if (result.affectedRows === 0) {

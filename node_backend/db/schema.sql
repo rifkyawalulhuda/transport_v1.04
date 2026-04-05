@@ -23,6 +23,9 @@ CREATE TABLE `area` (
   `id_area` int(13) NOT NULL AUTO_INCREMENT,
   `kode_area` varchar(50) DEFAULT NULL,
   `nama_area` varchar(200) NOT NULL,
+  `finish_geofence_resource_id` bigint(20) DEFAULT NULL,
+  `finish_geofence_zone_id` bigint(20) DEFAULT NULL,
+  `finish_geofence_zone_name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id_area`)
 ) ENGINE=InnoDB AUTO_INCREMENT=200 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 

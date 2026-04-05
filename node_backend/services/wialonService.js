@@ -91,6 +91,8 @@ const toPositiveIntString = (value) => {
   return String(parsed);
 };
 
+const pad2 = (value) => String(value).padStart(2, "0");
+
 const ensureFiniteCoordinate = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -704,24 +706,46 @@ const normalizeZoneMembershipPayload = (payload, zoneIds) => {
     );
   };
 
-  if (Array.isArray(payload)) {
-    payload.forEach((item) => {
-      const zoneId = item?.zone_id ?? item?.id ?? item?.i;
-      consumeUnits(zoneId, item?.units ?? item?.u ?? item?.items ?? item);
-    });
-  } else if (payload && typeof payload === "object") {
-    Object.entries(payload).forEach(([key, value]) => {
-      if (targetZoneIds.includes(normalizePositiveIntString(key))) {
-        consumeUnits(key, value);
+  const walkPayload = (node, nodeKey = null) => {
+    if (Array.isArray(node)) {
+      const normalizedNodeKey = normalizePositiveIntString(nodeKey);
+      if (normalizedNodeKey && targetZoneIds.includes(normalizedNodeKey)) {
+        consumeUnits(normalizedNodeKey, node);
         return;
       }
 
-      if (value && typeof value === "object") {
-        const nestedZoneId = value.zone_id ?? value.id ?? value.i ?? key;
-        consumeUnits(nestedZoneId, value.units ?? value.u ?? value.items ?? value);
+      node.forEach((item) => {
+        walkPayload(item, nodeKey);
+      });
+      return;
+    }
+
+    if (!node || typeof node !== "object") {
+      return;
+    }
+
+    const directZoneId = node.zone_id ?? node.id ?? node.i ?? null;
+    const directUnits = node.units ?? node.u ?? node.items ?? node.data;
+    if (directZoneId && directUnits !== undefined) {
+      consumeUnits(directZoneId, directUnits);
+    }
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (["zone_id", "id", "i", "units", "u", "items", "data"].includes(key)) {
+        return;
       }
+
+      const normalizedKey = normalizePositiveIntString(key);
+      if (normalizedKey && targetZoneIds.includes(normalizedKey)) {
+        consumeUnits(normalizedKey, value);
+        return;
+      }
+
+      walkPayload(value, key);
     });
-  }
+  };
+
+  walkPayload(payload);
 
   targetZoneIds.forEach((zoneId) => {
     if (!membership.has(zoneId)) {
@@ -746,10 +770,13 @@ const fetchUnitsInZonesByResource = async ({ resourceId, zoneIds, unitIds }) => 
   }
 
   const payload = await wialonRequest("resource/get_zones_by_unit", {
-    itemId: Number(safeResourceId),
-    col: safeZoneIds.map(Number),
-    units: safeUnitIds.map(Number),
-    time: 0
+    spec: {
+      zoneId: {
+        [safeResourceId]: safeZoneIds.map(Number)
+      },
+      units: safeUnitIds.map(Number),
+      time: 0
+    }
   });
 
   return normalizeZoneMembershipPayload(payload, safeZoneIds);
@@ -790,9 +817,12 @@ const toDateString = (value) => {
   }
 
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime())
-      ? null
-      : value.toISOString().slice(0, 10);
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(
+      value.getDate()
+    )}`;
   }
 
   const text = String(value);
@@ -804,7 +834,9 @@ const toDateString = (value) => {
   const parsed = new Date(text);
   return Number.isNaN(parsed.getTime())
     ? null
-    : parsed.toISOString().slice(0, 10);
+    : `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(
+        parsed.getDate()
+      )}`;
 };
 
 const fetchOperationalContext = async () => {

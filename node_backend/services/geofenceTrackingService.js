@@ -72,9 +72,13 @@ const getActiveSalesCostCandidates = async () => {
         sc.delivery_order,
         sc.arrival_order,
         sc.finish_order,
-        t.wialon_unit_id
+        t.wialon_unit_id,
+        a.finish_geofence_resource_id,
+        a.finish_geofence_zone_id,
+        a.finish_geofence_zone_name
       FROM sales_cost sc
       INNER JOIN truck t ON sc.id_truck = t.id_truck
+      INNER JOIN area a ON sc.id_area = a.id_area
       WHERE sc.id_truck IS NOT NULL
         AND t.wialon_unit_id IS NOT NULL
         AND t.wialon_unit_id <> ''
@@ -158,7 +162,31 @@ const findDefaultFinishGeofence = async () => {
   );
 };
 
-const buildResourceZoneMap = (activeSalesCosts, routeStepsMap, finishGeofence) => {
+const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence) => {
+  const resourceId = normalizePositiveIntString(salesCost.finish_geofence_resource_id);
+  const zoneId = normalizePositiveIntString(salesCost.finish_geofence_zone_id);
+  const zoneName = String(salesCost.finish_geofence_zone_name || "").trim();
+
+  if (resourceId && zoneId && zoneName) {
+    return {
+      resource_id: Number(resourceId),
+      zone_id: Number(zoneId),
+      zone_name: zoneName
+    };
+  }
+
+  if (
+    fallbackFinishGeofence?.resource_id &&
+    fallbackFinishGeofence?.zone_id &&
+    fallbackFinishGeofence?.zone_name
+  ) {
+    return fallbackFinishGeofence;
+  }
+
+  return null;
+};
+
+const buildResourceZoneMap = (activeSalesCosts, routeStepsMap, fallbackFinishGeofence) => {
   const resourceMap = new Map();
 
   activeSalesCosts.forEach((salesCost) => {
@@ -175,18 +203,22 @@ const buildResourceZoneMap = (activeSalesCosts, routeStepsMap, finishGeofence) =
       }
       resourceMap.get(resourceId).add(zoneId);
     });
-  });
 
-  if (finishGeofence?.resource_id && finishGeofence?.zone_id) {
-    const resourceId = normalizePositiveIntString(finishGeofence.resource_id);
-    const zoneId = normalizePositiveIntString(finishGeofence.zone_id);
-    if (resourceId && zoneId) {
-      if (!resourceMap.has(resourceId)) {
-        resourceMap.set(resourceId, new Set());
+    const finishGeofence = resolveFinishGeofenceForSalesCost(
+      salesCost,
+      fallbackFinishGeofence
+    );
+    if (finishGeofence?.resource_id && finishGeofence?.zone_id) {
+      const resourceId = normalizePositiveIntString(finishGeofence.resource_id);
+      const zoneId = normalizePositiveIntString(finishGeofence.zone_id);
+      if (resourceId && zoneId) {
+        if (!resourceMap.has(resourceId)) {
+          resourceMap.set(resourceId, new Set());
+        }
+        resourceMap.get(resourceId).add(zoneId);
       }
-      resourceMap.get(resourceId).add(zoneId);
     }
-  }
+  });
 
   return resourceMap;
 };
@@ -203,7 +235,7 @@ const syncGeofenceRouteHistory = async () => {
   const routeStepsMap = await fetchAreaRouteStepsMap(
     activeSalesCosts.map((salesCost) => salesCost.id_area)
   );
-  const finishGeofence = await findDefaultFinishGeofence();
+  const fallbackFinishGeofence = await findDefaultFinishGeofence();
   const salesCostsWithSteps = activeSalesCosts.filter((salesCost) => {
     const steps = routeStepsMap.get(Number(salesCost.id_area)) || [];
     return steps.length > 0;
@@ -222,7 +254,7 @@ const syncGeofenceRouteHistory = async () => {
   const resourceZoneMap = buildResourceZoneMap(
     salesCostsWithSteps,
     routeStepsMap,
-    finishGeofence
+    fallbackFinishGeofence
   );
   const unitIds = salesCostsWithSteps
     .map((salesCost) => salesCost.wialon_unit_id)
@@ -249,6 +281,10 @@ const syncGeofenceRouteHistory = async () => {
     const position = positionMap.get(unitId) || null;
     const gpsTime =
       toMySqlDateTime(position?.gps_time) || toMySqlDateTime(new Date());
+    const finishGeofence = resolveFinishGeofenceForSalesCost(
+      salesCost,
+      fallbackFinishGeofence
+    );
 
     for (const step of steps) {
       const stepKey = `route:${step.id_area_route_step}`;

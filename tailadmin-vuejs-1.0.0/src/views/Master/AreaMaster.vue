@@ -34,175 +34,236 @@
           </div>
         </div>
 
-        <div
-          v-if="showForm"
-          class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
-        >
-          <div class="mb-4 flex flex-col gap-2 border-b border-gray-200 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                {{ formTitle }}
-              </h3>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                Susun langkah rute dan pilih geofence Wialon untuk setiap titik pengiriman.
-              </p>
-            </div>
-            <div class="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
-              Preview Rute: <span class="font-semibold">{{ areaNamePreview || '-' }}</span>
-            </div>
-          </div>
-
-          <form class="space-y-4" @submit.prevent="submitForm">
-            <div class="grid gap-4 lg:grid-cols-3">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Kode Area
-                </label>
-                <input
-                  v-model="form.kode_area"
-                  type="text"
-                  placeholder="Contoh: 117"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                />
-              </div>
-              <div class="lg:col-span-2">
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Nama Area
-                </label>
-                <input
-                  :value="areaNamePreview"
-                  type="text"
-                  class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                  readonly
-                />
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
-              <div class="mb-4 flex items-center justify-between">
+        <Modal v-if="showForm" :full-screen-backdrop="true" @close="cancelForm">
+          <template #body>
+            <div class="relative z-10 w-[calc(100vw-2rem)] max-w-6xl rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+              <div class="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
                 <div>
-                  <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                    Langkah Rute
-                  </h4>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">
-                    Setiap langkah mewakili satu titik route yang akan dicatat timestamp-nya.
+                  <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100">
+                    {{ formTitle }}
+                  </h3>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Susun langkah rute dan pilih geofence Wialon untuk setiap titik pengiriman.
                   </p>
                 </div>
                 <button
                   type="button"
-                  class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-2 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600"
-                  @click="addRouteStep"
+                  class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  @click="cancelForm"
                 >
-                  Tambah Langkah
+                  Tutup
                 </button>
               </div>
 
-              <div class="space-y-4">
-                <div
-                  v-for="(step, index) in form.route_steps"
-                  :key="`route-step-${index}`"
-                  class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
-                >
-                  <div class="mb-4 flex flex-col gap-2 border-b border-gray-200 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      Langkah {{ index + 1 }}
+              <div class="max-h-[85vh] overflow-y-auto px-6 py-5 custom-scrollbar">
+                <form class="space-y-5" @submit.prevent="submitForm">
+                  <div class="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/20 dark:bg-brand-500/10 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                        Preview Rute
+                      </h4>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Nama area tetap dibentuk dari kode area dan langkah rute saja.
+                      </p>
                     </div>
-                    <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                        :disabled="index === 0"
-                        @click="moveRouteStep(index, -1)"
-                      >
-                        Naik
-                      </button>
-                      <button
-                        type="button"
-                        class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                        :disabled="index === form.route_steps.length - 1"
-                        @click="moveRouteStep(index, 1)"
-                      >
-                        Turun
-                      </button>
-                      <button
-                        type="button"
-                        class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:opacity-50 dark:bg-error-500/15 dark:text-error-300"
-                        :disabled="form.route_steps.length === 1"
-                        @click="removeRouteStep(index)"
-                      >
-                        Hapus
-                      </button>
+                    <div class="rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                      <span class="font-semibold">{{ areaNamePreview || '-' }}</span>
                     </div>
                   </div>
 
-                  <div class="grid gap-4 lg:grid-cols-2">
+                  <div class="grid gap-4 lg:grid-cols-3">
                     <div>
                       <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                        Nama Langkah
+                        Kode Area
                       </label>
                       <input
-                        v-model="step.step_name"
+                        v-model="form.kode_area"
                         type="text"
-                        placeholder="Contoh: CLC"
+                        placeholder="Contoh: 117"
                         class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                       />
                     </div>
-                    <div>
+                    <div class="lg:col-span-2">
                       <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                        Geofence Wialon
+                        Nama Area
                       </label>
-                      <SearchableSelect
-                        :model-value="getStepGeofenceValue(step)"
-                        :options="geofenceSelectOptions"
-                        value-key="value"
-                        label-key="label"
-                        :search-keys="['label', 'resource_name', 'zone_name']"
-                        placeholder="-Pilih geofence-"
-                        search-placeholder="Cari resource atau geofence"
-                        :disabled="isSubmitting || geofenceLoading"
-                        @update:model-value="updateStepGeofence(index, $event)"
+                      <input
+                        :value="areaNamePreview"
+                        type="text"
+                        class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                        readonly
                       />
                     </div>
                   </div>
 
-                  <div
-                    v-if="step.wialon_zone_name"
-                    class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300"
-                  >
-                    Geofence terpilih: {{ step.wialon_zone_name }}
-                    <span class="text-gray-400 dark:text-gray-500">
-                      (Resource ID {{ step.wialon_resource_id }}, Zone ID {{ step.wialon_zone_id }})
-                    </span>
+                  <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                          Langkah Rute
+                        </h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Setiap langkah mewakili satu titik route yang akan dicatat timestamp-nya.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-2 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600"
+                        @click="addRouteStep"
+                      >
+                        Tambah Langkah
+                      </button>
+                    </div>
+
+                    <div class="space-y-4">
+                      <div
+                        v-for="(step, index) in form.route_steps"
+                        :key="`route-step-${index}`"
+                        class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+                      >
+                        <div class="mb-4 flex flex-col gap-2 border-b border-gray-200 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+                          <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                            Langkah {{ index + 1 }}
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <button
+                              type="button"
+                              class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                              :disabled="index === 0"
+                              @click="moveRouteStep(index, -1)"
+                            >
+                              Naik
+                            </button>
+                            <button
+                              type="button"
+                              class="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                              :disabled="index === form.route_steps.length - 1"
+                              @click="moveRouteStep(index, 1)"
+                            >
+                              Turun
+                            </button>
+                            <button
+                              type="button"
+                              class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:opacity-50 dark:bg-error-500/15 dark:text-error-300"
+                              :disabled="form.route_steps.length === 1"
+                              @click="removeRouteStep(index)"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="grid gap-4 lg:grid-cols-2">
+                          <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                              Nama Langkah
+                            </label>
+                            <input
+                              v-model="step.step_name"
+                              type="text"
+                              placeholder="Contoh: CLC"
+                              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                            />
+                          </div>
+                          <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                              Geofence Wialon
+                            </label>
+                            <SearchableSelect
+                              :model-value="getStepGeofenceValue(step)"
+                              :options="geofenceSelectOptions"
+                              value-key="value"
+                              label-key="label"
+                              :search-keys="['label', 'resource_name', 'zone_name']"
+                              placeholder="-Pilih geofence-"
+                              search-placeholder="Cari resource atau geofence"
+                              :disabled="isSubmitting || geofenceLoading"
+                              @update:model-value="updateStepGeofence(index, $event)"
+                            />
+                          </div>
+                        </div>
+
+                        <div
+                          v-if="step.wialon_zone_name"
+                          class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300"
+                        >
+                          Geofence terpilih: {{ step.wialon_zone_name }}
+                          <span class="text-gray-400 dark:text-gray-500">
+                            (Resource ID {{ step.wialon_resource_id }}, Zone ID {{ step.wialon_zone_id }})
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="mt-5 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <div class="mb-3">
+                        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                          Finish Order Geofence
+                        </h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Pilih geofence yang dipakai saat sistem mencatat Finish Order. Nilai ini tidak masuk ke Nama Area.
+                        </p>
+                      </div>
+
+                      <div class="grid gap-4 lg:grid-cols-2">
+                        <div>
+                          <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                            Geofence Finish Order
+                          </label>
+                          <SearchableSelect
+                            :model-value="getFinishGeofenceValue()"
+                            :options="geofenceSelectOptions"
+                            value-key="value"
+                            label-key="label"
+                            :search-keys="['label', 'resource_name', 'zone_name']"
+                            placeholder="-Pilih finish geofence-"
+                            search-placeholder="Cari resource atau geofence"
+                            :disabled="isSubmitting || geofenceLoading"
+                            @update:model-value="updateFinishGeofence"
+                          />
+                        </div>
+                      </div>
+
+                      <div
+                        v-if="form.finish_geofence_zone_name"
+                        class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300"
+                      >
+                        Finish Order terpilih: {{ form.finish_geofence_zone_name }}
+                        <span class="text-gray-400 dark:text-gray-500">
+                          (Resource ID {{ form.finish_geofence_resource_id }}, Zone ID {{ form.finish_geofence_zone_id }})
+                        </span>
+                      </div>
+                    </div>
+
+                    <p
+                      v-if="geofenceError"
+                      class="mt-4 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
+                    >
+                      {{ geofenceError }}
+                    </p>
                   </div>
-                </div>
+
+                  <div class="flex items-center justify-end gap-2 border-t border-gray-200 pt-4 dark:border-gray-800">
+                    <button
+                      type="button"
+                      class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                      @click="cancelForm"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      :disabled="isSubmitting"
+                      class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
+                    >
+                      Simpan
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              <p
-                v-if="geofenceError"
-                class="mt-4 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
-              >
-                {{ geofenceError }}
-              </p>
             </div>
-
-            <div class="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                @click="cancelForm"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                :disabled="isSubmitting"
-                class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
-              >
-                Simpan
-              </button>
-            </div>
-          </form>
-        </div>
+          </template>
+        </Modal>
 
         <div
           class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
@@ -318,6 +379,7 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import Modal from '@/components/ui/Modal.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
@@ -338,6 +400,9 @@ type AreaItem = {
   id_area: number
   kode_area: string | null
   nama_area: string
+  finish_geofence_resource_id?: number | null
+  finish_geofence_zone_id?: number | null
+  finish_geofence_zone_name?: string | null
   route_steps: Array<{
     id_area_route_step: number
     step_order: number
@@ -360,6 +425,9 @@ type FormState = {
   id: number | null
   kode_area: string
   route_steps: RouteStep[]
+  finish_geofence_resource_id: string
+  finish_geofence_zone_id: string
+  finish_geofence_zone_name: string
 }
 
 type WialonGeofenceRow = {
@@ -383,7 +451,10 @@ const geofenceError = ref('')
 const form = reactive<FormState>({
   id: null,
   kode_area: '',
-  route_steps: []
+  route_steps: [],
+  finish_geofence_resource_id: '',
+  finish_geofence_zone_id: '',
+  finish_geofence_zone_name: ''
 })
 
 const apiBase = API_BASE
@@ -403,6 +474,12 @@ const createEmptyRouteStep = (stepOrder: number): RouteStep => ({
   wialon_resource_id: '',
   wialon_zone_id: '',
   wialon_zone_name: ''
+})
+
+const createEmptyFinishGeofence = () => ({
+  finish_geofence_resource_id: '',
+  finish_geofence_zone_id: '',
+  finish_geofence_zone_name: ''
 })
 
 const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
@@ -426,6 +503,18 @@ const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
     wialon_zone_name: step.wialon_zone_name || ''
   }))
 }
+
+const normalizeDraftFinishGeofence = (item?: AreaItem | null) => ({
+  finish_geofence_resource_id:
+    item?.finish_geofence_resource_id === null || item?.finish_geofence_resource_id === undefined
+      ? ''
+      : String(item.finish_geofence_resource_id),
+  finish_geofence_zone_id:
+    item?.finish_geofence_zone_id === null || item?.finish_geofence_zone_id === undefined
+      ? ''
+      : String(item.finish_geofence_zone_id),
+  finish_geofence_zone_name: item?.finish_geofence_zone_name || ''
+})
 
 const geofenceSelectOptions = computed(() =>
   geofenceRows.value.map((row) => ({
@@ -572,6 +661,29 @@ const updateStepGeofence = (index: number, value: string) => {
   form.route_steps[index].wialon_zone_name = selected.zone_name
 }
 
+const getFinishGeofenceValue = () => {
+  if (!form.finish_geofence_resource_id || !form.finish_geofence_zone_id) {
+    return ''
+  }
+  return `${form.finish_geofence_resource_id}:${form.finish_geofence_zone_id}`
+}
+
+const updateFinishGeofence = (value: string) => {
+  const selected = geofenceRows.value.find(
+    (row) => `${row.resource_id}:${row.zone_id}` === value
+  )
+  if (!selected) {
+    form.finish_geofence_resource_id = ''
+    form.finish_geofence_zone_id = ''
+    form.finish_geofence_zone_name = ''
+    return
+  }
+
+  form.finish_geofence_resource_id = String(selected.resource_id)
+  form.finish_geofence_zone_id = String(selected.zone_id)
+  form.finish_geofence_zone_name = selected.zone_name
+}
+
 const openForm = async (item?: AreaItem) => {
   if (item) {
     formTitle.value = 'Edit Area'
@@ -579,12 +691,14 @@ const openForm = async (item?: AreaItem) => {
     form.id = item.id_area
     form.kode_area = item.kode_area || ''
     form.route_steps = normalizeDraftRouteSteps(item)
+    Object.assign(form, normalizeDraftFinishGeofence(item))
   } else {
     formTitle.value = 'Tambah Area'
     editingId.value = null
     form.id = null
     form.kode_area = ''
     form.route_steps = [createEmptyRouteStep(1)]
+    Object.assign(form, createEmptyFinishGeofence())
   }
   showForm.value = true
   await loadGeofences()
@@ -602,6 +716,13 @@ const submitForm = async () => {
 
   const payload = {
     kode_area: form.kode_area.trim(),
+    finish_geofence_resource_id: form.finish_geofence_resource_id
+      ? Number(form.finish_geofence_resource_id)
+      : null,
+    finish_geofence_zone_id: form.finish_geofence_zone_id
+      ? Number(form.finish_geofence_zone_id)
+      : null,
+    finish_geofence_zone_name: form.finish_geofence_zone_name.trim(),
     route_steps: form.route_steps.map((step, index) => ({
       id_area_route_step: step.id_area_route_step,
       step_order: index + 1,

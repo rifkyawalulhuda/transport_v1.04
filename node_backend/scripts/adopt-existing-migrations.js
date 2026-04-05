@@ -33,6 +33,8 @@ const getMigrationVersion = (fileName) => {
   return match[1];
 };
 
+const quoteIdentifier = (value) => `\`${String(value).replace(/`/g, "``")}\``;
+
 const connect = async (withoutDatabase = false) => {
   const host = process.env.DB_HOST || "127.0.0.1";
   const port = Number.parseInt(process.env.DB_PORT || "3306", 10);
@@ -110,6 +112,255 @@ const hasColumn = async (connection, tableName, columnName) => {
   return Number(rows?.[0]?.total || 0) > 0;
 };
 
+const hasTable = async (connection, tableName) => {
+  const database = process.env.DB_NAME || "trucking";
+  const [rows] = await connection.query(
+    `
+      SELECT COUNT(*) AS total
+      FROM information_schema.tables
+      WHERE table_schema = ?
+        AND table_name = ?
+    `,
+    [database, tableName]
+  );
+
+  return Number(rows?.[0]?.total || 0) > 0;
+};
+
+const hasForeignKey = async (connection, tableName, constraintName) => {
+  const database = process.env.DB_NAME || "trucking";
+  const [rows] = await connection.query(
+    `
+      SELECT COUNT(*) AS total
+      FROM information_schema.table_constraints
+      WHERE table_schema = ?
+        AND table_name = ?
+        AND constraint_name = ?
+        AND constraint_type = 'FOREIGN KEY'
+    `,
+    [database, tableName, constraintName]
+  );
+
+  return Number(rows?.[0]?.total || 0) > 0;
+};
+
+const ensureColumn = async (connection, tableName, columnName, alterSql) => {
+  if (await hasColumn(connection, tableName, columnName)) {
+    return false;
+  }
+
+  await connection.query(alterSql);
+  return true;
+};
+
+const ensureTable = async (connection, tableName, createSql) => {
+  if (await hasTable(connection, tableName)) {
+    return false;
+  }
+
+  await connection.query(createSql);
+  return true;
+};
+
+const ensureForeignKey = async (connection, tableName, constraintName, alterSql) => {
+  if (await hasForeignKey(connection, tableName, constraintName)) {
+    return false;
+  }
+
+  await connection.query(alterSql);
+  return true;
+};
+
+const upgradeLegacyTrackedSchema = async (connection) => {
+  const changes = [];
+
+  if (
+    await ensureColumn(
+      connection,
+      "area",
+      "kode_area",
+      `
+        ALTER TABLE ${quoteIdentifier("area")}
+        ADD COLUMN ${quoteIdentifier("kode_area")} varchar(50) DEFAULT NULL
+        AFTER ${quoteIdentifier("id_area")}
+      `
+    )
+  ) {
+    changes.push("Menambahkan kolom area.kode_area.");
+  }
+
+  if (
+    await ensureColumn(
+      connection,
+      "area",
+      "finish_geofence_resource_id",
+      `
+        ALTER TABLE ${quoteIdentifier("area")}
+        ADD COLUMN ${quoteIdentifier("finish_geofence_resource_id")} bigint(20) DEFAULT NULL
+        AFTER ${quoteIdentifier("nama_area")}
+      `
+    )
+  ) {
+    changes.push("Menambahkan kolom area.finish_geofence_resource_id.");
+  }
+
+  if (
+    await ensureColumn(
+      connection,
+      "area",
+      "finish_geofence_zone_id",
+      `
+        ALTER TABLE ${quoteIdentifier("area")}
+        ADD COLUMN ${quoteIdentifier("finish_geofence_zone_id")} bigint(20) DEFAULT NULL
+        AFTER ${quoteIdentifier("finish_geofence_resource_id")}
+      `
+    )
+  ) {
+    changes.push("Menambahkan kolom area.finish_geofence_zone_id.");
+  }
+
+  if (
+    await ensureColumn(
+      connection,
+      "area",
+      "finish_geofence_zone_name",
+      `
+        ALTER TABLE ${quoteIdentifier("area")}
+        ADD COLUMN ${quoteIdentifier("finish_geofence_zone_name")} varchar(255) DEFAULT NULL
+        AFTER ${quoteIdentifier("finish_geofence_zone_id")}
+      `
+    )
+  ) {
+    changes.push("Menambahkan kolom area.finish_geofence_zone_name.");
+  }
+
+  if (
+    await ensureTable(
+      connection,
+      "area_route_step",
+      `
+        CREATE TABLE ${quoteIdentifier("area_route_step")} (
+          ${quoteIdentifier("id_area_route_step")} int(13) NOT NULL AUTO_INCREMENT,
+          ${quoteIdentifier("id_area")} int(13) NOT NULL,
+          ${quoteIdentifier("step_order")} int(11) NOT NULL,
+          ${quoteIdentifier("step_name")} varchar(100) NOT NULL,
+          ${quoteIdentifier("wialon_resource_id")} bigint(20) NOT NULL,
+          ${quoteIdentifier("wialon_zone_id")} bigint(20) NOT NULL,
+          ${quoteIdentifier("wialon_zone_name")} varchar(255) NOT NULL,
+          PRIMARY KEY (${quoteIdentifier("id_area_route_step")}),
+          UNIQUE KEY ${quoteIdentifier("uniq_area_route_step_order")} (${quoteIdentifier("id_area")}, ${quoteIdentifier("step_order")}),
+          UNIQUE KEY ${quoteIdentifier("uniq_area_route_step_zone")} (${quoteIdentifier("id_area")}, ${quoteIdentifier("wialon_resource_id")}, ${quoteIdentifier("wialon_zone_id")}),
+          KEY ${quoteIdentifier("idx_area_route_step_area")} (${quoteIdentifier("id_area")})
+        ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+      `
+    )
+  ) {
+    changes.push("Membuat tabel area_route_step.");
+  }
+
+  if (
+    await ensureTable(
+      connection,
+      "sales_cost_route_history",
+      `
+        CREATE TABLE ${quoteIdentifier("sales_cost_route_history")} (
+          ${quoteIdentifier("id_sales_cost_route_history")} int(13) NOT NULL AUTO_INCREMENT,
+          ${quoteIdentifier("id_sales_cost")} int(30) NOT NULL,
+          ${quoteIdentifier("id_area")} int(13) NOT NULL,
+          ${quoteIdentifier("id_area_route_step")} int(13) DEFAULT NULL,
+          ${quoteIdentifier("step_key")} varchar(100) NOT NULL DEFAULT '',
+          ${quoteIdentifier("system_step_code")} varchar(50) DEFAULT NULL,
+          ${quoteIdentifier("id_truck")} int(30) NOT NULL,
+          ${quoteIdentifier("step_order_snapshot")} int(11) NOT NULL,
+          ${quoteIdentifier("step_name_snapshot")} varchar(100) NOT NULL,
+          ${quoteIdentifier("wialon_resource_id")} bigint(20) NOT NULL,
+          ${quoteIdentifier("wialon_zone_id")} bigint(20) NOT NULL,
+          ${quoteIdentifier("wialon_zone_name")} varchar(255) NOT NULL,
+          ${quoteIdentifier("gps_time")} datetime NOT NULL,
+          ${quoteIdentifier("recorded_at")} datetime NOT NULL DEFAULT current_timestamp(),
+          ${quoteIdentifier("lat")} decimal(10,6) DEFAULT NULL,
+          ${quoteIdentifier("lon")} decimal(10,6) DEFAULT NULL,
+          PRIMARY KEY (${quoteIdentifier("id_sales_cost_route_history")}),
+          UNIQUE KEY ${quoteIdentifier("uniq_sales_cost_step_key")} (${quoteIdentifier("id_sales_cost")}, ${quoteIdentifier("step_key")}),
+          UNIQUE KEY ${quoteIdentifier("uniq_sales_cost_route_step")} (${quoteIdentifier("id_sales_cost")}, ${quoteIdentifier("id_area_route_step")}),
+          KEY ${quoteIdentifier("idx_sales_cost_route_history_sales_cost")} (${quoteIdentifier("id_sales_cost")}),
+          KEY ${quoteIdentifier("idx_sales_cost_route_history_area")} (${quoteIdentifier("id_area")}),
+          KEY ${quoteIdentifier("idx_sales_cost_route_history_truck")} (${quoteIdentifier("id_truck")}),
+          KEY ${quoteIdentifier("idx_sales_cost_route_history_step")} (${quoteIdentifier("id_area_route_step")})
+        ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+      `
+    )
+  ) {
+    changes.push("Membuat tabel sales_cost_route_history.");
+  }
+
+  if (
+    await ensureForeignKey(
+      connection,
+      "area_route_step",
+      "fk_area_route_step_area",
+      `
+        ALTER TABLE ${quoteIdentifier("area_route_step")}
+        ADD CONSTRAINT ${quoteIdentifier("fk_area_route_step_area")}
+        FOREIGN KEY (${quoteIdentifier("id_area")}) REFERENCES ${quoteIdentifier("area")} (${quoteIdentifier("id_area")})
+        ON DELETE CASCADE
+      `
+    )
+  ) {
+    changes.push("Menambahkan foreign key area_route_step -> area.");
+  }
+
+  if (
+    await ensureForeignKey(
+      connection,
+      "sales_cost_route_history",
+      "fk_sales_cost_route_history_sales_cost",
+      `
+        ALTER TABLE ${quoteIdentifier("sales_cost_route_history")}
+        ADD CONSTRAINT ${quoteIdentifier("fk_sales_cost_route_history_sales_cost")}
+        FOREIGN KEY (${quoteIdentifier("id_sales_cost")}) REFERENCES ${quoteIdentifier("sales_cost")} (${quoteIdentifier("id_sales_cost")})
+        ON DELETE CASCADE
+      `
+    )
+  ) {
+    changes.push("Menambahkan foreign key sales_cost_route_history -> sales_cost.");
+  }
+
+  if (
+    await ensureForeignKey(
+      connection,
+      "sales_cost_route_history",
+      "fk_sales_cost_route_history_area",
+      `
+        ALTER TABLE ${quoteIdentifier("sales_cost_route_history")}
+        ADD CONSTRAINT ${quoteIdentifier("fk_sales_cost_route_history_area")}
+        FOREIGN KEY (${quoteIdentifier("id_area")}) REFERENCES ${quoteIdentifier("area")} (${quoteIdentifier("id_area")})
+        ON DELETE CASCADE
+      `
+    )
+  ) {
+    changes.push("Menambahkan foreign key sales_cost_route_history -> area.");
+  }
+
+  if (
+    await ensureForeignKey(
+      connection,
+      "sales_cost_route_history",
+      "fk_sales_cost_route_history_step",
+      `
+        ALTER TABLE ${quoteIdentifier("sales_cost_route_history")}
+        ADD CONSTRAINT ${quoteIdentifier("fk_sales_cost_route_history_step")}
+        FOREIGN KEY (${quoteIdentifier("id_area_route_step")}) REFERENCES ${quoteIdentifier("area_route_step")} (${quoteIdentifier("id_area_route_step")})
+        ON DELETE CASCADE
+      `
+    )
+  ) {
+    changes.push("Menambahkan foreign key sales_cost_route_history -> area_route_step.");
+  }
+
+  return changes;
+};
+
 const matchesLatestTrackedSchema = async (connection) => {
   const database = process.env.DB_NAME || "trucking";
   const [tableRows] = await connection.query(
@@ -145,6 +396,9 @@ const matchesLatestTrackedSchema = async (connection) => {
 
   const checks = await Promise.all([
     hasColumn(connection, "area", "kode_area"),
+    hasColumn(connection, "area", "finish_geofence_resource_id"),
+    hasColumn(connection, "area", "finish_geofence_zone_id"),
+    hasColumn(connection, "area", "finish_geofence_zone_name"),
     hasColumn(connection, "truck", "wialon_unit_id"),
     hasColumn(connection, "sales_cost_route_history", "step_key"),
     hasColumn(connection, "sales_cost_route_history", "system_step_code")
@@ -175,9 +429,18 @@ const main = async () => {
     }
 
     if (!latestSchemaReady) {
-      throw new Error(
-        "Database existing belum cocok dengan schema terbaru repo. Jalankan `npm run migrate` atau update schema-nya dulu sebelum adopt."
-      );
+      const changes = await upgradeLegacyTrackedSchema(connection);
+      const upgradedSchemaReady = await matchesLatestTrackedSchema(connection);
+
+      if (!upgradedSchemaReady) {
+        throw new Error(
+          "Database existing belum cocok dengan schema terbaru repo. Upgrade schema otomatis gagal, cek struktur tabel legacy terlebih dahulu."
+        );
+      }
+
+      if (changes.length > 0) {
+        console.log(changes.join("\n"));
+      }
     }
 
     const pendingVersions = migrationFiles

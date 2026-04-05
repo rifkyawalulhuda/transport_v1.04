@@ -53,6 +53,36 @@ const ensureAreaRouteSchema = async () => {
     console.log("Added missing area.kode_area column");
   }
 
+  const hasFinishGeofenceResourceId = await hasColumn(
+    "area",
+    "finish_geofence_resource_id"
+  );
+  if (!hasFinishGeofenceResourceId) {
+    await db.query(
+      "ALTER TABLE area ADD COLUMN finish_geofence_resource_id bigint(20) NULL DEFAULT NULL AFTER nama_area"
+    );
+    console.log("Added missing area.finish_geofence_resource_id column");
+  }
+
+  const hasFinishGeofenceZoneId = await hasColumn("area", "finish_geofence_zone_id");
+  if (!hasFinishGeofenceZoneId) {
+    await db.query(
+      "ALTER TABLE area ADD COLUMN finish_geofence_zone_id bigint(20) NULL DEFAULT NULL AFTER finish_geofence_resource_id"
+    );
+    console.log("Added missing area.finish_geofence_zone_id column");
+  }
+
+  const hasFinishGeofenceZoneName = await hasColumn(
+    "area",
+    "finish_geofence_zone_name"
+  );
+  if (!hasFinishGeofenceZoneName) {
+    await db.query(
+      "ALTER TABLE area ADD COLUMN finish_geofence_zone_name varchar(255) NULL DEFAULT NULL AFTER finish_geofence_zone_id"
+    );
+    console.log("Added missing area.finish_geofence_zone_name column");
+  }
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS area_route_step (
       id_area_route_step int(13) NOT NULL AUTO_INCREMENT,

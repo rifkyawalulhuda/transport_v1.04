@@ -78,6 +78,22 @@ const normalizeRouteSteps = (routeSteps) => {
   }));
 };
 
+const normalizeFinishGeofence = (finishGeofence) => {
+  if (!finishGeofence || typeof finishGeofence !== "object") {
+    return {
+      finish_geofence_resource_id: null,
+      finish_geofence_zone_id: null,
+      finish_geofence_zone_name: ""
+    };
+  }
+
+  return {
+    finish_geofence_resource_id: normalizePositiveInt(finishGeofence.finish_geofence_resource_id),
+    finish_geofence_zone_id: normalizePositiveInt(finishGeofence.finish_geofence_zone_id),
+    finish_geofence_zone_name: normalizeText(finishGeofence.finish_geofence_zone_name)
+  };
+};
+
 const validateStructuredRouteSteps = (routeSteps) => {
   if (!Array.isArray(routeSteps) || routeSteps.length === 0) {
     return {
@@ -142,6 +158,22 @@ const validateStructuredRouteSteps = (routeSteps) => {
 const resolveAreaPayload = (body) => {
   const hasStructuredSteps = Object.prototype.hasOwnProperty.call(body || {}, "route_steps");
   const safeKodeArea = normalizeText(body?.kode_area);
+  const normalizedFinishGeofence = normalizeFinishGeofence(body);
+  const finishGeofenceIsFilled =
+    normalizedFinishGeofence.finish_geofence_resource_id &&
+    normalizedFinishGeofence.finish_geofence_zone_id &&
+    normalizedFinishGeofence.finish_geofence_zone_name;
+  const finishGeofenceIsEmpty =
+    !normalizedFinishGeofence.finish_geofence_resource_id &&
+    !normalizedFinishGeofence.finish_geofence_zone_id &&
+    !normalizedFinishGeofence.finish_geofence_zone_name;
+
+  if (!finishGeofenceIsFilled && !finishGeofenceIsEmpty) {
+    return {
+      ok: false,
+      message: "Finish Order Geofence harus dipilih lengkap."
+    };
+  }
 
   if (hasStructuredSteps) {
     const normalizedSteps = normalizeRouteSteps(body?.route_steps);
@@ -157,7 +189,8 @@ const resolveAreaPayload = (body) => {
         kodeArea: safeKodeArea,
         routeSteps: validation.routeSteps
       }),
-      routeSteps: validation.routeSteps
+      routeSteps: validation.routeSteps,
+      finishGeofence: finishGeofenceIsFilled ? normalizedFinishGeofence : null
     };
   }
 
@@ -174,7 +207,8 @@ const resolveAreaPayload = (body) => {
     ok: true,
     kodeArea: safeKodeArea || parsedLegacy.kode_area || null,
     namaArea,
-    routeSteps: []
+    routeSteps: [],
+    finishGeofence: finishGeofenceIsFilled ? normalizedFinishGeofence : null
   };
 };
 
@@ -253,6 +287,7 @@ module.exports = {
   buildAreaName,
   fetchAreaRouteStepsMap,
   normalizeRouteSteps,
+  normalizeFinishGeofence,
   parseLegacyAreaName,
   resolveAreaPayload
 };
