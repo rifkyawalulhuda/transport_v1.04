@@ -7,5 +7,3 @@ ADD INDEX idx_truck_wialon_unit_id (wialon_unit_id);
 
 ALTER TABLE truck
 ADD COLUMN wialon_unit_id VARCHAR(64) NULL DEFAULT NULL AFTER type_truck;
-
-Kalau kamu mau, langkah berikutnya saya bisa tambahkan TTL cache, misalnya alamat otomatis dianggap basi setelah 24 jam.
