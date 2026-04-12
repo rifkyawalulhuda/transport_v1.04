@@ -1359,29 +1359,38 @@ const createClusterIcon = (cluster: L.MarkerCluster) => {
   })
 }
 
-const createTruckIcon = (isSelected = false) =>
+const getTruckMarkerLabel = (truck: TruckLocation) => truck.no_police || `Truck ${truck.id_truck}`
+
+const createTruckIcon = (truck: TruckLocation, isSelected = false) =>
   L.divIcon({
     className: '',
     html: `
       <div class="truck-pin ${isSelected ? 'truck-pin--selected' : ''}">
-        <span class="truck-pin__halo"></span>
-        <div class="truck-pin__badge">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3063fd" aria-hidden="true" class="truck-pin__icon">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M13 4a1 1 0 0 1 1 1h4a1 1 0 0 1 .783 .378l.074 .108l3 5l.055 .103l.04 .107l.029 .109l.016 .11l.003 .085v6a1 1 0 0 1 -1 1h-1.171a3.001 3.001 0 0 1 -5.658 0h-4.342a3.001 3.001 0 0 1 -5.658 0h-1.171a1 1 0 0 1 -1 -1v-11a2 2 0 0 1 2 -2zm-6 12a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m10 0a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m.434 -9h-3.434v3h5.234z" />
-          </svg>
+        <span class="truck-pin__label">${escapeHtml(getTruckMarkerLabel(truck))}</span>
+        <div class="truck-pin__body">
+          <span class="truck-pin__halo"></span>
+          <div class="truck-pin__badge">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3063fd" aria-hidden="true" class="truck-pin__icon">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M13 4a1 1 0 0 1 1 1h4a1 1 0 0 1 .783 .378l.074 .108l3 5l.055 .103l.04 .107l.029 .109l.016 .11l.003 .085v6a1 1 0 0 1 -1 1h-1.171a3.001 3.001 0 0 1 -5.658 0h-4.342a3.001 3.001 0 0 1 -5.658 0h-1.171a1 1 0 0 1 -1 -1v-11a2 2 0 0 1 2 -2zm-6 12a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m10 0a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m.434 -9h-3.434v3h5.234z" />
+            </svg>
+          </div>
+          <span class="truck-pin__tip"></span>
         </div>
-        <span class="truck-pin__tip"></span>
       </div>
     `,
-    iconSize: [42, 52],
-    iconAnchor: [21, 48],
-    popupAnchor: [0, -42]
+    iconSize: [88, 72],
+    iconAnchor: [44, 60],
+    popupAnchor: [0, -56]
   })
 
 const updateMarkerSelection = () => {
   markerIndex.forEach((marker, truckId) => {
-    marker.setIcon(createTruckIcon(selectedTruckId.value === truckId))
+    const truck = (marker.options as { truck?: TruckLocation }).truck
+    if (!truck) {
+      return
+    }
+    marker.setIcon(createTruckIcon(truck, selectedTruckId.value === truckId))
   })
 }
 
@@ -1601,7 +1610,7 @@ const syncMarkers = (options?: MarkerSyncOptions) => {
     const lat = Number(truck.gps.lat)
     const lon = Number(truck.gps.lon)
     const marker = L.marker([lat, lon], {
-      icon: createTruckIcon(selectedTruckId.value === truck.id_truck),
+      icon: createTruckIcon(truck, selectedTruckId.value === truck.id_truck),
       truck
     })
 
@@ -1750,9 +1759,41 @@ onBeforeUnmount(() => {
 <style>
 .truck-pin {
   position: relative;
+  width: 88px;
+  height: 72px;
+  transform: translate(-50%, -100%);
+}
+
+.truck-pin__label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 3;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  transform: translateX(-50%);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.truck-pin__body {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
   width: 42px;
   height: 52px;
-  transform: translate(-50%, -100%);
+  transform: translateX(-50%);
   filter: drop-shadow(0 10px 16px rgba(15, 23, 42, 0.22));
 }
 
@@ -1769,6 +1810,12 @@ onBeforeUnmount(() => {
 .truck-pin--selected .truck-pin__halo {
   opacity: 1;
   transform: scale(1);
+}
+
+.truck-pin--selected .truck-pin__label {
+  border-color: rgba(37, 99, 235, 0.34);
+  background: rgba(239, 246, 255, 0.98);
+  color: #1d4ed8;
 }
 
 .truck-pin__badge {
@@ -1790,7 +1837,6 @@ onBeforeUnmount(() => {
 }
 
 .truck-pin__tip {
-  content: "";
   position: absolute;
   left: 50%;
   bottom: 4px;
