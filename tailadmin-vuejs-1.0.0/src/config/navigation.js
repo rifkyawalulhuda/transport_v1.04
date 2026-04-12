@@ -1,4 +1,4 @@
-import { GridIcon, CalenderIcon, UserCircleIcon, PieChartIcon, TableIcon, BoxCubeIcon } from '@/icons'
+import { GridIcon, CalenderIcon, UserCircleIcon, PieChartIcon, TableIcon, BoxCubeIcon, DocsIcon } from '@/icons'
 
 export const getMenuGroups = (userLevel) => {
   const isAdmin = userLevel === 'admin'
@@ -72,7 +72,7 @@ export const getMenuGroups = (userLevel) => {
           ],
         },
         {
-          icon: TableIcon,
+          icon: DocsIcon,
           name: 'Transaksi',
           subItems: [
             { name: 'Sales Cost', path: '/sales-cost', pro: false },
