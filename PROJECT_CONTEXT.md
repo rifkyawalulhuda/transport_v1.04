@@ -64,6 +64,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 - Monitoring Kendaraan summary and lists only count active trucks (`truck.is_active = 1`), so inactive trucks are excluded from total, transaksi, repair, idle, and search results.
 - Master Driver supports soft deactivation via `driver.is_active`; inactive drivers stay in Master Driver for administration/history but are removed from operational driver pickers, Sales Cost import/template options, and Data Transport Data Supir list/search/export.
 - Transaction and monitoring views.
+- Sales Cost list supports checkbox-based bulk selection and multi-record SPK printing. The print route still supports single-record `/sales-cost/:id/print`, and bulk print passes selected IDs through the `ids` query string so multiple SPK sheets render in one print page.
 - Import/export flows for master data.
 - Authentication and role-based access control.
 

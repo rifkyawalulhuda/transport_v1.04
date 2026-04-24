@@ -1,0 +1,37 @@
+- generic [active] [ref=e1]:
+  - main [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - link [ref=e9] [cursor=pointer]:
+          - /url: /
+          - img [ref=e10]
+        - generic [ref=e13]:
+          - generic [ref=e14]:
+            - heading "Login" [level=1] [ref=e15]
+            - paragraph [ref=e16]: Masukkan NIK Admin dan password untuk masuk.
+          - generic [ref=e18]:
+            - generic [ref=e19]:
+              - generic [ref=e20]: NIK Admin*
+              - textbox "NIK Admin*" [ref=e21]:
+                - /placeholder: Masukkan NIK Admin
+            - generic [ref=e22]:
+              - generic [ref=e23]: Password*
+              - generic [ref=e24]:
+                - textbox "Password*" [ref=e25]:
+                  - /placeholder: Masukkan password
+                - img [ref=e27] [cursor=pointer]
+            - button "Masuk" [ref=e30] [cursor=pointer]
+      - generic [ref=e32]:
+        - generic:
+          - img "grid" [ref=e34]
+          - img "grid" [ref=e36]
+        - generic [ref=e37]:
+          - link "Logo" [ref=e38] [cursor=pointer]:
+            - /url: /
+            - img "Logo" [ref=e39]
+          - paragraph [ref=e40]: Transport Management Dashboard
+  - generic [ref=e41]:
+    - generic "Toggle devtools panel" [ref=e42] [cursor=pointer]:
+      - img [ref=e43]
+    - generic "Toggle Component Inspector" [ref=e48] [cursor=pointer]:
+      - img [ref=e49]

@@ -1,0 +1,1 @@
+[   43021ms] [ERROR] WebSocket connection to 'wss://sankyu-transport.fun:5173/?token=Dn1Tv2G6R3jv' failed: Error in connection establishment: net::ERR_CONNECTION_TIMED_OUT @ http://localhost:5173/@vite/client:754

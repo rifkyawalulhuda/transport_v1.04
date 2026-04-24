@@ -10,123 +10,127 @@
       {{ errorMessage }}
     </div>
 
-    <div v-else class="print-sheet">
-      <img class="print-logo" src="/logo.jpg" alt="Logo" />
+    <div v-else-if="details.length === 0" class="print-status no-print">Tidak ada data cetak.</div>
 
-      <div class="print-header-line header-line-1">PT SANKYU INDONESIA INTERNATIONAL</div>
-      <div class="print-header-line header-line-2">CIKARANG LOGISTICS CENTER</div>
-      <div class="print-header-line header-line-3">
-        Kawasan Industri Terpadu Indonesia Cina Kav.20 Ds.Nagasari
+    <template v-else>
+      <div v-for="detail in details" :key="detail.id_sales_cost" class="print-sheet">
+        <img class="print-logo" src="/logo.jpg" alt="Logo" />
+
+        <div class="print-header-line header-line-1">PT SANKYU INDONESIA INTERNATIONAL</div>
+        <div class="print-header-line header-line-2">CIKARANG LOGISTICS CENTER</div>
+        <div class="print-header-line header-line-3">
+          Kawasan Industri Terpadu Indonesia Cina Kav.20 Ds.Nagasari
+        </div>
+        <div class="print-header-line header-line-4">Kecamatan Serang Baru - Bekasi 17330</div>
+
+        <div class="print-date">Print Date: {{ printDate }}</div>
+        <div class="print-divider"></div>
+        <div class="print-document-title">Surat Perintah Kerja</div>
+        <div class="print-document-underline">_________________________________</div>
+
+        <div class="print-label label-nomor">Nomor</div>
+        <div class="print-colon colon-nomor">:</div>
+        <div class="print-value value-nomor">{{ getSpkCode(detail) }}</div>
+
+        <div class="print-label label-tanggal">Tanggal</div>
+        <div class="print-colon colon-tanggal">:</div>
+        <div class="print-value value-tanggal">{{ formatLegacyDate(detail.delivery_order) }}</div>
+
+        <div class="print-label label-driver">Nama Driver</div>
+        <div class="print-colon colon-driver">:</div>
+        <div class="print-value value-driver">{{ detail.nama_driver || '-' }}</div>
+
+        <div class="print-label label-nopol">Nomor Polisi Kendaraan</div>
+        <div class="print-colon colon-nopol">:</div>
+        <div class="print-value value-nopol">{{ detail.no_police || '-' }}</div>
+
+        <div class="print-label label-customer">Konsumen</div>
+        <div class="print-colon colon-customer">:</div>
+        <div class="print-value value-customer">{{ detail.nama_customer || '-' }}</div>
+
+        <!-- No. DN Removed -->
+
+        <div class="print-label label-route">Rute</div>
+        <div class="print-colon colon-route">:</div>
+        <div class="print-value value-route">{{ detail.nama_area || '-' }}</div>
+
+        <div class="print-label label-vehicle">Jenis Kendaraan</div>
+        <div class="print-colon colon-vehicle">:</div>
+        <div class="print-value value-vehicle">{{ detail.jenis_kendaraan || '-' }}</div>
+        <div v-if="detail.container_size" class="print-value value-container">
+          {{ detail.container_size }}
+        </div>
+
+        <div class="print-label label-trip">Total Trip</div>
+        <div class="print-colon colon-trip">:</div>
+        <div class="print-value value-trip">{{ detail.trip || '-' }}</div>
+
+        <table class="cost-table">
+          <colgroup>
+            <col class="cost-col-label" />
+            <col class="cost-col-colon" />
+            <col class="cost-col-value" />
+          </colgroup>
+          <tbody>
+            <tr>
+              <td class="cost-label-cell">Ops Cost</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(detail.ops_cost) }}</td>
+            </tr>
+            <tr>
+              <td class="cost-label-cell">Demurage</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(detail.demurrage_chargers) }}</td>
+            </tr>
+            <tr>
+              <td class="cost-label-cell">Detention</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(detail.detention_chargers) }}</td>
+            </tr>
+            <tr>
+              <td class="cost-label-cell">Container Repair</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(detail.container_repair) }}</td>
+            </tr>
+            <tr>
+              <td class="cost-label-cell">Gate Pass Extend</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(detail.extend_gate_pass) }}</td>
+            </tr>
+            <tr>
+              <td class="cost-label-cell">Additional Cost</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(detail.additional_cost) }}</td>
+            </tr>
+            <tr class="cost-separator">
+              <td colspan="3"></td>
+            </tr>
+            <tr class="cost-total-row">
+              <td class="cost-label-cell">Total</td>
+              <td class="cost-colon-cell">: Rp.</td>
+              <td class="cost-value-cell">{{ formatNumber(getTotalCost(detail)) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signature-divider"></div>
+        <div class="signature-row signature-labels">
+          <div>(PREPARED)</div>
+          <div>(APPROVED)</div>
+          <div>(DRIVER)</div>
+        </div>
+        <div class="signature-row signature-names">
+          <div>(_________)</div>
+          <div>(_________)</div>
+          <div>(_________)</div>
+        </div>
       </div>
-      <div class="print-header-line header-line-4">Kecamatan Serang Baru - Bekasi 17330</div>
-
-      <div class="print-date">Print Date: {{ printDate }}</div>
-      <div class="print-divider"></div>
-      <div class="print-document-title">Surat Perintah Kerja</div>
-      <div class="print-document-underline">_________________________________</div>
-
-      <div class="print-label label-nomor">Nomor</div>
-      <div class="print-colon colon-nomor">:</div>
-      <div class="print-value value-nomor">{{ spkCode }}</div>
-
-      <div class="print-label label-tanggal">Tanggal</div>
-      <div class="print-colon colon-tanggal">:</div>
-      <div class="print-value value-tanggal">{{ formatLegacyDate(detail?.delivery_order) }}</div>
-
-      <div class="print-label label-driver">Nama Driver</div>
-      <div class="print-colon colon-driver">:</div>
-      <div class="print-value value-driver">{{ detail?.nama_driver || '-' }}</div>
-
-      <div class="print-label label-nopol">Nomor Polisi Kendaraan</div>
-      <div class="print-colon colon-nopol">:</div>
-      <div class="print-value value-nopol">{{ detail?.no_police || '-' }}</div>
-
-      <div class="print-label label-customer">Konsumen</div>
-      <div class="print-colon colon-customer">:</div>
-      <div class="print-value value-customer">{{ detail?.nama_customer || '-' }}</div>
-
-      <!-- No. DN Removed -->
-
-      <div class="print-label label-route">Rute</div>
-      <div class="print-colon colon-route">:</div>
-      <div class="print-value value-route">{{ detail?.nama_area || '-' }}</div>
-
-      <div class="print-label label-vehicle">Jenis Kendaraan</div>
-      <div class="print-colon colon-vehicle">:</div>
-      <div class="print-value value-vehicle">{{ detail?.jenis_kendaraan || '-' }}</div>
-      <div v-if="detail?.container_size" class="print-value value-container">
-        {{ detail.container_size }}
-      </div>
-
-      <div class="print-label label-trip">Total Trip</div>
-      <div class="print-colon colon-trip">:</div>
-      <div class="print-value value-trip">{{ detail?.trip || '-' }}</div>
-
-      <table class="cost-table">
-        <colgroup>
-          <col class="cost-col-label" />
-          <col class="cost-col-colon" />
-          <col class="cost-col-value" />
-        </colgroup>
-        <tbody>
-          <tr>
-            <td class="cost-label-cell">Ops Cost</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(detail?.ops_cost) }}</td>
-          </tr>
-          <tr>
-            <td class="cost-label-cell">Demurage</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(detail?.demurrage_chargers) }}</td>
-          </tr>
-          <tr>
-            <td class="cost-label-cell">Detention</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(detail?.detention_chargers) }}</td>
-          </tr>
-          <tr>
-            <td class="cost-label-cell">Container Repair</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(detail?.container_repair) }}</td>
-          </tr>
-          <tr>
-            <td class="cost-label-cell">Gate Pass Extend</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(detail?.extend_gate_pass) }}</td>
-          </tr>
-          <tr>
-            <td class="cost-label-cell">Additional Cost</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(detail?.additional_cost) }}</td>
-          </tr>
-          <tr class="cost-separator">
-            <td colspan="3"></td>
-          </tr>
-          <tr class="cost-total-row">
-            <td class="cost-label-cell">Total</td>
-            <td class="cost-colon-cell">: Rp.</td>
-            <td class="cost-value-cell">{{ formatNumber(totalCost) }}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="signature-divider"></div>
-      <div class="signature-row signature-labels">
-        <div>(PREPARED)</div>
-        <div>(APPROVED)</div>
-        <div>(DRIVER)</div>
-      </div>
-      <div class="signature-row signature-names">
-        <div>(_________)</div>
-        <div>(_________)</div>
-        <div>(_________)</div>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { salesCostService } from '@/services/salesCostService'
 
@@ -156,37 +160,29 @@ type SalesCostPrintDetail = {
 const route = useRoute()
 const loading = ref(true)
 const errorMessage = ref('')
-const detail = ref<SalesCostPrintDetail | null>(null)
+const details = ref<SalesCostPrintDetail[]>([])
 
 const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
-const printDate = computed(() => formatShortDate(new Date()))
-
-const spkCode = computed(() => {
-  if (!detail.value) {
-    return ''
-  }
-  const deliveryYear = getYear(detail.value.delivery_order) || new Date().getFullYear()
+const getSpkCode = (detail: SalesCostPrintDetail) => {
+  const deliveryYear = getYear(detail.delivery_order) || new Date().getFullYear()
   const romanMonth = romanMonths[new Date().getMonth()]
-  return `${detail.value.id_sales_cost} / SPK / CLC / ${romanMonth} / ${deliveryYear}`
-})
+  return `${detail.id_sales_cost} / SPK / CLC / ${romanMonth} / ${deliveryYear}`
+}
 
-const totalCost = computed(() => {
-  if (!detail.value) {
-    return 0
-  }
-  if (detail.value.total !== null && detail.value.total !== undefined) {
-    return Number(detail.value.total) || 0
+const getTotalCost = (detail: SalesCostPrintDetail) => {
+  if (detail.total !== null && detail.total !== undefined) {
+    return Number(detail.total) || 0
   }
   return (
-    toNumber(detail.value.ops_cost) +
-    toNumber(detail.value.demurrage_chargers) +
-    toNumber(detail.value.detention_chargers) +
-    toNumber(detail.value.container_repair) +
-    toNumber(detail.value.extend_gate_pass) +
-    toNumber(detail.value.additional_cost)
+    toNumber(detail.ops_cost) +
+    toNumber(detail.demurrage_chargers) +
+    toNumber(detail.detention_chargers) +
+    toNumber(detail.container_repair) +
+    toNumber(detail.extend_gate_pass) +
+    toNumber(detail.additional_cost)
   )
-})
+}
 
 const toNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') {
@@ -222,6 +218,8 @@ const formatShortDate = (date: Date) => {
   return `${day}-${month}-${year}`
 }
 
+const printDate = formatShortDate(new Date())
+
 const getYear = (value?: string | null) => {
   if (!value) {
     return null
@@ -239,10 +237,23 @@ const handlePrint = () => {
   })
 }
 
-const loadDetail = async () => {
+const parseRequestedIds = () => {
+  const queryIds = route.query.ids
+  const rawQueryIds = Array.isArray(queryIds) ? queryIds.join(',') : queryIds
   const rawId = route.params.id
   const idParam = Array.isArray(rawId) ? rawId[0] : rawId
-  if (!idParam) {
+  const source = rawQueryIds || idParam || ''
+  const ids = String(source)
+    .split(',')
+    .map((id) => Number(id.trim()))
+    .filter((id) => Number.isInteger(id) && id > 0)
+
+  return Array.from(new Set(ids))
+}
+
+const loadDetails = async () => {
+  const requestedIds = parseRequestedIds()
+  if (requestedIds.length === 0) {
     errorMessage.value = 'ID transaksi tidak ditemukan.'
     loading.value = false
     return
@@ -250,8 +261,10 @@ const loadDetail = async () => {
   loading.value = true
   errorMessage.value = ''
   try {
-    const data = await salesCostService.fetchSalesCostById(idParam)
-    detail.value = data
+    const data = await Promise.all(
+      requestedIds.map((id) => salesCostService.fetchSalesCostById(id)),
+    )
+    details.value = data
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Gagal memuat data cetak. Silakan coba lagi.'
@@ -262,7 +275,7 @@ const loadDetail = async () => {
 }
 
 onMounted(() => {
-  loadDetail()
+  loadDetails()
 })
 </script>
 
@@ -336,8 +349,14 @@ body {
   overflow: hidden;
   font-size: 11px;
   line-height: 1.15;
-  page-break-after: avoid;
+  break-after: page;
+  page-break-after: always;
   page-break-inside: avoid;
+}
+
+.print-sheet:last-child {
+  break-after: auto;
+  page-break-after: auto;
 }
 
 .print-logo {
@@ -413,7 +432,6 @@ body {
   text-align: center;
   font-size: 12pt;
 }
-
 
 .print-label,
 .print-colon,
@@ -570,7 +588,7 @@ body {
   width: 100mm;
   border-collapse: collapse;
   font-size: 16px;
-  line-height: 1.90;
+  line-height: 1.9;
   font-weight: 700;
   page-break-inside: avoid;
 }
@@ -680,6 +698,13 @@ body {
   .print-sheet {
     box-shadow: none;
     margin: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 }
 </style>

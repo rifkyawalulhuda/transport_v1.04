@@ -3,10 +3,7 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Filter Tanggal & Pencarian">
-        <form
-          class="space-y-4"
-          @submit.prevent="loadData"
-        >
+        <form class="space-y-4" @submit.prevent="loadData">
           <div class="grid gap-4 sm:grid-cols-4">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
@@ -42,11 +39,7 @@
                 v-model="searchColumn"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               >
-                <option
-                  v-for="option in searchColumns"
-                  :key="option.value"
-                  :value="option.value"
-                >
+                <option v-for="option in searchColumns" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
               </select>
@@ -104,13 +97,33 @@
       </ComponentCard>
 
       <ComponentCard title="Daftar Sales Cost">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <RouterLink
-            to="/sales-cost/new"
-            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
-          >
-            Tambah Transaksi
-          </RouterLink>
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <RouterLink
+              to="/sales-cost/new"
+              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+            >
+              Tambah Transaksi
+            </RouterLink>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
+              :disabled="selectedSalesCostIds.length === 0"
+              @click="printSelectedSalesCosts"
+            >
+              Cetak Terpilih ({{ selectedSalesCostIds.length }})
+            </button>
+            <button
+              v-if="selectedSalesCostIds.length > 0"
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              @click="clearSelectedSalesCosts"
+            >
+              Batal Pilih
+            </button>
+          </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div class="flex items-center gap-2">
               <label class="text-sm text-gray-600 dark:text-gray-300">Tahun</label>
@@ -230,11 +243,7 @@
                   required
                 >
                   <option value="">Pilih Area</option>
-                  <option
-                    v-for="area in areas"
-                    :key="area.id_area"
-                    :value="String(area.id_area)"
-                  >
+                  <option v-for="area in areas" :key="area.id_area" :value="String(area.id_area)">
                     {{ area.nama_area }}
                   </option>
                 </select>
@@ -329,245 +338,302 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
+                  <th class="w-12 px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
+                    <input
+                      ref="selectAllCheckbox"
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900"
+                      :checked="isAllPagedSelected"
+                      :disabled="pagedItems.length === 0"
+                      aria-label="Pilih semua transaksi pada halaman ini"
+                      @change="togglePagedSelection"
+                    />
                   </th>
-                  <th 
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">No</th>
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('id_sales_cost')"
                   >
                     <div class="flex items-center gap-1">
                       No. SPK
                       <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortColumn === 'id_sales_cost' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'id_sales_cost' && sortOrder === 'asc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m18 15-6-6-6 6"/>
+                          <path d="m18 15-6-6-6 6" />
                         </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'id_sales_cost' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'id_sales_cost' && sortOrder === 'desc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m6 9 6 6 6-6"/>
+                          <path d="m6 9 6 6 6-6" />
                         </svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('delivery_order')"
                   >
                     <div class="flex items-center gap-1">
                       Tanggal Kirim
                       <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortColumn === 'delivery_order' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'delivery_order' && sortOrder === 'asc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m18 15-6-6-6 6"/>
+                          <path d="m18 15-6-6-6 6" />
                         </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'delivery_order' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'delivery_order' && sortOrder === 'desc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m6 9 6 6 6-6"/>
+                          <path d="m6 9 6 6 6-6" />
                         </svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('nama_customer')"
                   >
                     <div class="flex items-center gap-1">
                       Customer
                       <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortColumn === 'nama_customer' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'nama_customer' && sortOrder === 'asc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m18 15-6-6-6 6"/>
+                          <path d="m18 15-6-6-6 6" />
                         </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'nama_customer' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'nama_customer' && sortOrder === 'desc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m6 9 6 6 6-6"/>
+                          <path d="m6 9 6 6 6-6" />
                         </svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('price')"
                   >
                     <div class="flex items-center justify-end gap-1">
                       Sales
                       <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortColumn === 'price' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'price' && sortOrder === 'asc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m18 15-6-6-6 6"/>
+                          <path d="m18 15-6-6-6 6" />
                         </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'price' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'price' && sortOrder === 'desc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m6 9 6 6 6-6"/>
+                          <path d="m6 9 6 6 6-6" />
                         </svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('ops_cost')"
                   >
                     <div class="flex items-center justify-end gap-1">
                       Ops Cost
                       <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortColumn === 'ops_cost' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'ops_cost' && sortOrder === 'asc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m18 15-6-6-6 6"/>
+                          <path d="m18 15-6-6-6 6" />
                         </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'ops_cost' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'ops_cost' && sortOrder === 'desc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m6 9 6 6 6-6"/>
+                          <path d="m6 9 6 6 6-6" />
                         </svg>
                       </span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     class="group cursor-pointer px-5 py-3 text-right text-xs font-medium text-gray-500 sm:px-6"
                     @click="toggleSort('margin')"
                   >
                     <div class="flex items-center justify-end gap-1">
                       Gross Profit
                       <span class="flex flex-col">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortColumn === 'margin' && sortOrder === 'asc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'margin' && sortOrder === 'asc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m18 15-6-6-6 6"/>
+                          <path d="m18 15-6-6-6 6" />
                         </svg>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          stroke-width="2" 
-                          stroke-linecap="round" 
-                          stroke-linejoin="round" 
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortColumn === 'margin' && sortOrder === 'desc' ? 'text-brand-500' : 'text-gray-300 group-hover:text-gray-400'"
+                          :class="
+                            sortColumn === 'margin' && sortOrder === 'desc'
+                              ? 'text-brand-500'
+                              : 'text-gray-300 group-hover:text-gray-400'
+                          "
                         >
-                          <path d="m6 9 6 6 6-6"/>
+                          <path d="m6 9 6 6 6-6" />
                         </svg>
                       </span>
                     </div>
@@ -580,6 +646,16 @@
               <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
                 <template v-for="(item, index) in pagedItems" :key="item.id_sales_cost">
                   <tr class="border-t border-gray-100 dark:border-gray-800">
+                    <td class="px-5 py-3 sm:px-6">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900"
+                        :checked="isSalesCostSelected(item.id_sales_cost)"
+                        :aria-label="`Pilih sales cost ${item.id_sales_cost}`"
+                        @click.stop
+                        @change="toggleSalesCostSelection(item.id_sales_cost, $event)"
+                      />
+                    </td>
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                       {{ (currentPage - 1) * pageSize + index + 1 }}
                     </td>
@@ -592,85 +668,87 @@
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                       {{ item.nama_customer }}
                     </td>
-                    <td class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                    <td
+                      class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200"
+                    >
                       {{ formatRupiah(item.price) }}
                     </td>
-                    <td class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                    <td
+                      class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200"
+                    >
                       {{ formatRupiah(item.total ?? item.ops_cost) }}
                     </td>
-                    <td class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                    <td
+                      class="px-5 py-3 text-right text-sm text-gray-700 sm:px-6 dark:text-gray-200"
+                    >
                       {{ formatRupiah(item.margin) }}
                     </td>
                     <td class="px-5 py-3 text-center sm:px-6">
                       <div class="relative inline-flex justify-center">
-                          <button
-                            type="button"
-                            class="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                            @click.stop="toggleActionMenu(item.id_sales_cost, $event)"
-                          >
-                        <svg
-                          class="h-3.5 w-3.5"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.6"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
+                        <button
+                          type="button"
+                          class="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          @click.stop="toggleActionMenu(item.id_sales_cost, $event)"
                         >
-                          <path d="m5 8 5 5 5-5" />
-                        </svg>
-
+                          <svg
+                            class="h-3.5 w-3.5"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="m5 8 5 5 5-5" />
+                          </svg>
                         </button>
-                          <Teleport to="body">
-                            <div
-                              v-if="openActionId === item.id_sales_cost"
-                              ref="actionMenuRef"
-                              class="fixed z-[9999] w-36 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
-                              :style="actionMenuStyle"
-                              @click.stop
+                        <Teleport to="body">
+                          <div
+                            v-if="openActionId === item.id_sales_cost"
+                            ref="actionMenuRef"
+                            class="fixed z-[9999] w-36 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                            :style="actionMenuStyle"
+                            @click.stop
+                          >
+                            <RouterLink
+                              :to="`/sales-cost/${item.id_sales_cost}`"
+                              class="block px-3 py-2 text-xs font-medium text-sky-600 hover:bg-gray-50 dark:text-sky-400 dark:hover:bg-white/[0.03]"
+                              @click="closeActionMenu"
                             >
-                              <RouterLink
-                                :to="`/sales-cost/${item.id_sales_cost}`"
-                                class="block px-3 py-2 text-xs font-medium text-sky-600 hover:bg-gray-50 dark:text-sky-400 dark:hover:bg-white/[0.03]"
-                                @click="closeActionMenu"
-                              >
-                                Details
-                              </RouterLink>
-                              <RouterLink
-                                :to="`/sales-cost/${item.id_sales_cost}/edit`"
-                                class="block px-3 py-2 text-xs font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-white/[0.03]"
-                                @click="closeActionMenu"
-                              >
-                                Edit
-                              </RouterLink>
-                              <RouterLink
-                                :to="`/sales-cost/${item.id_sales_cost}/print`"
-                                target="_blank"
-                                rel="noopener"
-                                class="block px-3 py-2 text-xs font-medium text-emerald-600 hover:bg-gray-50 dark:text-emerald-400 dark:hover:bg-white/[0.03]"
-                                @click="closeActionMenu"
-                              >
-                                Cetak
-                              </RouterLink>
-                              <button
-                                v-if="isAdmin"
-                                type="button"
-                                :disabled="deletingId === item.id_sales_cost"
-                                class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
-                                @click="handleDelete(item)"
-                              >
-                                Hapus
-                              </button>
-                            </div>
-                          </Teleport>
-                        </div>
+                              Details
+                            </RouterLink>
+                            <RouterLink
+                              :to="`/sales-cost/${item.id_sales_cost}/edit`"
+                              class="block px-3 py-2 text-xs font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-white/[0.03]"
+                              @click="closeActionMenu"
+                            >
+                              Edit
+                            </RouterLink>
+                            <RouterLink
+                              :to="`/sales-cost/${item.id_sales_cost}/print`"
+                              target="_blank"
+                              rel="noopener"
+                              class="block px-3 py-2 text-xs font-medium text-emerald-600 hover:bg-gray-50 dark:text-emerald-400 dark:hover:bg-white/[0.03]"
+                              @click="closeActionMenu"
+                            >
+                              Cetak
+                            </RouterLink>
+                            <button
+                              v-if="isAdmin"
+                              type="button"
+                              :disabled="deletingId === item.id_sales_cost"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
+                              @click="handleDelete(item)"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </Teleport>
+                      </div>
                     </td>
                   </tr>
                   <tr v-if="editingId === item.id_sales_cost">
-                    <td
-                      colspan="8"
-                      class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
-                    >
+                    <td colspan="9" class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40">
                       <div
                         class="rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -864,7 +942,7 @@
                 </template>
                 <tr v-if="!loading && items.length === 0">
                   <td
-                    colspan="8"
+                    colspan="9"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Tidak ada data
@@ -872,7 +950,7 @@
                 </tr>
                 <tr v-if="loading">
                   <td
-                    colspan="8"
+                    colspan="9"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Memuat data...
@@ -945,13 +1023,9 @@
       v-if="showImportModal"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
     >
-      <div
-        class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800"
-      >
-        <h3 class="mb-4 text-lg font-bold text-gray-900 dark:text-white">
-          Import Sales Cost
-        </h3>
-        
+      <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+        <h3 class="mb-4 text-lg font-bold text-gray-900 dark:text-white">Import Sales Cost</h3>
+
         <p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
           Silakan download template terlebih dahulu untuk memastikan format data sesuai.
         </p>
@@ -963,7 +1037,22 @@
             :disabled="isDownloadingTemplate"
             @click="downloadTemplate"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-download"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
             {{ isDownloadingTemplate ? 'Mengunduh...' : 'Download Template' }}
           </button>
 
@@ -972,7 +1061,22 @@
             class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             @click="selectFile"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-upload"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" x2="12" y1="3" y2="15" />
+            </svg>
             Upload File Excel
           </button>
         </div>
@@ -1082,7 +1186,7 @@ const searchColumns = [
   { value: 'nama_customer', label: 'Customer', placeholder: 'Cari customer' },
   { value: 'nama_area', label: 'Rute', placeholder: 'Cari rute' },
   { value: 'nama_driver', label: 'Driver', placeholder: 'Cari driver' },
-  { value: 'no_police', label: 'No. Police', placeholder: 'Cari no. police' }
+  { value: 'no_police', label: 'No. Police', placeholder: 'Cari no. police' },
 ]
 const searchColumn = ref('all')
 const searchInput = ref('')
@@ -1109,8 +1213,8 @@ const filteredItems = computed(() => {
         item.nama_customer,
         item.nama_area,
         item.nama_driver,
-        item.no_police
-      ].some(matches)
+        item.no_police,
+      ].some(matches),
     )
   }
   return items.value.filter((item) => matches(item[searchColumn.value as keyof SalesCostItem]))
@@ -1156,6 +1260,22 @@ const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   return sortedItems.value.slice(start, start + pageSize.value)
 })
+const selectedSalesCostIds = ref<number[]>([])
+const selectAllCheckbox = ref<HTMLInputElement | null>(null)
+const selectedSalesCostIdSet = computed(() => new Set(selectedSalesCostIds.value))
+const pagedSalesCostIds = computed(() =>
+  pagedItems.value
+    .map((item) => Number(item.id_sales_cost))
+    .filter((id) => Number.isFinite(id) && id > 0),
+)
+const isAllPagedSelected = computed(
+  () =>
+    pagedSalesCostIds.value.length > 0 &&
+    pagedSalesCostIds.value.every((id) => selectedSalesCostIdSet.value.has(id)),
+)
+const isSomePagedSelected = computed(() =>
+  pagedSalesCostIds.value.some((id) => selectedSalesCostIdSet.value.has(id)),
+)
 const totalPages = computed(() => {
   if (filteredItems.value.length === 0) {
     return 1
@@ -1185,7 +1305,7 @@ const setActionMenuPosition = (event: MouseEvent) => {
     if (top + menuHeight > window.innerHeight - 8) {
       actionMenuPosition.value = {
         top: Math.max(8, rect.top - menuHeight - 8),
-        left
+        left,
       }
     }
   })
@@ -1193,7 +1313,7 @@ const setActionMenuPosition = (event: MouseEvent) => {
 
 const actionMenuStyle = computed(() => ({
   top: `${actionMenuPosition.value.top}px`,
-  left: `${actionMenuPosition.value.left}px`
+  left: `${actionMenuPosition.value.left}px`,
 }))
 
 const toggleActionMenu = (id: number, event: MouseEvent) => {
@@ -1213,6 +1333,48 @@ const handleDelete = (item: SalesCostItem) => {
   closeActionMenu()
   remove(item)
 }
+
+const getChecked = (event: Event) => (event.target as HTMLInputElement | null)?.checked ?? false
+
+const isSalesCostSelected = (id: number) => selectedSalesCostIdSet.value.has(Number(id))
+
+const toggleSalesCostSelection = (id: number, event: Event) => {
+  const targetId = Number(id)
+  if (!Number.isFinite(targetId) || targetId <= 0) {
+    return
+  }
+  const nextIds = new Set(selectedSalesCostIds.value)
+  if (getChecked(event)) {
+    nextIds.add(targetId)
+  } else {
+    nextIds.delete(targetId)
+  }
+  selectedSalesCostIds.value = Array.from(nextIds)
+}
+
+const togglePagedSelection = (event: Event) => {
+  const nextIds = new Set(selectedSalesCostIds.value)
+  if (getChecked(event)) {
+    pagedSalesCostIds.value.forEach((id) => nextIds.add(id))
+  } else {
+    pagedSalesCostIds.value.forEach((id) => nextIds.delete(id))
+  }
+  selectedSalesCostIds.value = Array.from(nextIds)
+}
+
+const clearSelectedSalesCosts = () => {
+  selectedSalesCostIds.value = []
+}
+
+const printSelectedSalesCosts = () => {
+  if (selectedSalesCostIds.value.length === 0) {
+    toast.warning('Pilih minimal satu transaksi untuk dicetak.')
+    return
+  }
+  const ids = selectedSalesCostIds.value.join(',')
+  window.open(`/sales-cost/${selectedSalesCostIds.value[0]}/print?ids=${ids}`, '_blank', 'noopener')
+}
+
 const paginationItems = computed<PaginationItem[]>(() => {
   const total = totalPages.value
   const current = currentPage.value
@@ -1222,7 +1384,7 @@ const paginationItems = computed<PaginationItem[]>(() => {
     return Array.from({ length: total }, (_, index) => ({
       type: 'page',
       value: index + 1,
-      key: `page-${index + 1}`
+      key: `page-${index + 1}`,
     }))
   }
 
@@ -1260,7 +1422,7 @@ const paginationItems = computed<PaginationItem[]>(() => {
 const filters = reactive({
   startDate: '',
   endDate: '',
-  year: defaultYear
+  year: defaultYear,
 })
 const filterError = ref('')
 
@@ -1281,7 +1443,7 @@ const form = reactive<FormState>({
   arrival_order: '',
   price: '',
   ops_cost: '',
-  additional_cost: ''
+  additional_cost: '',
 })
 
 const trucks = ref<OptionItem[]>([])
@@ -1329,7 +1491,7 @@ const formatDate = (value?: string | null) => {
   return new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
   }).format(date)
 }
 
@@ -1338,7 +1500,7 @@ const formatRupiah = (value: number) => {
   return number.toLocaleString('id-ID', {
     style: 'currency',
     currency: 'IDR',
-    minimumFractionDigits: 0
+    minimumFractionDigits: 0,
   })
 }
 
@@ -1354,7 +1516,7 @@ const loadOptions = async () => {
     fetch(`${apiBase}/trucks`),
     fetch(`${apiBase}/drivers`),
     fetch(`${apiBase}/customers`),
-    fetch(`${apiBase}/areas`)
+    fetch(`${apiBase}/areas`),
   ])
   trucks.value = await truckRes.json()
   drivers.value = await driverRes.json()
@@ -1414,10 +1576,16 @@ const loadData = async () => {
     filterError.value = ''
     const params = buildFilterParams()
     const res = await fetch(
-      `${apiBase}/sales-costs${params.toString() ? `?${params.toString()}` : ''}`
+      `${apiBase}/sales-costs${params.toString() ? `?${params.toString()}` : ''}`,
     )
     const data = await res.json()
     items.value = data
+    const availableIds = new Set(
+      items.value
+        .map((item) => Number(item.id_sales_cost))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    )
+    selectedSalesCostIds.value = selectedSalesCostIds.value.filter((id) => availableIds.has(id))
     currentPage.value = 1
     editingId.value = null
   } catch (error) {
@@ -1447,9 +1615,7 @@ const handleYearFilterChange = () => {
 const resetFilter = () => {
   filters.startDate = ''
   filters.endDate = ''
-  filters.year = yearOptions.value.includes(defaultYear)
-    ? defaultYear
-    : (yearOptions.value[0] || '')
+  filters.year = yearOptions.value.includes(defaultYear) ? defaultYear : yearOptions.value[0] || ''
   searchColumn.value = 'all'
   searchInput.value = ''
   searchKeyword.value = ''
@@ -1514,8 +1680,7 @@ const exportExcel = async () => {
     }
     const today = new Date().toISOString().slice(0, 10)
     const fallbackName = `sales-cost_${today}.xlsx`
-    const filename =
-      getFilenameFromHeader(res.headers.get('content-disposition')) || fallbackName
+    const filename = getFilenameFromHeader(res.headers.get('content-disposition')) || fallbackName
     const downloadUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = downloadUrl
@@ -1548,15 +1713,14 @@ const downloadTemplate = async () => {
       const message = await res.text()
       throw new Error(message || 'Gagal download template')
     }
-    
+
     const blob = await res.blob()
     if (!blob || blob.size === 0) {
       toast.info('Template belum tersedia.')
       return
     }
     const fallbackName = 'Template-Sales-Cost.xlsx'
-    const filename =
-      getFilenameFromHeader(res.headers.get('content-disposition')) || fallbackName
+    const filename = getFilenameFromHeader(res.headers.get('content-disposition')) || fallbackName
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -1597,7 +1761,7 @@ const handleFileChange = async (event: Event) => {
   try {
     const res = await authFetch(`${apiBase}/sales-costs/import`, {
       method: 'POST',
-      body: formData
+      body: formData,
     })
 
     const data = await res.json()
@@ -1612,7 +1776,7 @@ const handleFileChange = async (event: Event) => {
 
     if (failCount > 0) {
       const hasContainerRequired = failures.some(
-        (failure) => failure?.reasonCode === 'CONTAINER_SIZE_REQUIRED'
+        (failure) => failure?.reasonCode === 'CONTAINER_SIZE_REQUIRED',
       )
       if (hasContainerRequired) {
         toast.error('Tolong Masukan Container Size')
@@ -1630,7 +1794,7 @@ const handleFileChange = async (event: Event) => {
       title: 'Hasil Import',
       message: `Berhasil: ${successCount}\nGagal: ${failCount}`,
       variant: failCount > 0 ? 'warning' : 'success',
-      okText: 'OK'
+      okText: 'OK',
     })
     await loadData()
   } catch (error: any) {
@@ -1725,7 +1889,7 @@ const submitForm = async () => {
     price: Number(form.price || 0),
     ops_cost: Number(form.ops_cost || 0),
     additional_cost: Number(form.additional_cost || 0),
-    tgl_order: form.delivery_order
+    tgl_order: form.delivery_order,
   }
 
   const isUpdate = Boolean(form.id)
@@ -1735,7 +1899,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -1748,9 +1912,9 @@ const submitForm = async () => {
       const res = await fetch(`${apiBase}/sales-costs/${form.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -1766,9 +1930,9 @@ const submitForm = async () => {
       const res = await fetch(`${apiBase}/sales-costs`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -1798,11 +1962,10 @@ const remove = async (item: SalesCostItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -1810,7 +1973,7 @@ const remove = async (item: SalesCostItem) => {
   try {
     deletingId.value = item.id_sales_cost
     const res = await authFetch(`${apiBase}/sales-costs/${item.id_sales_cost}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()
@@ -1878,7 +2041,7 @@ watch(
     } else {
       filterError.value = ''
     }
-  }
+  },
 )
 
 watch(totalPages, (value) => {
@@ -1886,4 +2049,14 @@ watch(totalPages, (value) => {
     currentPage.value = value
   }
 })
+
+watch(
+  [isAllPagedSelected, isSomePagedSelected],
+  () => {
+    if (selectAllCheckbox.value) {
+      selectAllCheckbox.value.indeterminate = isSomePagedSelected.value && !isAllPagedSelected.value
+    }
+  },
+  { flush: 'post', immediate: true },
+)
 </script>
