@@ -59,6 +59,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 ### Core Modules
 
 - Master data management for trucks, drivers, customers, areas, warehouses, subcontractors, and admins.
+- Master Truck supports soft deactivation via `truck.is_active`; inactive trucks stay in Master Truck for history/admin visibility but are removed from operational pickers and GPS fleet views.
 - Transaction and monitoring views.
 - Import/export flows for master data.
 - Authentication and role-based access control.
@@ -66,7 +67,9 @@ The project now also includes truck location tracking with Wialon GPS data displ
 ### Truck GPS and Map Tracking
 
 - Truck master now supports `wialon_unit_id`.
+- Truck master now supports `is_active` for active/inactive fleet control.
 - Wialon data is fetched server-side only.
+- The live GPS location endpoint only returns active trucks, so inactive trucks are excluded from the location summary, map markers, fleet list, and fleet search/filter results.
 - Reverse geocode cache now uses a 24-hour TTL on both backend in-memory cache and frontend `localStorage`.
 - Monitoring now also includes monthly truck mileage calculation based on Wialon trip data per month.
 - The frontend uses a dedicated truck location page:
@@ -85,6 +88,21 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - GPS-only filter chips: `All`, `Moving`, `Idle`, `Offline`, `Belum Terhubung`
   - simplified fleet cards that only show truck number and GPS status
   - custom truck marker icon embedded inline in the frontend code so it does not depend on an external image file at runtime
+
+### Master Truck Active/Inactive Flow
+
+- Master Truck now has a status badge: `Aktif` or `Nonaktif`.
+- Master Truck row actions are grouped in a dropdown, matching the Sales Cost action-menu pattern:
+  - `Edit`
+  - `Nonaktifkan` / `Aktifkan`
+  - `Hapus`
+- `Hapus` remains available and still performs the hard delete flow.
+- `Nonaktifkan` is a soft operational disable:
+  - the truck remains visible in Master Truck when that page loads all rows
+  - historical Sales Cost rows can still display the truck through their existing relation
+  - the truck is removed from new operational selections and GPS fleet/location views
+- Frontend edit flows for existing Sales Cost records preserve the currently assigned truck option even if that truck is later inactive, so old records can still be opened without losing their displayed selection.
+- New Sales Cost creation, Sales Cost import, and truck changes on existing Sales Cost records reject inactive trucks on the backend.
 
 ### Monthly Truck Mileage
 
@@ -133,7 +151,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 ### Backend Flow
 
 1. Backend logs in to Wialon using the token stored in `node_backend/.env`.
-2. Backend fetches the latest mapped unit snapshot from Wialon and reads position data from `core/search_items` output.
+2. Backend loads active local trucks, fetches the latest mapped unit snapshot from Wialon, and reads position data from `core/search_items` output.
 3. Backend enriches GPS data with operational context from existing app tables:
    - active transaction
    - active repair
@@ -147,7 +165,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 ### Monthly Mileage Flow
 
 1. Frontend requests monthly mileage for a selected `YYYY-MM` period.
-2. Backend loads all local trucks and checks `wialon_unit_id`.
+2. Backend loads local trucks and checks `wialon_unit_id`.
 3. For each mapped truck, backend uses Wialon message loader for the selected monthly interval.
 4. Backend calls `unit/get_trips` and sums trip mileage for the month.
 5. Backend returns one row per truck with:
@@ -182,6 +200,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - token login
   - session reuse and retry
   - location normalization from Wialon snapshot data
+  - filters truck location payloads to active local trucks (`truck.is_active = 1`)
   - auto mapping helper
   - operational data enrichment for map payload
   - Geoapify reverse geocoding with in-memory cache
@@ -193,12 +212,17 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - records system `Finish Order` step using default company geofence
 - `node_backend/services/schemaSyncService.js`
   - legacy runtime schema safety net for tracking-related columns/tables
+- `node_backend/routes/truck.js`
+  - Master Truck CRUD
+  - active/inactive listing filters
+  - `PATCH /api/trucks/:id/status` for soft activation/deactivation
 - `node_backend/routes/wialon.js`
   - protected API routes for truck location, reverse geocoding, auto mapping, and geofence listing
 - `node_backend/routes/area.js`
   - CRUD for area master with `kode_area`, generated `nama_area`, and `route_steps`
 - `node_backend/routes/salesCost.js`
   - sales cost detail now includes route plan and geofence route history
+  - rejects inactive trucks for new transactions, import, and truck changes
 - `tailadmin-vuejs-1.0.0/src/views/Monitoring/TruckLocationMap.vue`
   - 3-panel operational workspace UI
   - Leaflet marker sync and focus behavior
@@ -219,6 +243,7 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 
 - `GET /api/wialon/trucks/location`
   - returns truck locations and summary info
+  - only includes trucks where `truck.is_active = 1`
   - each truck now includes combined GPS + operational fields:
     - `driver_name`
     - `operational_status`
@@ -232,6 +257,13 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - backend and frontend cache entries expire after 24 hours
 - `POST /api/wialon/trucks/auto-map`
   - tries to fill `wialon_unit_id` for trucks that are still empty
+- `GET /api/trucks`
+  - returns active trucks by default
+  - supports `?include_inactive=1` or `?status=all` when Master Truck needs all rows
+  - supports `?status=active` and `?status=inactive`
+- `PATCH /api/trucks/:id/status`
+  - updates `truck.is_active`
+  - used by Master Truck `Aktifkan` / `Nonaktifkan`
 - `GET /api/wialon/trucks/monthly-distance?month=YYYY-MM`
   - returns monthly mileage per truck for the selected month
   - uses Wialon trip history
@@ -259,8 +291,17 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 The `truck` table now includes:
 
 - `wialon_unit_id VARCHAR(64) NULL`
+- `is_active TINYINT(1) NOT NULL DEFAULT 1`
 
-This field is used as the primary mapping between local truck records and Wialon units.
+`wialon_unit_id` is used as the primary mapping between local truck records and Wialon units.
+
+`is_active` is used for soft operational filtering. Inactive trucks are excluded from:
+
+- Sales Cost truck dropdowns and template/import master options
+- Data Transport Data Truck list/search/export
+- GPS Lokasi Truk summary, fleet list, fleet filters/search, and map markers
+
+Inactive trucks should still remain available for historical display where existing records already reference them.
 
 ### Area and Route Tracking Tables
 
@@ -331,6 +372,9 @@ Required or currently used variables:
 - Never expose secret tokens in the frontend bundle.
 - Use `wialon_unit_id` as the stable mapping key instead of relying only on plate number.
 - Preserve manual mapping if a truck already has a valid `wialon_unit_id`.
+- Use `truck.is_active` for soft operational disable instead of deleting truck rows when historical references should remain readable.
+- Default truck option APIs should return active trucks only; Master Truck can opt into inactive rows with `include_inactive=1` for administration.
+- GPS location payloads should never include inactive trucks unless a future admin-only diagnostic endpoint explicitly asks for them.
 - Reverse geocoding is intentionally done server-side, not directly from the browser.
 - Reverse geocoding should only be requested for the selected truck, not every truck on every refresh.
 - Reverse geocode lookup is cached both server-side and in browser `localStorage` so repeated clicks on the same coordinates stay cheap.

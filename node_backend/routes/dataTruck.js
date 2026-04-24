@@ -46,7 +46,7 @@ const upload = multer({
 // 1. GET export data trucks to Excel (MOVE TO TOP to prevent :id conflict)
 router.get('/export', async (req, res) => {
   try {
-    const [mysqlTrucks] = await db.query("SELECT jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck");
+    const [mysqlTrucks] = await db.query("SELECT jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id, is_active FROM truck WHERE is_active = 1");
     const mongoDataTrucks = await DataTruck.find({});
 
     const data = mysqlTrucks.map(master => {
@@ -102,7 +102,7 @@ router.get('/export', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
-    const [mysqlTrucks] = await db.query("SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id FROM truck");
+    const [mysqlTrucks] = await db.query("SELECT id_truck, jenis_kendaraan, no_police, merk_mobil, model, type_truck, wialon_unit_id, is_active FROM truck WHERE is_active = 1");
     const mongoDataTrucks = await DataTruck.find({});
 
     const mergedTrucks = mysqlTrucks.map(master => {
@@ -114,6 +114,7 @@ router.get('/', async (req, res) => {
         model: master.model,
         type: master.type_truck,
         jenis_kendaraan_master: master.jenis_kendaraan,
+        is_active: Number(master.is_active) === 1,
         wialon_unit_id: master.wialon_unit_id || '',
         no_asset: operational.no_asset || '',
         no_stnk: operational.no_stnk || '',
@@ -162,10 +163,10 @@ router.get('/', async (req, res) => {
 router.get('/search-mysql-trucks', async (req, res) => {
   try {
     const { q } = req.query;
-    let sql = "SELECT id_truck, no_police, jenis_kendaraan, wialon_unit_id FROM trucking.truck";
+    let sql = "SELECT id_truck, no_police, jenis_kendaraan, wialon_unit_id FROM trucking.truck WHERE is_active = 1";
     let params = [];
     if (q) {
-      sql += " WHERE no_police LIKE ?";
+      sql += " AND no_police LIKE ?";
       params.push(`%${q}%`);
     }
     sql += " ORDER BY no_police ASC LIMIT 20";

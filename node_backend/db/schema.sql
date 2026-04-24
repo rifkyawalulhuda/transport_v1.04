@@ -224,6 +224,7 @@ CREATE TABLE `truck` (
   `model` varchar(50) NOT NULL,
   `type_truck` varchar(50) NOT NULL,
   `wialon_unit_id` varchar(64) DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id_truck`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6383 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 

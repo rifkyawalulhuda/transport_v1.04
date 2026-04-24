@@ -169,6 +169,9 @@
                   <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
                     Wialon Unit ID
                   </th>
+                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
+                    Status
+                  </th>
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -200,29 +203,72 @@
                         {{ item.wialon_unit_id || '-' }}
                       </span>
                     </td>
+                    <td class="px-5 py-3 text-sm sm:px-6">
+                      <span
+                        class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
+                        :class="item.is_active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'"
+                      >
+                        {{ item.is_active ? 'Aktif' : 'Nonaktif' }}
+                      </span>
+                    </td>
                     <td class="px-5 py-3 text-center sm:px-6">
-                      <div class="flex items-center justify-center gap-2">
+                      <div class="relative inline-flex justify-center">
                         <button
                           type="button"
-                          class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
-                          @click="openForm(item)"
+                          class="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          @click.stop="toggleActionMenu(item.id_truck, $event)"
                         >
-                          Edit
+                          <svg
+                            class="h-3.5 w-3.5"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="m5 8 5 5 5-5" />
+                          </svg>
                         </button>
-                        <button
-                          type="button"
-                          :disabled="deletingId === item.id_truck"
-                          class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-error-500/15 dark:text-error-400"
-                          @click="remove(item)"
-                        >
-                          Hapus
-                        </button>
+                        <Teleport to="body">
+                          <div
+                            v-if="openActionId === item.id_truck"
+                            ref="actionMenuRef"
+                            class="fixed z-[9999] w-40 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                            :style="actionMenuStyle"
+                            @click.stop
+                          >
+                            <button
+                              type="button"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-white/[0.03]"
+                              @click="handleEdit(item)"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              :disabled="statusUpdatingId === item.id_truck"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-amber-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-amber-400 dark:hover:bg-white/[0.03]"
+                              @click="toggleStatus(item)"
+                            >
+                              {{ item.is_active ? 'Nonaktifkan' : 'Aktifkan' }}
+                            </button>
+                            <button
+                              type="button"
+                              :disabled="deletingId === item.id_truck"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
+                              @click="handleDelete(item)"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </Teleport>
                       </div>
                     </td>
                   </tr>
                   <tr v-if="showForm && editingId === item.id_truck">
                     <td
-                      colspan="8"
+                      colspan="9"
                       class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
                     >
                       <div
@@ -338,7 +384,7 @@
                 </template>
                 <tr v-if="!loading && totalCount === 0">
                   <td
-                    colspan="8"
+                    colspan="9"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Tidak ada data
@@ -346,7 +392,7 @@
                 </tr>
                 <tr v-if="loading">
                   <td
-                    colspan="8"
+                    colspan="9"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Memuat data...
@@ -367,7 +413,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { API_BASE } from '@/config/api'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
@@ -388,6 +434,7 @@ type TruckItem = {
   model: string
   type_truck: string
   wialon_unit_id?: string | null
+  is_active: boolean | number
 }
 
 type FormState = {
@@ -409,6 +456,7 @@ const formTitle = ref('Tambah Truck')
 const isSubmitting = ref(false)
 const isAutoMapping = ref(false)
 const deletingId = ref<number | null>(null)
+const statusUpdatingId = ref<number | null>(null)
 const form = reactive<FormState>({
   id: null,
   jenis_kendaraan: '',
@@ -440,7 +488,8 @@ const filteredItems = computed(() =>
     'merk_mobil',
     'model',
     'jenis_kendaraan',
-    'type_truck'
+    'type_truck',
+    'is_active'
   ])
 )
 
@@ -461,9 +510,14 @@ const totalPages = computed(() => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await authFetch(`${apiBase}/trucks`)
+    const res = await authFetch(`${apiBase}/trucks?include_inactive=1`)
     const data = await res.json()
-    items.value = data
+    items.value = Array.isArray(data)
+      ? data.map((item) => ({
+          ...item,
+          is_active: Number(item.is_active) === 1 || item.is_active === true
+        }))
+      : []
     currentPage.value = 1
   } catch (error) {
     console.error(error)
@@ -560,6 +614,62 @@ const openForm = (item?: TruckItem) => {
 const cancelForm = () => {
   showForm.value = false
   editingId.value = null
+}
+
+const openActionId = ref<number | null>(null)
+const actionMenuRef = ref<HTMLElement | HTMLElement[] | null>(null)
+const actionMenuPosition = ref({ top: 0, left: 0 })
+
+const setActionMenuPosition = (event: MouseEvent) => {
+  const trigger = event.currentTarget as HTMLElement | null
+  if (!trigger) {
+    return
+  }
+  const rect = trigger.getBoundingClientRect()
+  const top = rect.bottom + 8
+  const left = rect.right
+  actionMenuPosition.value = { top, left }
+
+  nextTick(() => {
+    const menuEl = actionMenuRef.value
+    const element = Array.isArray(menuEl) ? menuEl[0] : menuEl
+    if (!element) return
+    const menuHeight = element.offsetHeight || 0
+    if (top + menuHeight > window.innerHeight - 8) {
+      actionMenuPosition.value = {
+        top: Math.max(8, rect.top - menuHeight - 8),
+        left
+      }
+    }
+  })
+}
+
+const actionMenuStyle = computed(() => ({
+  top: `${actionMenuPosition.value.top}px`,
+  left: `${actionMenuPosition.value.left}px`
+}))
+
+const toggleActionMenu = (id: number, event: MouseEvent) => {
+  if (openActionId.value === id) {
+    closeActionMenu()
+    return
+  }
+  openActionId.value = id
+  setActionMenuPosition(event)
+}
+
+const closeActionMenu = () => {
+  openActionId.value = null
+}
+
+const handleEdit = (item: TruckItem) => {
+  closeActionMenu()
+  openForm(item)
+}
+
+const handleDelete = (item: TruckItem) => {
+  closeActionMenu()
+  remove(item)
 }
 
 const submitForm = async () => {
@@ -674,5 +784,66 @@ const remove = async (item: TruckItem) => {
   }
 }
 
-onMounted(loadData)
+const toggleStatus = async (item: TruckItem) => {
+  closeActionMenu()
+  if (statusUpdatingId.value) {
+    return
+  }
+  const nextActive = !item.is_active
+  const ok = await confirm({
+    title: nextActive ? 'Aktifkan Truck' : 'Nonaktifkan Truck',
+    message: nextActive
+      ? `Aktifkan kembali truck ${item.no_police}?`
+      : `Nonaktifkan truck ${item.no_police}? Truck ini tidak akan muncul di pilihan Sales Cost dan Data Transport.`,
+    confirmText: nextActive ? 'Ya, aktifkan' : 'Ya, nonaktifkan',
+    cancelText: 'Batal',
+    variant: 'warning'
+  })
+  if (!ok) {
+    return
+  }
+  try {
+    statusUpdatingId.value = item.id_truck
+    const res = await authFetch(`${apiBase}/trucks/${item.id_truck}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ is_active: nextActive })
+    })
+    if (!res.ok) {
+      const message = await res.text()
+      toast.error(message || 'Gagal mengubah status truck.')
+      return
+    }
+    toast.success(nextActive ? 'Truck berhasil diaktifkan' : 'Truck berhasil dinonaktifkan')
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    toast.error('Gagal mengubah status truck.')
+  } finally {
+    statusUpdatingId.value = null
+  }
+}
+
+const handleDocumentClick = () => {
+  closeActionMenu()
+}
+
+const handleWindowChange = () => {
+  closeActionMenu()
+}
+
+onMounted(() => {
+  loadData()
+  document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('scroll', handleWindowChange, true)
+  window.addEventListener('resize', handleWindowChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('scroll', handleWindowChange, true)
+  window.removeEventListener('resize', handleWindowChange)
+})
 </script>

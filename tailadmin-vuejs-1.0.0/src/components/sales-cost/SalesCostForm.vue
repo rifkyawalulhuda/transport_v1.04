@@ -1234,6 +1234,18 @@ const loadOptions = async () => {
     salesCostService.fetchAreas()
   ])
   trucks.value = truckData
+  if (
+    props.mode === 'edit' &&
+    form.id_truck &&
+    !trucks.value.some((truck) => String(truck.id_truck) === form.id_truck)
+  ) {
+    try {
+      const currentTruck = await salesCostService.fetchTruck(form.id_truck)
+      trucks.value = [currentTruck, ...trucks.value]
+    } catch (error) {
+      console.error(error)
+    }
+  }
   drivers.value = driverData
   customers.value = customerData
   areas.value = areaData

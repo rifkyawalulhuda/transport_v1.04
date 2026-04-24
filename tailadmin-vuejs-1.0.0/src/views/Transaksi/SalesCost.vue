@@ -1362,6 +1362,22 @@ const loadOptions = async () => {
   areas.value = await areaRes.json()
 }
 
+const ensureSelectedTruckOption = async (idTruck: string) => {
+  if (!idTruck || trucks.value.some((truck) => String(truck.id_truck) === idTruck)) {
+    return
+  }
+  try {
+    const res = await fetch(`${apiBase}/trucks/${idTruck}`)
+    if (!res.ok) {
+      return
+    }
+    const truck = await res.json()
+    trucks.value = [truck, ...trucks.value]
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 const loadYearOptions = async () => {
   try {
     const res = await fetch(`${apiBase}/sales-costs/years`)
@@ -1649,6 +1665,7 @@ const applyDetailToForm = (detail: SalesCostDetail) => {
   form.price = detail.price !== null ? String(detail.price) : ''
   form.ops_cost = detail.ops_cost !== null ? String(detail.ops_cost) : ''
   form.additional_cost = detail.additional_cost !== null ? String(detail.additional_cost) : ''
+  ensureSelectedTruckOption(form.id_truck)
 }
 
 const openForm = async (item?: SalesCostItem) => {

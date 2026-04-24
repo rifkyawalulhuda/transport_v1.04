@@ -1736,6 +1736,7 @@ const getTruckLocations = async () => {
         type_truck,
         wialon_unit_id
       FROM truck
+      WHERE is_active = 1
       ORDER BY id_truck ASC
     `
   );

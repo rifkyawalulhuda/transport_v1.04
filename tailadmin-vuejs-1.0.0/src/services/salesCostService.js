@@ -18,6 +18,10 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/trucks`)
     return handleJson(res)
   },
+  async fetchTruck(id) {
+    const res = await authFetch(`${API_BASE}/trucks/${id}`)
+    return handleJson(res)
+  },
   async fetchDrivers() {
     const res = await authFetch(`${API_BASE}/drivers`)
     return handleJson(res)
