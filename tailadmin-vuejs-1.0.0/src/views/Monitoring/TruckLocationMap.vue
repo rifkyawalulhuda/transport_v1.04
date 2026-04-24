@@ -8,9 +8,15 @@
       >
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="space-y-2">
-            <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
-              <span class="rounded-full bg-brand-50 px-3 py-1 dark:bg-brand-500/10">Fleet Workspace</span>
-              <span class="rounded-full bg-slate-100 px-3 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <div
+              class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300"
+            >
+              <span class="rounded-full bg-brand-50 px-3 py-1 dark:bg-brand-500/10"
+                >Fleet Workspace</span
+              >
+              <span
+                class="rounded-full bg-slate-100 px-3 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+              >
                 Auto refresh 30 detik
               </span>
             </div>
@@ -66,7 +72,9 @@
         <section
           class="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03] xl:h-[78vh]"
         >
-          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+          <div
+            class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800"
+          >
             <div>
               <h2 class="text-sm font-semibold text-gray-900 dark:text-white/90">Live Map</h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -108,7 +116,9 @@
               Memuat peta...
             </div>
 
-            <div class="pointer-events-none absolute left-4 top-4 right-4 flex justify-between gap-3 xl:hidden">
+            <div
+              class="pointer-events-none absolute left-4 top-4 right-4 flex justify-between gap-3 xl:hidden"
+            >
               <button
                 v-if="detailPanelVisible"
                 type="button"
@@ -149,7 +159,13 @@
                 class="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-brand-400 dark:hover:text-brand-300"
                 @click.stop="clearSelectedTruck"
               >
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  class="h-4 w-4"
+                >
                   <path d="M6 6 14 14" stroke-linecap="round" />
                   <path d="m14 6-8 8" stroke-linecap="round" />
                 </svg>
@@ -178,10 +194,14 @@
               <div class="space-y-4 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">
+                    <p
+                      class="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500"
+                    >
                       Kendaraan Aktif
                     </p>
-                    <h3 class="mt-2 truncate text-xl font-semibold text-gray-900 dark:text-white/90">
+                    <h3
+                      class="mt-2 truncate text-xl font-semibold text-gray-900 dark:text-white/90"
+                    >
                       {{ selectedTruck.no_police || `Truck ${selectedTruck.id_truck}` }}
                     </h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -232,8 +252,12 @@
 
               <div class="flex-1 space-y-5 overflow-y-auto px-4 py-4">
                 <div class="grid gap-3 sm:grid-cols-2">
-                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  <div
+                    class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40"
+                  >
+                    <p
+                      class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                    >
                       Driver
                     </p>
                     <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
@@ -241,8 +265,12 @@
                     </p>
                   </div>
 
-                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  <div
+                    class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40"
+                  >
+                    <p
+                      class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                    >
                       Unit Wialon
                     </p>
                     <p class="mt-2 break-all text-sm font-medium text-gray-900 dark:text-white/90">
@@ -250,8 +278,12 @@
                     </p>
                   </div>
 
-                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  <div
+                    class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40"
+                  >
+                    <p
+                      class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                    >
                       Kecepatan
                     </p>
                     <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
@@ -259,19 +291,29 @@
                     </p>
                   </div>
 
-                  <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  <div
+                    class="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40"
+                  >
+                    <p
+                      class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                    >
                       Last GPS Update
                     </p>
                     <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
-                      {{ formatDateTime(selectedTruck.gps?.device_time || selectedTruck.synced_at) }}
+                      {{
+                        formatDateTime(selectedTruck.gps?.device_time || selectedTruck.synced_at)
+                      }}
                     </p>
                   </div>
                 </div>
 
-                <div class="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-950/40">
+                <div
+                  class="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-950/40"
+                >
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <p
+                      class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                    >
                       Lokasi
                     </p>
                     <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
@@ -291,8 +333,12 @@
                     </p>
                   </div>
 
-                  <p v-if="!hasCoordinates(selectedTruck)" class="mt-3 text-sm text-amber-700 dark:text-amber-300">
-                    Kendaraan ini masih ada di daftar fleet, tetapi belum punya koordinat yang bisa ditampilkan di peta.
+                  <p
+                    v-if="!hasCoordinates(selectedTruck)"
+                    class="mt-3 text-sm text-amber-700 dark:text-amber-300"
+                  >
+                    Kendaraan ini masih ada di daftar fleet, tetapi belum punya koordinat yang bisa
+                    ditampilkan di peta.
                   </p>
                 </div>
 
@@ -302,14 +348,18 @@
                 >
                   <div class="flex items-center justify-between gap-3">
                     <div>
-                      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                      <p
+                        class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+                      >
                         Transaksi Aktif
                       </p>
                       <p class="mt-2 text-sm font-semibold text-emerald-900 dark:text-emerald-100">
                         Sales Cost #{{ selectedTruck.transaksi.id_sales_cost || '-' }}
                       </p>
                     </div>
-                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <span
+                      class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    >
                       {{ selectedTruck.transaksi.route || 'Rute belum ada' }}
                     </span>
                   </div>
@@ -328,15 +378,24 @@
                       </p>
                     </div>
                     <div>
-                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">Delivery Order</p>
+                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">
+                        Delivery Order
+                      </p>
                       <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
                         {{ formatDate(selectedTruck.transaksi.delivery_order) }}
                       </p>
                     </div>
                     <div>
-                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">Finish Order</p>
+                      <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">
+                        Finish Order
+                      </p>
                       <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                        {{ formatDate(selectedTruck.transaksi.finish_order || selectedTruck.transaksi.arrival_order) }}
+                        {{
+                          formatDate(
+                            selectedTruck.transaksi.finish_order ||
+                              selectedTruck.transaksi.arrival_order,
+                          )
+                        }}
                       </p>
                     </div>
                   </div>
@@ -348,21 +407,27 @@
                 >
                   <div class="flex items-center justify-between gap-3">
                     <div>
-                      <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                      <p
+                        class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300"
+                      >
                         Repair Aktif
                       </p>
                       <p class="mt-2 text-sm font-semibold text-amber-900 dark:text-amber-100">
                         {{ selectedTruck.repair.no_spk_perbaikan || 'Tanpa No. SPK Repair' }}
                       </p>
                     </div>
-                    <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    <span
+                      class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                    >
                       {{ selectedTruck.repair.kategori_repair || 'PROSES' }}
                     </span>
                   </div>
 
                   <div class="mt-4 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <p class="text-xs text-amber-700/70 dark:text-amber-300/70">Jenis Kerusakan</p>
+                      <p class="text-xs text-amber-700/70 dark:text-amber-300/70">
+                        Jenis Kerusakan
+                      </p>
                       <p class="mt-1 text-sm font-medium text-amber-900 dark:text-amber-100">
                         {{ selectedTruck.repair.jenis_kerusakan || '-' }}
                       </p>
@@ -380,7 +445,9 @@
                   v-if="selectedTruck.last_transaction"
                   class="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-950/40"
                 >
-                  <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  <p
+                    class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                  >
                     Transaksi Terakhir
                   </p>
                   <div class="mt-4 grid gap-3 sm:grid-cols-2">
@@ -412,7 +479,6 @@
                 </div>
               </div>
             </div>
-
           </div>
         </section>
 
@@ -447,8 +513,12 @@
             :class="mobileFleetOpen ? 'block' : 'hidden xl:block'"
           >
             <div class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-              <div class="rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900/50">
-                <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div
+                class="rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900/50"
+              >
+                <label
+                  class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                >
                   Search Fleet
                 </label>
                 <div class="relative">
@@ -487,14 +557,20 @@
                   <span>{{ filter.label }}</span>
                   <span
                     class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                    :class="gpsFilter === filter.key ? 'bg-white text-brand-700 dark:bg-brand-950/40 dark:text-brand-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'"
+                    :class="
+                      gpsFilter === filter.key
+                        ? 'bg-white text-brand-700 dark:bg-brand-950/40 dark:text-brand-300'
+                        : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                    "
                   >
                     {{ formatNumber(filter.count) }}
                   </span>
                 </button>
               </div>
 
-              <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-300">
+              <div
+                class="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-300"
+              >
                 <p class="font-medium text-gray-900 dark:text-white/90">
                   {{ visibleTrucks.length }} hasil sesuai filter
                 </p>
@@ -524,7 +600,9 @@
                           class="inline-flex h-2.5 w-2.5 shrink-0 rounded-full"
                           :class="gpsDotClass(truck.status)"
                         ></span>
-                        <h3 class="truncate text-base font-semibold text-gray-900 dark:text-white/90">
+                        <h3
+                          class="truncate text-base font-semibold text-gray-900 dark:text-white/90"
+                        >
                           {{ truck.no_police || `Truck ${truck.id_truck}` }}
                         </h3>
                       </div>
@@ -726,14 +804,14 @@ const trackingData = ref<TruckLocationPayload>({
     moving: 0,
     idle: 0,
     offline: 0,
-    no_position: 0
+    no_position: 0,
   },
   trucks: [],
   meta: {
     fetched_at: '',
     wialon_available: true,
-    wialon_error: null
-  }
+    wialon_error: null,
+  },
 })
 
 let refreshTimer: number | null = null
@@ -805,8 +883,8 @@ const persistAddressCache = () => {
       addressCacheStorageKey,
       JSON.stringify({
         version: 2,
-        entries
-      })
+        entries,
+      }),
     )
   } catch {
     // Ignore storage quota or parsing issues; in-memory cache still works.
@@ -824,7 +902,7 @@ const rememberAddressCache = (cacheKey: string, address: string) => {
 
   addressCache.set(cacheKey, {
     value: address,
-    cachedAt: Date.now()
+    cachedAt: Date.now(),
   })
 
   while (addressCache.size > addressCacheMaxEntries) {
@@ -940,7 +1018,7 @@ const formatDateTime = (value?: string | null) => {
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   }).format(date)
 }
 
@@ -975,12 +1053,14 @@ const formatDate = (value?: string | null) => {
   return new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
     month: 'short',
-    year: 'numeric'
+    year: 'numeric',
   }).format(date)
 }
 
 const resolveVehicleName = (truck: TruckLocation) => {
-  const parts = [truck.merk_mobil, truck.model, truck.type_truck, truck.jenis_kendaraan].filter(Boolean)
+  const parts = [truck.merk_mobil, truck.model, truck.type_truck, truck.jenis_kendaraan].filter(
+    Boolean,
+  )
   return parts.length ? parts.join(' ') : '-'
 }
 
@@ -1133,7 +1213,7 @@ const visibleTrucks = computed(() => {
       truck.transaksi?.trip,
       truck.transaksi?.no_container,
       truck.repair?.jenis_kerusakan,
-      truck.last_transaction?.route
+      truck.last_transaction?.route,
     ]
       .filter(Boolean)
       .join(' ')
@@ -1144,13 +1224,13 @@ const visibleTrucks = computed(() => {
 })
 
 const selectedTruck = computed(
-  () => visibleTrucks.value.find((truck) => truck.id_truck === selectedTruckId.value) ?? null
+  () => visibleTrucks.value.find((truck) => truck.id_truck === selectedTruckId.value) ?? null,
 )
 const detailPanelVisible = computed(() => Boolean(selectedTruck.value))
 const workspaceGridClass = computed(() =>
   detailPanelVisible.value
     ? 'xl:grid-cols-[minmax(0,1.95fr)_320px_340px]'
-    : 'xl:grid-cols-[minmax(0,2.55fr)_360px]'
+    : 'xl:grid-cols-[minmax(0,2.55fr)_360px]',
 )
 const selectedTruckLocationValue = computed(() => {
   if (!selectedTruck.value) {
@@ -1174,8 +1254,8 @@ const gpsFilterOptions = computed(() => {
     {
       key: 'attention' as const,
       label: 'Belum Terhubung',
-      count: Number(summary.unlinked || 0) + Number(summary.no_position || 0)
-    }
+      count: Number(summary.unlinked || 0) + Number(summary.no_position || 0),
+    },
   ]
 })
 
@@ -1259,8 +1339,8 @@ const getClusterStatusSummary = (markers: L.Marker[]) => {
       offline: 0,
       unlinked: 0,
       no_position: 0,
-      total: 0
-    }
+      total: 0,
+    },
   )
 }
 
@@ -1270,7 +1350,7 @@ const getClusterPrimaryStatus = (summary: ClusterStatusSummary) => {
     { status: 'idle', count: summary.idle },
     { status: 'offline', count: summary.offline },
     { status: 'unlinked', count: summary.unlinked },
-    { status: 'no_position', count: summary.no_position }
+    { status: 'no_position', count: summary.no_position },
   ].sort((left, right) => right.count - left.count)
 
   return ranked[0]?.count ? ranked[0].status : 'unknown'
@@ -1282,7 +1362,7 @@ const clusterStatusLabel = (summary: ClusterStatusSummary) => {
     summary.idle ? `Idle ${summary.idle}` : null,
     summary.offline ? `Offline ${summary.offline}` : null,
     summary.unlinked ? `Belum Terhubung ${summary.unlinked}` : null,
-    summary.no_position ? `No Pos ${summary.no_position}` : null
+    summary.no_position ? `No Pos ${summary.no_position}` : null,
   ].filter(Boolean)
 
   return parts.length ? parts.join(' | ') : 'Tidak ada data'
@@ -1312,7 +1392,7 @@ const buildClusterPopupContent = (cluster: L.Marker) => {
                 <div class="text-slate-500">${escapeHtml(resolveVehicleName(truck))}</div>
                 <div class="mt-1">${escapeHtml(statusLabel(truck.status))} - ${escapeHtml(operationalStatusLabel(truck.operational_status))}</div>
               </div>
-            `
+            `,
           )
           .join('')}
         ${
@@ -1355,7 +1435,7 @@ const createClusterIcon = (cluster: L.MarkerCluster) => {
       </div>
     `,
     iconSize: [44, 44],
-    iconAnchor: [22, 22]
+    iconAnchor: [22, 22],
   })
 }
 
@@ -1375,13 +1455,12 @@ const createTruckIcon = (truck: TruckLocation, isSelected = false) =>
               <path d="M13 4a1 1 0 0 1 1 1h4a1 1 0 0 1 .783 .378l.074 .108l3 5l.055 .103l.04 .107l.029 .109l.016 .11l.003 .085v6a1 1 0 0 1 -1 1h-1.171a3.001 3.001 0 0 1 -5.658 0h-4.342a3.001 3.001 0 0 1 -5.658 0h-1.171a1 1 0 0 1 -1 -1v-11a2 2 0 0 1 2 -2zm-6 12a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m10 0a1 1 0 1 0 0 2a1 1 0 0 0 0 -2m.434 -9h-3.434v3h5.234z" />
             </svg>
           </div>
-          <span class="truck-pin__tip"></span>
         </div>
       </div>
     `,
-    iconSize: [88, 72],
-    iconAnchor: [44, 60],
-    popupAnchor: [0, -56]
+    iconSize: [88, 62],
+    iconAnchor: [44, 50],
+    popupAnchor: [0, -48],
   })
 
 const updateMarkerSelection = () => {
@@ -1405,7 +1484,7 @@ const scrollTruckCardIntoView = async (truckId: number, behavior: ScrollBehavior
   const target = container.querySelector<HTMLElement>(`[data-truck-id="${truckId}"]`)
   target?.scrollIntoView({
     behavior,
-    block: 'nearest'
+    block: 'nearest',
   })
 }
 
@@ -1457,7 +1536,7 @@ const revealTruckMarker = (truckId: number, options?: MarkerRevealOptions) => {
   map.once('moveend', openPopupSafely)
   map.flyTo(target, targetZoom, {
     animate: shouldAnimate,
-    duration: shouldAnimate ? 0.8 : 0
+    duration: shouldAnimate ? 0.8 : 0,
   })
 }
 
@@ -1509,7 +1588,7 @@ const loadSelectedTruckAddress = async (truck: TruckLocation | null) => {
   try {
     const payload = (await truckLocationService.reverseGeocode(
       Number(truck.gps.lat),
-      Number(truck.gps.lon)
+      Number(truck.gps.lon),
     )) as ReverseGeocodePayload
 
     if (requestId !== addressLookupRequestId) {
@@ -1563,12 +1642,13 @@ const initMap = () => {
 
   const map = L.map(mapRef.value, {
     zoomControl: true,
-    scrollWheelZoom: true
+    scrollWheelZoom: true,
   }).setView(defaultCenter, defaultZoom)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
   }).addTo(map)
 
   markerClusterLayer.value = L.markerClusterGroup({
@@ -1578,7 +1658,7 @@ const initMap = () => {
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
     maxClusterRadius: 58,
-    iconCreateFunction: (cluster) => createClusterIcon(cluster)
+    iconCreateFunction: (cluster) => createClusterIcon(cluster),
   }).addTo(map)
 
   markerClusterLayer.value.on('clusterclick', (event) => {
@@ -1611,12 +1691,12 @@ const syncMarkers = (options?: MarkerSyncOptions) => {
     const lon = Number(truck.gps.lon)
     const marker = L.marker([lat, lon], {
       icon: createTruckIcon(truck, selectedTruckId.value === truck.id_truck),
-      truck
+      truck,
     })
 
     marker.bindPopup(buildPopupContent(truck), {
       closeButton: true,
-      autoPanPadding: [24, 24]
+      autoPanPadding: [24, 24],
     })
 
     marker.on('click', () => {
@@ -1636,7 +1716,7 @@ const syncMarkers = (options?: MarkerSyncOptions) => {
       pendingRevealAnimationFrame = null
       revealTruckMarker(selectedTruckId.value as number, {
         animate: false,
-        openPopup: openPopupForSelected
+        openPopup: openPopupForSelected,
       })
     })
     return
@@ -1665,7 +1745,7 @@ const refreshLocations = async () => {
     syncMarkers({
       focusSelected: false,
       openPopupForSelected: false,
-      preserveView: hasInitialized.value
+      preserveView: hasInitialized.value,
     })
     hasInitialized.value = true
 
@@ -1696,7 +1776,7 @@ const focusTruck = (truck: TruckLocation) => {
 
   revealTruckMarker(truck.id_truck, {
     animate: true,
-    openPopup: true
+    openPopup: true,
   })
 }
 
@@ -1707,12 +1787,12 @@ const focusSelectedTruckOnMap = () => {
 
   mapRef.value?.scrollIntoView({
     behavior: 'smooth',
-    block: 'start'
+    block: 'start',
   })
 
   revealTruckMarker(selectedTruck.value.id_truck, {
     animate: true,
-    openPopup: true
+    openPopup: true,
   })
 }
 
@@ -1729,7 +1809,7 @@ watch([searchInput, gpsFilter], async () => {
   await nextTick()
   syncMarkers({
     focusSelected: false,
-    openPopupForSelected: false
+    openPopupForSelected: false,
   })
 })
 
@@ -1760,7 +1840,7 @@ onBeforeUnmount(() => {
 .truck-pin {
   position: relative;
   width: 88px;
-  height: 72px;
+  height: 62px;
   transform: translate(-50%, -100%);
 }
 
@@ -1792,7 +1872,7 @@ onBeforeUnmount(() => {
   left: 50%;
   bottom: 0;
   width: 42px;
-  height: 52px;
+  height: 42px;
   transform: translateX(-50%);
   filter: drop-shadow(0 10px 16px rgba(15, 23, 42, 0.22));
 }
@@ -1804,7 +1884,9 @@ onBeforeUnmount(() => {
   background: rgba(37, 99, 235, 0.18);
   opacity: 0;
   transform: scale(0.84);
-  transition: opacity 160ms ease, transform 160ms ease;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 
 .truck-pin--selected .truck-pin__halo {
@@ -1820,7 +1902,7 @@ onBeforeUnmount(() => {
 
 .truck-pin__badge {
   position: absolute;
-  inset: 2px 2px 11px;
+  inset: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1834,19 +1916,6 @@ onBeforeUnmount(() => {
   width: 30px;
   height: 30px;
   object-fit: contain;
-}
-
-.truck-pin__tip {
-  position: absolute;
-  left: 50%;
-  bottom: 4px;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background: #2563eb;
-  transform: translateX(-50%) rotate(45deg);
-  border-right: 3px solid rgba(255, 255, 255, 0.98);
-  border-bottom: 3px solid rgba(255, 255, 255, 0.98);
 }
 
 .cluster-pin {
