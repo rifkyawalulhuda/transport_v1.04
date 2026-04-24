@@ -1009,10 +1009,11 @@ const fetchTruckMileageCatalog = async ({ search, page, limit } = {}) => {
   const pagination = normalizePagination({ page, limit });
   const whereClause = normalizedSearch
     ? `
-      WHERE CONCAT_WS(' ', no_police, merk_mobil, model, type_truck, jenis_kendaraan, wialon_unit_id)
+      WHERE is_active = 1
+        AND CONCAT_WS(' ', no_police, merk_mobil, model, type_truck, jenis_kendaraan, wialon_unit_id)
         LIKE ?
     `
-    : "";
+    : "WHERE is_active = 1";
   const params = normalizedSearch ? [`%${normalizedSearch}%`] : [];
   const [countRows] = await db.query(
     `
@@ -1261,7 +1262,7 @@ const getTruckMonthlyDistance = async ({ month, search, page, limit } = {}) => {
   const period = buildMonthlyDistancePeriod(month);
   const pagination = normalizePagination({ page, limit });
   const normalizedSearch = String(search || "").trim().toLowerCase();
-  const cacheKey = `${period.month_key}|${normalizedSearch}|${pagination.page}|${pagination.limit}`;
+  const cacheKey = `active-trucks|${period.month_key}|${normalizedSearch}|${pagination.page}|${pagination.limit}`;
   const cachedPayload = getMonthlyDistanceCacheEntry(cacheKey);
   if (cachedPayload) {
     return {
@@ -1361,10 +1362,11 @@ const getTruckMonthlyDistanceExportRows = async ({ month, search } = {}) => {
       ${
         normalizedSearch
           ? `
-      WHERE CONCAT_WS(' ', no_police, merk_mobil, model, type_truck, jenis_kendaraan, wialon_unit_id)
+      WHERE is_active = 1
+        AND CONCAT_WS(' ', no_police, merk_mobil, model, type_truck, jenis_kendaraan, wialon_unit_id)
         LIKE ?
       `
-          : ""
+          : "WHERE is_active = 1"
       }
       ORDER BY no_police ASC, id_truck ASC
     `,

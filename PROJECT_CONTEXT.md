@@ -133,6 +133,7 @@ The project now also includes truck location tracking with Wialon GPS data displ
 - Mileage is calculated from Wialon trip history, not from simple current-position deltas.
 - Backend keeps a short in-memory cache for monthly mileage responses to avoid hammering Wialon on repeated refreshes.
 - Backend now validates local `wialon_unit_id` against the live Wialon unit catalog before requesting mileage, so stale mappings are shown as invalid GPS mapping instead of generic trip errors.
+- KM Bulanan Truk only includes active trucks (`truck.is_active = 1`) in the page data and Excel export, so inactive trucks are excluded from displayed totals and mileage calculations.
 
 ### Geofence Route Flow for Sales Cost
 
