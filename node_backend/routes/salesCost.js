@@ -97,6 +97,17 @@ async function getTruckStatus(idTruck) {
   return rows.length > 0 ? rows[0] : null;
 }
 
+async function getDriverStatus(idDriver) {
+  if (!idDriver) {
+    return null;
+  }
+  const [rows] = await db.query(
+    "SELECT id_driver, nama_driver, is_active FROM driver WHERE id_driver = ?",
+    [idDriver]
+  );
+  return rows.length > 0 ? rows[0] : null;
+}
+
 const notifySalesCostChange = async ({ req, type, title, action, identifier, entityId }) => {
   const actor = getActorFromRequest(req);
   if (!actor) {
@@ -122,7 +133,7 @@ router.get("/import/template", authenticateToken, async (req, res) => {
   try {
     // 1. Fetch Master Data
     const [customers] = await db.query("SELECT id_customer, nama_customer FROM customer ORDER BY nama_customer ASC");
-    const [drivers] = await db.query("SELECT id_driver, nama_driver FROM driver ORDER BY nama_driver ASC");
+    const [drivers] = await db.query("SELECT id_driver, nama_driver FROM driver WHERE is_active = 1 ORDER BY nama_driver ASC");
     const [areas] = await db.query("SELECT id_area, nama_area FROM area ORDER BY nama_area ASC");
     const [trucks] = await db.query("SELECT id_truck, no_police, jenis_kendaraan FROM truck WHERE is_active = 1 ORDER BY no_police ASC");
     const containerSizes = ["20 Feet", "40 Feet"];
@@ -581,6 +592,21 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
           const idDriver = parseId(row.driverStr, `Row ${row.rowNumber} Driver`);
           const idArea = parseId(row.routeStr, `Row ${row.rowNumber} Route`);
           const idCustomer = parseId(row.custStr, `Row ${row.rowNumber} Customer`);
+
+          const [driverRows] = await connection.query(
+            "SELECT id_driver FROM driver WHERE is_active = 1 AND id_driver = ? LIMIT 1",
+            [idDriver]
+          );
+          if (driverRows.length === 0) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "DRIVER_INACTIVE_OR_NOT_FOUND",
+              reason: "Driver tidak ditemukan atau sudah nonaktif"
+            });
+            continue;
+          }
 
           if (!truckJenisMap.has(Number(idTruck))) {
             failures.push({
@@ -1439,6 +1465,14 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "Truck nonaktif tidak bisa dipilih untuk transaksi baru." });
     }
 
+    const driverStatus = await getDriverStatus(idDriver);
+    if (!driverStatus) {
+      return res.status(400).json({ message: "Driver tidak ditemukan." });
+    }
+    if (Number(driverStatus.is_active) !== 1) {
+      return res.status(400).json({ message: "Driver nonaktif tidak bisa dipilih untuk transaksi baru." });
+    }
+
     const jenisKendaraan = truckStatus.jenis_kendaraan;
     if (jenisKendaraan === "HB") {
       if (!containerSize) {
@@ -1593,7 +1627,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const margin = price - total;
 
     const [currentRows] = await db.query(
-      "SELECT id_truck FROM sales_cost WHERE id_sales_cost = ?",
+      "SELECT id_truck, id_driver FROM sales_cost WHERE id_sales_cost = ?",
       [id]
     );
     if (currentRows.length === 0) {
@@ -1607,6 +1641,15 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const isKeepingCurrentTruck = String(currentRows[0].id_truck || "") === String(idTruck || "");
     if (Number(truckStatus.is_active) !== 1 && !isKeepingCurrentTruck) {
       return res.status(400).json({ message: "Truck nonaktif tidak bisa dipilih untuk transaksi." });
+    }
+
+    const driverStatus = await getDriverStatus(idDriver);
+    if (!driverStatus) {
+      return res.status(400).json({ message: "Driver tidak ditemukan." });
+    }
+    const isKeepingCurrentDriver = String(currentRows[0].id_driver || "") === String(idDriver || "");
+    if (Number(driverStatus.is_active) !== 1 && !isKeepingCurrentDriver) {
+      return res.status(400).json({ message: "Driver nonaktif tidak bisa dipilih untuk transaksi." });
     }
 
     const jenisKendaraan = truckStatus.jenis_kendaraan;

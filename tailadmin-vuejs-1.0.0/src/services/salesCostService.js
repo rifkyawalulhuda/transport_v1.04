@@ -26,6 +26,10 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/drivers`)
     return handleJson(res)
   },
+  async fetchDriver(id) {
+    const res = await authFetch(`${API_BASE}/drivers/${id}`)
+    return handleJson(res)
+  },
   async fetchCustomers() {
     const res = await authFetch(`${API_BASE}/customers`)
     return handleJson(res)
@@ -38,9 +42,9 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/sales-costs`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     })
     return handleJson(res)
   },
@@ -52,9 +56,9 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}`, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     })
     return handleJson(res)
   },
@@ -66,9 +70,9 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}/dn`, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ items })
+      body: JSON.stringify({ items }),
     })
     return handleJson(res)
   },
@@ -76,8 +80,8 @@ export const salesCostService = {
     const res = await fetch(
       `${LEGACY_BASE}/transaksi/set_session.php?id=${encodeURIComponent(idPrint)}`,
       {
-        credentials: 'include'
-      }
+        credentials: 'include',
+      },
     )
     if (!res.ok) {
       throw new Error('Gagal menyiapkan sesi cetak')
@@ -86,5 +90,5 @@ export const salesCostService = {
   },
   getLegacyPrintUrl() {
     return `${LEGACY_BASE}/transaksi/cetak_sales_cost.php`
-  }
+  },
 }

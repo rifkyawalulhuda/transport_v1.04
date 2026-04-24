@@ -3,7 +3,9 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Master Admin">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
@@ -13,12 +15,13 @@
               Tambah Admin
             </button>
             <MasterImportActions master-type="admin" @imported="handleImported" />
-            <SearchBar v-model="search" placeholder="Cari NIK / nama / email / telp / jabatan / level" />
+            <SearchBar
+              v-model="search"
+              placeholder="Cari NIK / nama / email / telp / jabatan / level"
+            />
           </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Total: {{ totalCount }} admin
-            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total: {{ totalCount }} admin</p>
             <div class="flex items-center gap-2">
               <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
               <select
@@ -165,30 +168,62 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    NIK
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Admin
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Email
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No Telp
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Jabatan
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Level
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Gambar
-                  </th>
+                  <SortableTableHeader
+                    label="No"
+                    sort-key="id_admin"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="NIK"
+                    sort-key="nik_admin"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Nama Admin"
+                    sort-key="nama_admin"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Email"
+                    sort-key="email"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="No Telp"
+                    sort-key="nomor_telp"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Jabatan"
+                    sort-key="jabatan"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Level"
+                    sort-key="level"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Gambar"
+                    sort-key="gambar"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -242,10 +277,7 @@
                     </td>
                   </tr>
                   <tr v-if="showForm && editingId === item.id_admin">
-                    <td
-                      colspan="9"
-                      class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
-                    >
+                    <td colspan="9" class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40">
                       <div
                         class="rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -424,8 +456,10 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
+import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
 import { useToast } from '@/composables/useToast'
 import { authFetch } from '@/services/auth'
@@ -471,7 +505,7 @@ const form = reactive<FormState>({
   email: '',
   nomor_telp: '',
   jabatan: '',
-  gambar: ''
+  gambar: '',
 })
 
 const apiBase = API_BASE
@@ -480,7 +514,7 @@ const toast = useToast()
 
 const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery({
   pageSize: 15,
-  debounceMs: 300
+  debounceMs: 300,
 })
 const pageSizeOptions = [15, 20, 50]
 
@@ -497,15 +531,22 @@ const filteredItems = computed(() =>
     'nomor_telp',
     'jabatan',
     'level',
-    'gambar'
-  ])
+    'gambar',
+  ]),
 )
 
 const totalCount = computed(() => filteredItems.value.length)
 
+const { sortKey, sortDirection, setSort, sortedItems } = useSortableItems(filteredItems, 'id_admin')
+
+const handleSort = (key: string) => {
+  setSort(key)
+  setPage(1)
+}
+
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
@@ -544,7 +585,8 @@ const openForm = (item?: AdminItem) => {
     form.password = item.password
     form.level = item.level
     form.email = item.email || ''
-    form.nomor_telp = item.nomor_telp === null || item.nomor_telp === undefined ? '' : String(item.nomor_telp)
+    form.nomor_telp =
+      item.nomor_telp === null || item.nomor_telp === undefined ? '' : String(item.nomor_telp)
     form.jabatan = item.jabatan || ''
     form.gambar = item.gambar
   } else {
@@ -580,7 +622,7 @@ const submitForm = async () => {
     email: form.email,
     nomor_telp: form.nomor_telp,
     jabatan: form.jabatan,
-    gambar: form.gambar
+    gambar: form.gambar,
   }
 
   const isUpdate = Boolean(form.id)
@@ -590,7 +632,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -603,9 +645,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/admins/${form.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -621,9 +663,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/admins`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const contentType = res.headers.get('content-type')
@@ -661,11 +703,10 @@ const remove = async (item: AdminItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -673,7 +714,7 @@ const remove = async (item: AdminItem) => {
   try {
     deletingId.value = item.id_admin
     const res = await authFetch(`${apiBase}/admins/${item.id_admin}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()

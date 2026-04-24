@@ -3,7 +3,9 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Master Warehouse">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
@@ -129,24 +131,48 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Kode
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Warehouse
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    PIC
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Alamat
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Kontak
-                  </th>
+                  <SortableTableHeader
+                    label="No"
+                    sort-key="id_warehouse"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Kode"
+                    sort-key="kode_warehouse"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Nama Warehouse"
+                    sort-key="nm_warehouse"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="PIC"
+                    sort-key="pic_warehouse"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Alamat"
+                    sort-key="alamat"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Kontak"
+                    sort-key="kontak"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -194,10 +220,7 @@
                     </td>
                   </tr>
                   <tr v-if="showForm && editingId === item.id_warehouse">
-                    <td
-                      colspan="7"
-                      class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
-                    >
+                    <td colspan="7" class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40">
                       <div
                         class="rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -334,8 +357,10 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
+import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
 import { useToast } from '@/composables/useToast'
 import { authFetch } from '@/services/auth'
@@ -372,7 +397,7 @@ const form = reactive<FormState>({
   nm_warehouse: '',
   pic_warehouse: '',
   alamat: '',
-  kontak: ''
+  kontak: '',
 })
 
 const apiBase = API_BASE
@@ -381,7 +406,7 @@ const toast = useToast()
 
 const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery({
   pageSize: 15,
-  debounceMs: 300
+  debounceMs: 300,
 })
 const pageSizeOptions = [15, 20, 50]
 
@@ -396,15 +421,25 @@ const filteredItems = computed(() =>
     'nm_warehouse',
     'pic_warehouse',
     'alamat',
-    'kontak'
-  ])
+    'kontak',
+  ]),
 )
 
 const totalCount = computed(() => filteredItems.value.length)
 
+const { sortKey, sortDirection, setSort, sortedItems } = useSortableItems(
+  filteredItems,
+  'id_warehouse',
+)
+
+const handleSort = (key: string) => {
+  setSort(key)
+  setPage(1)
+}
+
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
@@ -470,7 +505,7 @@ const submitForm = async () => {
     nm_warehouse: form.nm_warehouse,
     pic_warehouse: form.pic_warehouse,
     alamat: form.alamat,
-    kontak: form.kontak
+    kontak: form.kontak,
   }
 
   const isUpdate = Boolean(form.id)
@@ -480,7 +515,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -493,9 +528,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/warehouses/${form.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -511,9 +546,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/warehouses`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -543,11 +578,10 @@ const remove = async (item: WarehouseItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -555,7 +589,7 @@ const remove = async (item: WarehouseItem) => {
   try {
     deletingId.value = item.id_warehouse
     const res = await authFetch(`${apiBase}/warehouses/${item.id_warehouse}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()

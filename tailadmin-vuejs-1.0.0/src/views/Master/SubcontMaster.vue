@@ -3,7 +3,9 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Master Subcont">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
@@ -16,9 +18,7 @@
             <SearchBar v-model="search" placeholder="Cari nama subcont / PIC / telp" />
           </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Total: {{ totalCount }} subcont
-            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total: {{ totalCount }} subcont</p>
             <div class="flex items-center gap-2">
               <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
               <select
@@ -117,21 +117,41 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Subcont
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    PIC
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Alamat
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No Telp
-                  </th>
+                  <SortableTableHeader
+                    label="No"
+                    sort-key="id_subcont"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Nama Subcont"
+                    sort-key="nama_subcont"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="PIC"
+                    sort-key="pic_subcont"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Alamat"
+                    sort-key="alamat"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="No Telp"
+                    sort-key="no_telp"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -176,10 +196,7 @@
                     </td>
                   </tr>
                   <tr v-if="showForm && editingId === item.id_subcont">
-                    <td
-                      colspan="6"
-                      class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
-                    >
+                    <td colspan="6" class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40">
                       <div
                         class="rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -302,8 +319,10 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
+import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
 import { useToast } from '@/composables/useToast'
 import { authFetch } from '@/services/auth'
@@ -337,7 +356,7 @@ const form = reactive<FormState>({
   nama_subcont: '',
   pic_subcont: '',
   alamat: '',
-  no_telp: ''
+  no_telp: '',
 })
 
 const apiBase = API_BASE
@@ -346,7 +365,7 @@ const toast = useToast()
 
 const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery({
   pageSize: 15,
-  debounceMs: 300
+  debounceMs: 300,
 })
 const pageSizeOptions = [15, 20, 50]
 
@@ -360,15 +379,25 @@ const filteredItems = computed(() =>
     'nama_subcont',
     'pic_subcont',
     'no_telp',
-    'alamat'
-  ])
+    'alamat',
+  ]),
 )
 
 const totalCount = computed(() => filteredItems.value.length)
 
+const { sortKey, sortDirection, setSort, sortedItems } = useSortableItems(
+  filteredItems,
+  'id_subcont',
+)
+
+const handleSort = (key: string) => {
+  setSort(key)
+  setPage(1)
+}
+
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
@@ -431,7 +460,7 @@ const submitForm = async () => {
     nama_subcont: form.nama_subcont,
     pic_subcont: form.pic_subcont,
     alamat: form.alamat,
-    no_telp: form.no_telp
+    no_telp: form.no_telp,
   }
 
   const isUpdate = Boolean(form.id)
@@ -441,7 +470,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -454,9 +483,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/subconts/${form.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -472,9 +501,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/subconts`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -504,11 +533,10 @@ const remove = async (item: SubcontItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -516,7 +544,7 @@ const remove = async (item: SubcontItem) => {
   try {
     deletingId.value = item.id_subcont
     const res = await authFetch(`${apiBase}/subconts/${item.id_subcont}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()

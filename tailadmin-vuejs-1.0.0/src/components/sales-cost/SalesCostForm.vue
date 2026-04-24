@@ -6,9 +6,7 @@
     >
       {{ submitError }}
     </p>
-    <p v-if="loading" class="text-sm text-gray-500 dark:text-gray-400">
-      Memuat data transaksi...
-    </p>
+    <p v-if="loading" class="text-sm text-gray-500 dark:text-gray-400">Memuat data transaksi...</p>
 
     <form class="space-y-4" @submit.prevent="handleSubmit">
       <div v-if="checkingTruckStatus" class="text-xs text-gray-500 dark:text-gray-400">
@@ -20,7 +18,7 @@
           'rounded-lg border px-4 py-3 text-sm',
           truckStatus.type === 'repair'
             ? 'border-error-200 bg-error-50 text-error-700 dark:border-error-500/40 dark:bg-error-500/10 dark:text-error-200'
-            : 'border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-200'
+            : 'border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-200',
         ]"
       >
         {{ truckStatus.message }}
@@ -201,9 +199,11 @@
             />
           </div>
         </div>
-        
+
         <div class="flex items-center justify-between mb-4 mt-6">
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">DN LIST / RINCIAN DN</h4>
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            DN LIST / RINCIAN DN
+          </h4>
           <button
             type="button"
             class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -220,7 +220,9 @@
             class="rounded-lg border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
           >
             <div class="mb-4 flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Item #{{ index + 1 }}</span>
+              <span class="text-xs font-medium text-gray-500 dark:text-gray-400"
+                >Item #{{ index + 1 }}</span
+              >
               <button
                 v-if="dnList.length > 1"
                 type="button"
@@ -234,7 +236,9 @@
             <div class="space-y-4">
               <!-- No DN -->
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">No. DN</label>
+                <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                  >No. DN</label
+                >
                 <input
                   v-model="item.no_dn"
                   type="text"
@@ -247,7 +251,9 @@
               <!-- Pickup & Drop -->
               <div class="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Pickup Alamat</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >Pickup Alamat</label
+                  >
                   <AddressAutocomplete
                     v-model="item.pickup_alamat"
                     placeholder="Alamat Pickup"
@@ -256,7 +262,9 @@
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Drop Alamat</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >Drop Alamat</label
+                  >
                   <AddressAutocomplete
                     v-model="item.drop_alamat"
                     placeholder="Alamat Drop"
@@ -269,7 +277,9 @@
               <!-- Qty, PKG, GW -->
               <div class="grid gap-4 md:grid-cols-3">
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Qty</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >Qty</label
+                  >
                   <input
                     v-model="item.qty"
                     type="text"
@@ -278,7 +288,9 @@
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">PKG</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >PKG</label
+                  >
                   <select
                     v-model="item.pkg"
                     class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
@@ -291,7 +303,9 @@
                   </select>
                 </div>
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">G.W</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >G.W</label
+                  >
                   <input
                     v-model="item.gw"
                     type="text"
@@ -304,7 +318,9 @@
               <!-- Container, Aju -->
               <div class="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">No. Container</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >No. Container</label
+                  >
                   <input
                     v-model="item.no_container"
                     type="text"
@@ -313,7 +329,9 @@
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">No. Aju</label>
+                  <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                    >No. Aju</label
+                  >
                   <input
                     v-model="item.no_aju"
                     type="text"
@@ -325,7 +343,9 @@
 
               <!-- Remarks -->
               <div>
-                <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Remarks</label>
+                <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200"
+                  >Remarks</label
+                >
                 <textarea
                   v-model="item.remarks"
                   rows="1"
@@ -339,7 +359,9 @@
 
         <!-- Divider -->
         <div class="my-6 border-t border-gray-200 dark:border-gray-800"></div>
-        <h4 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">BIAYA OPSIONAL & DETAIL</h4>
+        <h4 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
+          BIAYA OPSIONAL & DETAIL
+        </h4>
 
         <div>
           <button
@@ -352,7 +374,6 @@
         </div>
 
         <div v-show="showOptionalCosts" class="space-y-4">
-
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
@@ -567,16 +588,16 @@
       <div v-if="$slots['pre-submit']" class="flex items-center gap-4">
         <slot name="pre-submit" />
       </div>
-<br>
-<div class="mt-5 flex items-center justify-center">
-      <button
-        v-if="!readOnly"
-        type="submit"
-        class="inline-flex w-80 items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-14px font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
-        :disabled="isDisabled"
-      >
-        {{ submitLabel }}
-      </button>
+      <br />
+      <div class="mt-5 flex items-center justify-center">
+        <button
+          v-if="!readOnly"
+          type="submit"
+          class="inline-flex w-80 items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-14px font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
+          :disabled="isDisabled"
+        >
+          {{ submitLabel }}
+        </button>
       </div>
     </form>
   </div>
@@ -674,7 +695,7 @@ const props = withDefaults(defineProps<Props>(), {
   submitting: false,
   submitError: '',
   loading: false,
-  readOnly: false
+  readOnly: false,
 })
 
 const emit = defineEmits<{
@@ -689,7 +710,7 @@ const showOptionalCosts = ref(false)
 const errors = reactive<Record<string, string>>({})
 const dateOrderErrors = reactive<Record<'arrival_order' | 'finish_order', string>>({
   arrival_order: '',
-  finish_order: ''
+  finish_order: '',
 })
 const toast = useToast()
 const checkingTruckStatus = ref(false)
@@ -735,7 +756,7 @@ const form = reactive<SalesCostFormData>({
   ops_cost: '',
   tgl_order: '',
   nik_admin: '',
-  id_print: ''
+  id_print: '',
 })
 
 const dnList = ref<DnItem[]>([
@@ -748,8 +769,8 @@ const dnList = ref<DnItem[]>([
     gw: '',
     no_container: '',
     no_aju: '',
-    remarks: ''
-  }
+    remarks: '',
+  },
 ])
 
 const addDnItem = () => {
@@ -762,7 +783,7 @@ const addDnItem = () => {
     gw: '',
     no_container: '',
     no_aju: '',
-    remarks: ''
+    remarks: '',
   })
 }
 
@@ -781,11 +802,11 @@ const numericFields = [
   'detention_chargers',
   'extend_gate_pass',
   'additional_cost',
-  'ops_cost'
+  'ops_cost',
 ]
 
 const selectedTruck = computed(() =>
-  trucks.value.find((truck) => String(truck.id_truck) === form.id_truck)
+  trucks.value.find((truck) => String(truck.id_truck) === form.id_truck),
 )
 
 const isHB = computed(() => selectedTruck.value?.jenis_kendaraan === 'HB')
@@ -806,7 +827,7 @@ const parseIndonesianNumber = (input: string) => {
 const formatIndonesianNumber = (value: number) =>
   value.toLocaleString('id-ID', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+    maximumFractionDigits: 0,
   })
 
 const formatNumeric = (field: string) => {
@@ -823,7 +844,7 @@ const normalizeDate = (value?: string | null) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value
   }
-  
+
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     return ''
@@ -852,16 +873,13 @@ const isValidIsoDate = (value: string) => {
   const day = Number(match[3])
   const date = new Date(Date.UTC(year, month - 1, day))
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() + 1 === month &&
-    date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day
   )
 }
 
 const ARRIVAL_LT_DELIVERY_MSG =
   'Tanggal Arrival Order tidak boleh kurang dari tanggal Delivery Order.'
-const FINISH_LT_ARRIVAL_MSG =
-  'Tanggal Finish Order tidak boleh kurang dari tanggal Arrival.'
+const FINISH_LT_ARRIVAL_MSG = 'Tanggal Finish Order tidak boleh kurang dari tanggal Arrival.'
 
 const updateDateOrderErrors = () => {
   let arrivalOrderMessage = ''
@@ -997,8 +1015,8 @@ const resetForm = () => {
       gw: '',
       no_container: '',
       no_aju: '',
-      remarks: ''
-    }
+      remarks: '',
+    },
   ]
 }
 
@@ -1017,30 +1035,31 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
   form.container_depot = data.container_depot ?? '0'
   form.no_po = data.no_po ?? '0'
   form.tax = data.tax ?? '0'
-  form.admin_charge = formatIndonesianNumber(parseIndonesianNumber(String(data.admin_charge ?? '0')))
+  form.admin_charge = formatIndonesianNumber(
+    parseIndonesianNumber(String(data.admin_charge ?? '0')),
+  )
   form.materai = formatIndonesianNumber(parseIndonesianNumber(String(data.materai ?? '0')))
   form.container_repair = formatIndonesianNumber(
-    parseIndonesianNumber(String(data.container_repair ?? '0'))
+    parseIndonesianNumber(String(data.container_repair ?? '0')),
   )
   form.demurrage_chargers = formatIndonesianNumber(
-    parseIndonesianNumber(String(data.demurrage_chargers ?? '0'))
+    parseIndonesianNumber(String(data.demurrage_chargers ?? '0')),
   )
   form.detention_chargers = formatIndonesianNumber(
-    parseIndonesianNumber(String(data.detention_chargers ?? '0'))
+    parseIndonesianNumber(String(data.detention_chargers ?? '0')),
   )
   form.extend_gate_pass = formatIndonesianNumber(
-    parseIndonesianNumber(String(data.extend_gate_pass ?? '0'))
+    parseIndonesianNumber(String(data.extend_gate_pass ?? '0')),
   )
   form.trip = data.trip ?? ''
   form.jenis_trip = data.jenis_trip ?? 'Trip'
   form.price = formatIndonesianNumber(parseIndonesianNumber(String(data.price ?? '0')))
   form.additional_cost = formatIndonesianNumber(
-    parseIndonesianNumber(String(data.additional_cost ?? '0'))
+    parseIndonesianNumber(String(data.additional_cost ?? '0')),
   )
   form.ops_cost = formatIndonesianNumber(parseIndonesianNumber(String(data.ops_cost ?? '0')))
   form.tgl_order = data.tgl_order || getDefaultOrderDate()
-  form.nik_admin =
-    data.nik_admin || data.id_admin || localStorage.getItem('nik_admin') || ''
+  form.nik_admin = data.nik_admin || data.id_admin || localStorage.getItem('nik_admin') || ''
   form.id_print = data.id_print || `Print_${generateRandomString(29)}`
 
   if (data.dnItems && Array.isArray(data.dnItems) && data.dnItems.length > 0) {
@@ -1053,7 +1072,7 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
       gw: item.gw || '',
       no_container: item.no_container || '',
       no_aju: item.no_aju || '',
-      remarks: item.remarks || ''
+      remarks: item.remarks || '',
     }))
   } else {
     // Keep default if no data, or reset if editing but no DNs (shouldn't happen often)
@@ -1061,11 +1080,11 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
     // Let's stick to the default behavior of resetForm which sets 1 empty row.
     // But applyInitialData is called after resetForm.
     if (props.mode === 'create') {
-       // already reset
+      // already reset
     } else {
-       // If edit and no items, maybe user deleted all? Or data missing.
-       // Default to 1 empty row if array is empty
-       dnList.value = [
+      // If edit and no items, maybe user deleted all? Or data missing.
+      // Default to 1 empty row if array is empty
+      dnList.value = [
         {
           no_dn: '',
           pickup_alamat: '',
@@ -1075,8 +1094,8 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
           gw: '',
           no_container: '',
           no_aju: '',
-          remarks: ''
-        }
+          remarks: '',
+        },
       ]
     }
   }
@@ -1092,10 +1111,11 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
     form.detention_chargers,
     form.extend_gate_pass,
     form.lift_on,
-    form.lift_of
+    form.lift_of,
   ]
   // Cek jika ada nilai yang tidak kosong/0 untuk menampilkan opsi
-  showOptionalCosts.value = props.mode === 'edit' || optionalValues.some((value) => value !== '0' && value !== '')
+  showOptionalCosts.value =
+    props.mode === 'edit' || optionalValues.some((value) => value !== '0' && value !== '')
 }
 
 const buildPayload = () => ({
@@ -1127,7 +1147,7 @@ const buildPayload = () => ({
   additional_cost: parseIndonesianNumber(form.additional_cost || '0'),
   ops_cost: parseIndonesianNumber(form.ops_cost || '0'),
   id_print: form.id_print,
-  dnItems: dnList.value
+  dnItems: dnList.value,
 })
 
 const toggleOptionalCosts = () => {
@@ -1171,7 +1191,7 @@ const updateTruckStatus = async () => {
   try {
     const response = await monitoringKendaraanService.fetchMonitoring({
       search: truck.no_police,
-      limit: 5
+      limit: 5,
     })
 
     if (requestId !== truckStatusRequestId) {
@@ -1189,7 +1209,7 @@ const updateTruckStatus = async () => {
       const spk = repairMatch?.repair?.no_spk_perbaikan || '-'
       truckStatus.value = {
         type: 'repair',
-        message: `Truck ini sedang dalam Perbaikan dengan nomor SPK Perbaikan: ${spk}`
+        message: `Truck ini sedang dalam Perbaikan dengan nomor SPK Perbaikan: ${spk}`,
       }
       return
     }
@@ -1208,7 +1228,7 @@ const updateTruckStatus = async () => {
       const spk = transaksiMatch?.transaksi?.no_spk || '-'
       truckStatus.value = {
         type: 'transaksi',
-        message: `Truck ini sudah memiliki Transaksi dengan nomor SPK : ${spk}`
+        message: `Truck ini sudah memiliki Transaksi dengan nomor SPK : ${spk}`,
       }
       return
     }
@@ -1231,7 +1251,7 @@ const loadOptions = async () => {
     salesCostService.fetchTrucks(),
     salesCostService.fetchDrivers(),
     salesCostService.fetchCustomers(),
-    salesCostService.fetchAreas()
+    salesCostService.fetchAreas(),
   ])
   trucks.value = truckData
   if (
@@ -1247,6 +1267,18 @@ const loadOptions = async () => {
     }
   }
   drivers.value = driverData
+  if (
+    props.mode === 'edit' &&
+    form.id_driver &&
+    !drivers.value.some((driver) => String(driver.id_driver) === form.id_driver)
+  ) {
+    try {
+      const currentDriver = await salesCostService.fetchDriver(form.id_driver)
+      drivers.value = [currentDriver, ...drivers.value]
+    } catch (error) {
+      console.error(error)
+    }
+  }
   customers.value = customerData
   areas.value = areaData
 }
@@ -1264,8 +1296,7 @@ watch(
       applyInitialData(value)
     }
   },
-  { deep: true, immediate: true }
-  
+  { deep: true, immediate: true },
 )
 
 watch(
@@ -1275,7 +1306,7 @@ watch(
       resetForm()
       applyInitialData({})
     }
-  }
+  },
 )
 
 watch(
@@ -1286,7 +1317,7 @@ watch(
       return
     }
     void updateTruckStatus()
-  }
+  },
 )
 
 watch(
@@ -1294,7 +1325,7 @@ watch(
   () => {
     updateDateOrderErrors()
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 onMounted(async () => {

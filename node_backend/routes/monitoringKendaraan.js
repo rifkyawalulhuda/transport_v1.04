@@ -99,7 +99,7 @@ router.get("/", async (req, res) => {
     const todayString = toDateString(new Date());
 
     const [truckRows] = await db.query(
-      "SELECT id_truck, no_police, merk_mobil, model, type_truck, jenis_kendaraan FROM truck"
+      "SELECT id_truck, no_police, merk_mobil, model, type_truck, jenis_kendaraan FROM truck WHERE is_active = 1"
     );
 
     const repairConditions = [

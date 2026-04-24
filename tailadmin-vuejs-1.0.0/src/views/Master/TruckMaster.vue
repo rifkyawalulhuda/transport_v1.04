@@ -3,7 +3,9 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Master Truck">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
@@ -24,9 +26,7 @@
             <SearchBar v-model="search" placeholder="Cari no polisi / merk / model" />
           </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Total: {{ totalCount }} truck
-            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total: {{ totalCount }} truck</p>
             <div class="flex items-center gap-2">
               <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
               <select
@@ -148,30 +148,62 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No Polisi
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Jenis Kendaraan
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Merk
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Model
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Type
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Wialon Unit ID
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Status
-                  </th>
+                  <SortableTableHeader
+                    label="No"
+                    sort-key="id_truck"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="No Polisi"
+                    sort-key="no_police"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Jenis Kendaraan"
+                    sort-key="jenis_kendaraan"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Merk"
+                    sort-key="merk_mobil"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Model"
+                    sort-key="model"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Type"
+                    sort-key="type_truck"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Wialon Unit ID"
+                    sort-key="wialon_unit_id"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Status"
+                    sort-key="is_active"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -199,14 +231,20 @@
                       {{ item.type_truck }}
                     </td>
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                      <span class="inline-flex max-w-[180px] break-all rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                      <span
+                        class="inline-flex max-w-[180px] break-all rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                      >
                         {{ item.wialon_unit_id || '-' }}
                       </span>
                     </td>
                     <td class="px-5 py-3 text-sm sm:px-6">
                       <span
                         class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
-                        :class="item.is_active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'"
+                        :class="
+                          item.is_active
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                        "
                       >
                         {{ item.is_active ? 'Aktif' : 'Nonaktif' }}
                       </span>
@@ -267,10 +305,7 @@
                     </td>
                   </tr>
                   <tr v-if="showForm && editingId === item.id_truck">
-                    <td
-                      colspan="9"
-                      class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
-                    >
+                    <td colspan="9" class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40">
                       <div
                         class="rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -420,8 +455,10 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
+import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
 import { useToast } from '@/composables/useToast'
 import { authFetch } from '@/services/auth'
@@ -464,7 +501,7 @@ const form = reactive<FormState>({
   merk_mobil: '',
   model: '',
   type_truck: '',
-  wialon_unit_id: ''
+  wialon_unit_id: '',
 })
 
 const apiBase = API_BASE
@@ -473,7 +510,7 @@ const toast = useToast()
 
 const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery({
   pageSize: 15,
-  debounceMs: 300
+  debounceMs: 300,
 })
 const pageSizeOptions = [15, 20, 50]
 
@@ -489,15 +526,28 @@ const filteredItems = computed(() =>
     'model',
     'jenis_kendaraan',
     'type_truck',
-    'is_active'
-  ])
+    'is_active',
+  ]),
 )
 
 const totalCount = computed(() => filteredItems.value.length)
 
+const { sortKey, sortDirection, setSort, sortedItems } = useSortableItems(
+  filteredItems,
+  'id_truck',
+  {
+    is_active: (item) => (item.is_active ? 'Aktif' : 'Nonaktif'),
+  },
+)
+
+const handleSort = (key: string) => {
+  setSort(key)
+  setPage(1)
+}
+
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
@@ -515,7 +565,7 @@ const loadData = async () => {
     items.value = Array.isArray(data)
       ? data.map((item) => ({
           ...item,
-          is_active: Number(item.is_active) === 1 || item.is_active === true
+          is_active: Number(item.is_active) === 1 || item.is_active === true,
         }))
       : []
     currentPage.value = 1
@@ -542,7 +592,7 @@ const autoMapWialonUnits = async () => {
       'Jalankan pencocokan otomatis Wialon berdasarkan no polisi untuk truck yang belum punya mapping?',
     confirmText: 'Ya, jalankan',
     cancelText: 'Batal',
-    variant: 'warning'
+    variant: 'warning',
   })
   if (!ok) {
     return
@@ -553,11 +603,11 @@ const autoMapWialonUnits = async () => {
     const res = await authFetch(`${apiBase}/wialon/trucks/auto-map`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        overwrite: false
-      })
+        overwrite: false,
+      }),
     })
     const data = await res.json().catch(() => null)
 
@@ -575,7 +625,7 @@ const autoMapWialonUnits = async () => {
     const ambiguous = Number(summary.ambiguous || 0)
 
     toast.success(
-      `Auto mapping selesai. ${matched} truck cocok, ${updated} truck diperbarui, ${kept} sudah terhubung, ${unmatched} belum cocok, ${ambiguous} ambigu.`
+      `Auto mapping selesai. ${matched} truck cocok, ${updated} truck diperbarui, ${kept} sudah terhubung, ${unmatched} belum cocok, ${ambiguous} ambigu.`,
     )
     await loadData()
   } catch (error) {
@@ -638,7 +688,7 @@ const setActionMenuPosition = (event: MouseEvent) => {
     if (top + menuHeight > window.innerHeight - 8) {
       actionMenuPosition.value = {
         top: Math.max(8, rect.top - menuHeight - 8),
-        left
+        left,
       }
     }
   })
@@ -646,7 +696,7 @@ const setActionMenuPosition = (event: MouseEvent) => {
 
 const actionMenuStyle = computed(() => ({
   top: `${actionMenuPosition.value.top}px`,
-  left: `${actionMenuPosition.value.left}px`
+  left: `${actionMenuPosition.value.left}px`,
 }))
 
 const toggleActionMenu = (id: number, event: MouseEvent) => {
@@ -682,7 +732,7 @@ const submitForm = async () => {
     merk_mobil: form.merk_mobil,
     model: form.model,
     type_truck: form.type_truck,
-    wialon_unit_id: form.wialon_unit_id
+    wialon_unit_id: form.wialon_unit_id,
   }
 
   const isUpdate = Boolean(form.id)
@@ -692,7 +742,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -705,9 +755,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/trucks/${form.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -723,9 +773,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/trucks`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -755,11 +805,10 @@ const remove = async (item: TruckItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -767,7 +816,7 @@ const remove = async (item: TruckItem) => {
   try {
     deletingId.value = item.id_truck
     const res = await authFetch(`${apiBase}/trucks/${item.id_truck}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()
@@ -797,7 +846,7 @@ const toggleStatus = async (item: TruckItem) => {
       : `Nonaktifkan truck ${item.no_police}? Truck ini tidak akan muncul di pilihan Sales Cost dan Data Transport.`,
     confirmText: nextActive ? 'Ya, aktifkan' : 'Ya, nonaktifkan',
     cancelText: 'Batal',
-    variant: 'warning'
+    variant: 'warning',
   })
   if (!ok) {
     return
@@ -807,9 +856,9 @@ const toggleStatus = async (item: TruckItem) => {
     const res = await authFetch(`${apiBase}/trucks/${item.id_truck}/status`, {
       method: 'PATCH',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ is_active: nextActive })
+      body: JSON.stringify({ is_active: nextActive }),
     })
     if (!res.ok) {
       const message = await res.text()

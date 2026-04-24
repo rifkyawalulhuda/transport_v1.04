@@ -74,6 +74,7 @@ CREATE TABLE `driver` (
   `no_telp` varchar(50) NOT NULL,
   `no_ktp` varchar(17) NOT NULL,
   `alamat` text NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id_driver`)
 ) ENGINE=InnoDB AUTO_INCREMENT=113028 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 

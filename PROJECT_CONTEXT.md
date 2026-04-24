@@ -59,7 +59,10 @@ The project now also includes truck location tracking with Wialon GPS data displ
 ### Core Modules
 
 - Master data management for trucks, drivers, customers, areas, warehouses, subcontractors, and admins.
+- Master data tables support sortable headers with ascending/descending toggles after search/filter and before pagination.
 - Master Truck supports soft deactivation via `truck.is_active`; inactive trucks stay in Master Truck for history/admin visibility but are removed from operational pickers and GPS fleet views.
+- Monitoring Kendaraan summary and lists only count active trucks (`truck.is_active = 1`), so inactive trucks are excluded from total, transaksi, repair, idle, and search results.
+- Master Driver supports soft deactivation via `driver.is_active`; inactive drivers stay in Master Driver for administration/history but are removed from operational driver pickers, Sales Cost import/template options, and Data Transport Data Supir list/search/export.
 - Transaction and monitoring views.
 - Import/export flows for master data.
 - Authentication and role-based access control.
@@ -103,6 +106,20 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - the truck is removed from new operational selections and GPS fleet/location views
 - Frontend edit flows for existing Sales Cost records preserve the currently assigned truck option even if that truck is later inactive, so old records can still be opened without losing their displayed selection.
 - New Sales Cost creation, Sales Cost import, and truck changes on existing Sales Cost records reject inactive trucks on the backend.
+
+### Master Driver Active/Inactive Flow
+
+- Master Driver has a status badge: `Aktif` or `Nonaktif`.
+- Master Driver row actions are grouped in a dropdown:
+  - `Edit`
+  - `Nonaktifkan` / `Aktifkan`
+  - `Hapus`
+- `Nonaktifkan` is a soft operational disable:
+  - the driver remains visible in Master Driver when that page loads all rows
+  - historical Sales Cost rows can still display the driver through their existing relation
+  - the driver is removed from new operational selections and Data Transport Data Supir list/search/export
+- New Sales Cost creation and Sales Cost import reject inactive drivers on the backend.
+- Existing Sales Cost edit allows keeping the current inactive driver, but rejects changing to another inactive driver.
 
 ### Monthly Truck Mileage
 
@@ -303,6 +320,19 @@ The `truck` table now includes:
 
 Inactive trucks should still remain available for historical display where existing records already reference them.
 
+### Driver Table
+
+The `driver` table now includes:
+
+- `is_active TINYINT(1) NOT NULL DEFAULT 1`
+
+`is_active` is used for soft operational filtering. Inactive drivers are excluded from:
+
+- Sales Cost driver dropdowns and template/import master options
+- Data Transport Data Supir list/search/export
+
+Inactive drivers should still remain available for historical display where existing records already reference them.
+
 ### Area and Route Tracking Tables
 
 The project now also uses:
@@ -373,7 +403,9 @@ Required or currently used variables:
 - Use `wialon_unit_id` as the stable mapping key instead of relying only on plate number.
 - Preserve manual mapping if a truck already has a valid `wialon_unit_id`.
 - Use `truck.is_active` for soft operational disable instead of deleting truck rows when historical references should remain readable.
+- Use `driver.is_active` for soft operational disable instead of deleting driver rows when historical references should remain readable.
 - Default truck option APIs should return active trucks only; Master Truck can opt into inactive rows with `include_inactive=1` for administration.
+- Default driver option APIs should return active drivers only; Master Driver can opt into inactive rows with `include_inactive=1` for administration.
 - GPS location payloads should never include inactive trucks unless a future admin-only diagnostic endpoint explicitly asks for them.
 - Reverse geocoding is intentionally done server-side, not directly from the browser.
 - Reverse geocoding should only be requested for the selected truck, not every truck on every refresh.

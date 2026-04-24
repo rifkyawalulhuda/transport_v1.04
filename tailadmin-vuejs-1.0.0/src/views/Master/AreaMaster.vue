@@ -3,7 +3,9 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Master Area">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
@@ -16,9 +18,7 @@
             <SearchBar v-model="search" placeholder="Cari kode area atau nama area" />
           </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Total: {{ totalCount }} area
-            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total: {{ totalCount }} area</p>
             <div class="flex items-center gap-2">
               <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
               <select
@@ -36,8 +36,12 @@
 
         <Modal v-if="showForm" :full-screen-backdrop="true" @close="cancelForm">
           <template #body>
-            <div class="relative z-10 w-[calc(100vw-2rem)] max-w-6xl rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">
-              <div class="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
+            <div
+              class="relative z-10 w-[calc(100vw-2rem)] max-w-6xl rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900"
+            >
+              <div
+                class="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5 dark:border-gray-800"
+              >
                 <div>
                   <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100">
                     {{ formTitle }}
@@ -57,7 +61,9 @@
 
               <div class="max-h-[85vh] overflow-y-auto px-6 py-5 custom-scrollbar">
                 <form class="space-y-5" @submit.prevent="submitForm">
-                  <div class="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/20 dark:bg-brand-500/10 lg:flex-row lg:items-center lg:justify-between">
+                  <div
+                    class="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/20 dark:bg-brand-500/10 lg:flex-row lg:items-center lg:justify-between"
+                  >
                     <div>
                       <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
                         Preview Rute
@@ -66,14 +72,18 @@
                         Nama area tetap dibentuk dari kode area dan langkah rute saja.
                       </p>
                     </div>
-                    <div class="rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                    <div
+                      class="rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200"
+                    >
                       <span class="font-semibold">{{ areaNamePreview || '-' }}</span>
                     </div>
                   </div>
 
                   <div class="grid gap-4 lg:grid-cols-3">
                     <div>
-                      <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                      <label
+                        class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                      >
                         Kode Area
                       </label>
                       <input
@@ -84,7 +94,9 @@
                       />
                     </div>
                     <div class="lg:col-span-2">
-                      <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                      <label
+                        class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                      >
                         Nama Area
                       </label>
                       <input
@@ -96,7 +108,9 @@
                     </div>
                   </div>
 
-                  <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
+                  <div
+                    class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30"
+                  >
                     <div class="mb-4 flex items-center justify-between gap-3">
                       <div>
                         <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
@@ -121,7 +135,9 @@
                         :key="`route-step-${index}`"
                         class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
                       >
-                        <div class="mb-4 flex flex-col gap-2 border-b border-gray-200 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+                        <div
+                          class="mb-4 flex flex-col gap-2 border-b border-gray-200 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+                        >
                           <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
                             Langkah {{ index + 1 }}
                           </div>
@@ -155,7 +171,9 @@
 
                         <div class="grid gap-4 lg:grid-cols-2">
                           <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                            <label
+                              class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                            >
                               Nama Langkah
                             </label>
                             <input
@@ -166,7 +184,9 @@
                             />
                           </div>
                           <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                            <label
+                              class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                            >
                               Geofence Wialon
                             </label>
                             <SearchableSelect
@@ -189,25 +209,31 @@
                         >
                           Geofence terpilih: {{ step.wialon_zone_name }}
                           <span class="text-gray-400 dark:text-gray-500">
-                            (Resource ID {{ step.wialon_resource_id }}, Zone ID {{ step.wialon_zone_id }})
+                            (Resource ID {{ step.wialon_resource_id }}, Zone ID
+                            {{ step.wialon_zone_id }})
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div class="mt-5 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <div
+                      class="mt-5 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+                    >
                       <div class="mb-3">
                         <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
                           Finish Order Geofence
                         </h4>
                         <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Pilih geofence yang dipakai saat sistem mencatat Finish Order. Nilai ini tidak masuk ke Nama Area.
+                          Pilih geofence yang dipakai saat sistem mencatat Finish Order. Nilai ini
+                          tidak masuk ke Nama Area.
                         </p>
                       </div>
 
                       <div class="grid gap-4 lg:grid-cols-2">
                         <div>
-                          <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                          <label
+                            class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
+                          >
                             Geofence Finish Order
                           </label>
                           <SearchableSelect
@@ -230,7 +256,8 @@
                       >
                         Finish Order terpilih: {{ form.finish_geofence_zone_name }}
                         <span class="text-gray-400 dark:text-gray-500">
-                          (Resource ID {{ form.finish_geofence_resource_id }}, Zone ID {{ form.finish_geofence_zone_id }})
+                          (Resource ID {{ form.finish_geofence_resource_id }}, Zone ID
+                          {{ form.finish_geofence_zone_id }})
                         </span>
                       </div>
                     </div>
@@ -243,7 +270,9 @@
                     </p>
                   </div>
 
-                  <div class="flex items-center justify-end gap-2 border-t border-gray-200 pt-4 dark:border-gray-800">
+                  <div
+                    class="flex items-center justify-end gap-2 border-t border-gray-200 pt-4 dark:border-gray-800"
+                  >
                     <button
                       type="button"
                       class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
@@ -272,18 +301,34 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Kode Area
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Area
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Langkah
-                  </th>
+                  <SortableTableHeader
+                    label="No"
+                    sort-key="id_area"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Kode Area"
+                    sort-key="kode_area"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Nama Area"
+                    sort-key="nama_area"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Langkah"
+                    sort-key="route_steps"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -379,10 +424,12 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import Modal from '@/components/ui/Modal.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
+import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
 import { useToast } from '@/composables/useToast'
 import { authFetch } from '@/services/auth'
@@ -454,7 +501,7 @@ const form = reactive<FormState>({
   route_steps: [],
   finish_geofence_resource_id: '',
   finish_geofence_zone_id: '',
-  finish_geofence_zone_name: ''
+  finish_geofence_zone_name: '',
 })
 
 const apiBase = API_BASE
@@ -463,7 +510,7 @@ const toast = useToast()
 
 const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery({
   pageSize: 15,
-  debounceMs: 300
+  debounceMs: 300,
 })
 const pageSizeOptions = [15, 20, 50]
 
@@ -473,18 +520,20 @@ const createEmptyRouteStep = (stepOrder: number): RouteStep => ({
   step_name: '',
   wialon_resource_id: '',
   wialon_zone_id: '',
-  wialon_zone_name: ''
+  wialon_zone_name: '',
 })
 
 const createEmptyFinishGeofence = () => ({
   finish_geofence_resource_id: '',
   finish_geofence_zone_id: '',
-  finish_geofence_zone_name: ''
+  finish_geofence_zone_name: '',
 })
 
 const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
   const baseSteps =
-    item?.route_steps && item.route_steps.length > 0 ? item.route_steps : item?.draft_route_steps || []
+    item?.route_steps && item.route_steps.length > 0
+      ? item.route_steps
+      : item?.draft_route_steps || []
 
   if (baseSteps.length === 0) {
     return [createEmptyRouteStep(1)]
@@ -499,8 +548,10 @@ const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
         ? ''
         : String(step.wialon_resource_id),
     wialon_zone_id:
-      step.wialon_zone_id === null || step.wialon_zone_id === undefined ? '' : String(step.wialon_zone_id),
-    wialon_zone_name: step.wialon_zone_name || ''
+      step.wialon_zone_id === null || step.wialon_zone_id === undefined
+        ? ''
+        : String(step.wialon_zone_id),
+    wialon_zone_name: step.wialon_zone_name || '',
   }))
 }
 
@@ -513,7 +564,7 @@ const normalizeDraftFinishGeofence = (item?: AreaItem | null) => ({
     item?.finish_geofence_zone_id === null || item?.finish_geofence_zone_id === undefined
       ? ''
       : String(item.finish_geofence_zone_id),
-  finish_geofence_zone_name: item?.finish_geofence_zone_name || ''
+  finish_geofence_zone_name: item?.finish_geofence_zone_name || '',
 })
 
 const geofenceSelectOptions = computed(() =>
@@ -521,8 +572,8 @@ const geofenceSelectOptions = computed(() =>
     value: `${row.resource_id}:${row.zone_id}`,
     label: `${row.zone_name} (${row.resource_name})`,
     resource_name: row.resource_name,
-    zone_name: row.zone_name
-  }))
+    zone_name: row.zone_name,
+  })),
 )
 
 const areaNamePreview = computed(() => {
@@ -541,21 +592,40 @@ const areaNamePreview = computed(() => {
 })
 
 const displayRouteSteps = (item: AreaItem) =>
-  (item.route_steps && item.route_steps.length > 0 ? item.route_steps : item.draft_route_steps || []).slice()
+  (item.route_steps && item.route_steps.length > 0
+    ? item.route_steps
+    : item.draft_route_steps || []
+  ).slice()
 
 const changePageSize = () => {
   setPage(1)
 }
 
 const filteredItems = computed(() =>
-  filterItemsByQuery(items.value, debouncedSearch.value, ['nama_area', 'kode_area'])
+  filterItemsByQuery(items.value, debouncedSearch.value, ['nama_area', 'kode_area']),
 )
 
 const totalCount = computed(() => filteredItems.value.length)
 
+const { sortKey, sortDirection, setSort, sortedItems } = useSortableItems(
+  filteredItems,
+  'id_area',
+  {
+    route_steps: (item) =>
+      displayRouteSteps(item)
+        .map((step) => step.step_name)
+        .join(' '),
+  },
+)
+
+const handleSort = (key: string) => {
+  setSort(key)
+  setPage(1)
+}
+
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
@@ -610,7 +680,7 @@ const handleImported = async () => {
 const reindexRouteSteps = () => {
   form.route_steps = form.route_steps.map((step, index) => ({
     ...step,
-    step_order: index + 1
+    step_order: index + 1,
   }))
 }
 
@@ -646,9 +716,7 @@ const getStepGeofenceValue = (step: RouteStep) => {
 }
 
 const updateStepGeofence = (index: number, value: string) => {
-  const selected = geofenceRows.value.find(
-    (row) => `${row.resource_id}:${row.zone_id}` === value
-  )
+  const selected = geofenceRows.value.find((row) => `${row.resource_id}:${row.zone_id}` === value)
   if (!selected) {
     form.route_steps[index].wialon_resource_id = ''
     form.route_steps[index].wialon_zone_id = ''
@@ -669,9 +737,7 @@ const getFinishGeofenceValue = () => {
 }
 
 const updateFinishGeofence = (value: string) => {
-  const selected = geofenceRows.value.find(
-    (row) => `${row.resource_id}:${row.zone_id}` === value
-  )
+  const selected = geofenceRows.value.find((row) => `${row.resource_id}:${row.zone_id}` === value)
   if (!selected) {
     form.finish_geofence_resource_id = ''
     form.finish_geofence_zone_id = ''
@@ -729,8 +795,8 @@ const submitForm = async () => {
       step_name: step.step_name.trim(),
       wialon_resource_id: step.wialon_resource_id ? Number(step.wialon_resource_id) : null,
       wialon_zone_id: step.wialon_zone_id ? Number(step.wialon_zone_id) : null,
-      wialon_zone_name: step.wialon_zone_name.trim()
-    }))
+      wialon_zone_name: step.wialon_zone_name.trim(),
+    })),
   }
 
   const isUpdate = Boolean(form.id)
@@ -740,7 +806,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data area ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -749,16 +815,13 @@ const submitForm = async () => {
 
   isSubmitting.value = true
   try {
-    const res = await authFetch(
-      isUpdate ? `${apiBase}/areas/${form.id}` : `${apiBase}/areas`,
-      {
-        method: isUpdate ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }
-    )
+    const res = await authFetch(isUpdate ? `${apiBase}/areas/${form.id}` : `${apiBase}/areas`, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
 
     if (!res.ok) {
       const body = await res.json().catch(async () => ({ message: await res.text() }))
@@ -789,11 +852,10 @@ const remove = async (item: AreaItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -801,7 +863,7 @@ const remove = async (item: AreaItem) => {
   try {
     deletingId.value = item.id_area
     const res = await authFetch(`${apiBase}/areas/${item.id_area}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()

@@ -73,7 +73,7 @@ const buildDataSupirIndex = (items) => {
 router.get('/export', async (req, res) => {
   try {
     const [mysqlDrivers] = await db.query(
-      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver'
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE is_active = 1'
     );
     const mongoDataSupir = await DataSupir.find({});
     const { byId, byNoPolisi } = buildDataSupirIndex(mongoDataSupir);
@@ -152,7 +152,7 @@ router.get('/', async (req, res) => {
   try {
     const { search } = req.query;
     const [mysqlDrivers] = await db.query(
-      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver'
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE is_active = 1'
     );
     const mongoDataSupir = await DataSupir.find({});
     const { byId, byNoPolisi } = buildDataSupirIndex(mongoDataSupir);
@@ -216,10 +216,10 @@ router.get('/search-mysql-drivers', async (req, res) => {
   try {
     const { q } = req.query;
     let sql =
-      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver';
+      'SELECT id_driver, no_polisi, nama_driver, no_telp, no_ktp, alamat FROM driver WHERE is_active = 1';
     const params = [];
     if (q) {
-      sql += ' WHERE no_polisi LIKE ? OR nama_driver LIKE ?';
+      sql += ' AND (no_polisi LIKE ? OR nama_driver LIKE ?)';
       params.push(`%${q}%`, `%${q}%`);
     }
     sql += ' ORDER BY no_polisi ASC LIMIT 20';

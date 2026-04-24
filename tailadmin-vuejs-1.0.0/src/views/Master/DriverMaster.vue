@@ -3,7 +3,9 @@
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
       <ComponentCard title="Master Driver">
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div
+          class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center"
+        >
           <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <button
               type="button"
@@ -16,9 +18,7 @@
             <SearchBar v-model="search" placeholder="Cari no polisi / nama driver / telp" />
           </div>
           <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Total: {{ totalCount }} driver
-            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total: {{ totalCount }} driver</p>
             <div class="flex items-center gap-2">
               <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
               <select
@@ -129,24 +129,55 @@
             <table class="min-w-full">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No Polisi
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Nama Driver
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No Telp
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    No KTP
-                  </th>
-                  <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Alamat
-                  </th>
+                  <SortableTableHeader
+                    label="No"
+                    sort-key="id_driver"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="No Polisi"
+                    sort-key="no_polisi"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Nama Driver"
+                    sort-key="nama_driver"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="No Telp"
+                    sort-key="no_telp"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="No KTP"
+                    sort-key="no_ktp"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Alamat"
+                    sort-key="alamat"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
+                  <SortableTableHeader
+                    label="Status"
+                    sort-key="is_active"
+                    :active-key="sortKey"
+                    :direction="sortDirection"
+                    @sort="handleSort"
+                  />
                   <th class="px-5 py-3 text-center text-xs font-medium text-gray-500 sm:px-6">
                     Aksi
                   </th>
@@ -173,31 +204,75 @@
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                       {{ item.alamat }}
                     </td>
+                    <td class="px-5 py-3 text-sm sm:px-6">
+                      <span
+                        class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
+                        :class="
+                          item.is_active
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                        "
+                      >
+                        {{ item.is_active ? 'Aktif' : 'Nonaktif' }}
+                      </span>
+                    </td>
                     <td class="px-5 py-3 text-center sm:px-6">
-                      <div class="flex items-center justify-center gap-2">
+                      <div class="relative inline-flex justify-center">
                         <button
                           type="button"
-                          class="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400"
-                          @click="openForm(item)"
+                          class="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          @click.stop="toggleActionMenu(item.id_driver, $event)"
                         >
-                          Edit
+                          <svg
+                            class="h-3.5 w-3.5"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="m5 8 5 5 5-5" />
+                          </svg>
                         </button>
-                        <button
-                          type="button"
-                          :disabled="deletingId === item.id_driver"
-                          class="rounded-lg bg-error-50 px-3 py-1 text-xs font-medium text-error-600 hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-error-500/15 dark:text-error-400"
-                          @click="remove(item)"
-                        >
-                          Hapus
-                        </button>
+                        <Teleport to="body">
+                          <div
+                            v-if="openActionId === item.id_driver"
+                            ref="actionMenuRef"
+                            class="fixed z-[9999] w-40 -translate-x-full rounded-lg border border-gray-200 bg-white py-1 text-left shadow-theme-sm dark:border-gray-700 dark:bg-gray-900"
+                            :style="actionMenuStyle"
+                            @click.stop
+                          >
+                            <button
+                              type="button"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-white/[0.03]"
+                              @click="handleEdit(item)"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              :disabled="statusUpdatingId === item.id_driver"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-amber-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-amber-400 dark:hover:bg-white/[0.03]"
+                              @click="toggleStatus(item)"
+                            >
+                              {{ item.is_active ? 'Nonaktifkan' : 'Aktifkan' }}
+                            </button>
+                            <button
+                              type="button"
+                              :disabled="deletingId === item.id_driver"
+                              class="block w-full px-3 py-2 text-left text-xs font-medium text-error-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-error-400 dark:hover:bg-white/[0.03]"
+                              @click="handleDelete(item)"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </Teleport>
                       </div>
                     </td>
                   </tr>
                   <tr v-if="showForm && editingId === item.id_driver">
-                    <td
-                      colspan="7"
-                      class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40"
-                    >
+                    <td colspan="8" class="bg-gray-50 px-5 py-4 sm:px-6 dark:bg-gray-900/40">
                       <div
                         class="rounded-lg border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -298,7 +373,7 @@
                 </template>
                 <tr v-if="!loading && totalCount === 0">
                   <td
-                    colspan="7"
+                    colspan="8"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Tidak ada data
@@ -306,7 +381,7 @@
                 </tr>
                 <tr v-if="loading">
                   <td
-                    colspan="7"
+                    colspan="8"
                     class="px-5 py-6 text-center text-sm text-gray-500 sm:px-6 dark:text-gray-400"
                   >
                     Memuat data...
@@ -327,15 +402,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { API_BASE } from '@/config/api'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
+import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
 import { useToast } from '@/composables/useToast'
 import { authFetch } from '@/services/auth'
@@ -347,6 +424,7 @@ type DriverItem = {
   no_telp: string
   no_ktp: string
   alamat: string
+  is_active: boolean | number
 }
 
 type FormState = {
@@ -366,13 +444,14 @@ const editingId = ref<number | null>(null)
 const formTitle = ref('Tambah Driver')
 const isSubmitting = ref(false)
 const deletingId = ref<number | null>(null)
+const statusUpdatingId = ref<number | null>(null)
 const form = reactive<FormState>({
   id: null,
   no_polisi: '',
   nama_driver: '',
   no_telp: '',
   no_ktp: '',
-  alamat: ''
+  alamat: '',
 })
 
 const apiBase = API_BASE
@@ -381,7 +460,7 @@ const toast = useToast()
 
 const { search, debouncedSearch, currentPage, pageSize, setPage } = useListQuery({
   pageSize: 15,
-  debounceMs: 300
+  debounceMs: 300,
 })
 const pageSizeOptions = [15, 20, 50]
 
@@ -396,15 +475,29 @@ const filteredItems = computed(() =>
     'nama_driver',
     'no_telp',
     'no_ktp',
-    'alamat'
-  ])
+    'alamat',
+    'is_active',
+  ]),
 )
 
 const totalCount = computed(() => filteredItems.value.length)
 
+const { sortKey, sortDirection, setSort, sortedItems } = useSortableItems(
+  filteredItems,
+  'id_driver',
+  {
+    is_active: (item) => (item.is_active ? 'Aktif' : 'Nonaktif'),
+  },
+)
+
+const handleSort = (key: string) => {
+  setSort(key)
+  setPage(1)
+}
+
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return filteredItems.value.slice(start, start + pageSize.value)
+  return sortedItems.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() => {
@@ -417,9 +510,14 @@ const totalPages = computed(() => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await authFetch(`${apiBase}/drivers`)
+    const res = await authFetch(`${apiBase}/drivers?include_inactive=1`)
     const data = await res.json()
-    items.value = data
+    items.value = Array.isArray(data)
+      ? data.map((item) => ({
+          ...item,
+          is_active: Number(item.is_active) === 1 || item.is_active === true,
+        }))
+      : []
     currentPage.value = 1
   } catch (error) {
     console.error(error)
@@ -461,6 +559,62 @@ const cancelForm = () => {
   editingId.value = null
 }
 
+const openActionId = ref<number | null>(null)
+const actionMenuRef = ref<HTMLElement | HTMLElement[] | null>(null)
+const actionMenuPosition = ref({ top: 0, left: 0 })
+
+const setActionMenuPosition = (event: MouseEvent) => {
+  const trigger = event.currentTarget as HTMLElement | null
+  if (!trigger) {
+    return
+  }
+  const rect = trigger.getBoundingClientRect()
+  const top = rect.bottom + 8
+  const left = rect.right
+  actionMenuPosition.value = { top, left }
+
+  nextTick(() => {
+    const menuEl = actionMenuRef.value
+    const element = Array.isArray(menuEl) ? menuEl[0] : menuEl
+    if (!element) return
+    const menuHeight = element.offsetHeight || 0
+    if (top + menuHeight > window.innerHeight - 8) {
+      actionMenuPosition.value = {
+        top: Math.max(8, rect.top - menuHeight - 8),
+        left,
+      }
+    }
+  })
+}
+
+const actionMenuStyle = computed(() => ({
+  top: `${actionMenuPosition.value.top}px`,
+  left: `${actionMenuPosition.value.left}px`,
+}))
+
+const toggleActionMenu = (id: number, event: MouseEvent) => {
+  if (openActionId.value === id) {
+    closeActionMenu()
+    return
+  }
+  openActionId.value = id
+  setActionMenuPosition(event)
+}
+
+const closeActionMenu = () => {
+  openActionId.value = null
+}
+
+const handleEdit = (item: DriverItem) => {
+  closeActionMenu()
+  openForm(item)
+}
+
+const handleDelete = (item: DriverItem) => {
+  closeActionMenu()
+  remove(item)
+}
+
 const submitForm = async () => {
   if (isSubmitting.value) {
     return
@@ -470,7 +624,7 @@ const submitForm = async () => {
     nama_driver: form.nama_driver,
     no_telp: form.no_telp,
     no_ktp: form.no_ktp,
-    alamat: form.alamat
+    alamat: form.alamat,
   }
 
   const isUpdate = Boolean(form.id)
@@ -480,7 +634,7 @@ const submitForm = async () => {
       message: 'Simpan perubahan pada data ini?',
       confirmText: 'Ya, simpan',
       cancelText: 'Batal',
-      variant: 'warning'
+      variant: 'warning',
     })
     if (!ok) {
       return
@@ -493,9 +647,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/drivers/${form.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -511,9 +665,9 @@ const submitForm = async () => {
       const res = await authFetch(`${apiBase}/drivers`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const message = await res.text()
@@ -543,11 +697,10 @@ const remove = async (item: DriverItem) => {
   }
   const ok = await confirm({
     title: 'Konfirmasi Hapus',
-    message:
-      'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
+    message: 'Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.',
     confirmText: 'Ya, hapus',
     cancelText: 'Batal',
-    variant: 'danger'
+    variant: 'danger',
   })
   if (!ok) {
     return
@@ -555,7 +708,7 @@ const remove = async (item: DriverItem) => {
   try {
     deletingId.value = item.id_driver
     const res = await authFetch(`${apiBase}/drivers/${item.id_driver}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
     if (!res.ok) {
       const message = await res.text()
@@ -572,5 +725,66 @@ const remove = async (item: DriverItem) => {
   }
 }
 
-onMounted(loadData)
+const toggleStatus = async (item: DriverItem) => {
+  closeActionMenu()
+  if (statusUpdatingId.value) {
+    return
+  }
+  const nextActive = !item.is_active
+  const ok = await confirm({
+    title: nextActive ? 'Aktifkan Driver' : 'Nonaktifkan Driver',
+    message: nextActive
+      ? `Aktifkan kembali driver ${item.nama_driver}?`
+      : `Nonaktifkan driver ${item.nama_driver}? Driver ini tidak akan muncul di pilihan Sales Cost dan Data Transport.`,
+    confirmText: nextActive ? 'Ya, aktifkan' : 'Ya, nonaktifkan',
+    cancelText: 'Batal',
+    variant: 'warning',
+  })
+  if (!ok) {
+    return
+  }
+  try {
+    statusUpdatingId.value = item.id_driver
+    const res = await authFetch(`${apiBase}/drivers/${item.id_driver}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ is_active: nextActive }),
+    })
+    if (!res.ok) {
+      const message = await res.text()
+      toast.error(message || 'Gagal mengubah status driver.')
+      return
+    }
+    toast.success(nextActive ? 'Driver berhasil diaktifkan' : 'Driver berhasil dinonaktifkan')
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    toast.error('Gagal mengubah status driver.')
+  } finally {
+    statusUpdatingId.value = null
+  }
+}
+
+const handleDocumentClick = () => {
+  closeActionMenu()
+}
+
+const handleWindowChange = () => {
+  closeActionMenu()
+}
+
+onMounted(() => {
+  loadData()
+  document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('scroll', handleWindowChange, true)
+  window.addEventListener('resize', handleWindowChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('scroll', handleWindowChange, true)
+  window.removeEventListener('resize', handleWindowChange)
+})
 </script>
