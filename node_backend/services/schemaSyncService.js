@@ -56,6 +56,18 @@ const ensureTruckActiveColumn = async () => {
   console.log("Added missing truck.is_active column");
 };
 
+const ensureDriverActiveColumn = async () => {
+  const exists = await hasColumn("driver", "is_active");
+  if (exists) {
+    return;
+  }
+
+  await db.query(
+    "ALTER TABLE driver ADD COLUMN is_active tinyint(1) NOT NULL DEFAULT 1 AFTER alamat"
+  );
+  console.log("Added missing driver.is_active column");
+};
+
 const ensureAreaRouteSchema = async () => {
   const hasKodeArea = await hasColumn("area", "kode_area");
   if (!hasKodeArea) {
@@ -187,6 +199,7 @@ const ensureAreaRouteSchema = async () => {
 const ensureTrackingSchema = async () => {
   await ensureTruckWialonColumn();
   await ensureTruckActiveColumn();
+  await ensureDriverActiveColumn();
   await ensureAreaRouteSchema();
 };
 

@@ -235,6 +235,21 @@ const upgradeLegacyTrackedSchema = async (connection) => {
   }
 
   if (
+    await ensureColumn(
+      connection,
+      "driver",
+      "is_active",
+      `
+        ALTER TABLE ${quoteIdentifier("driver")}
+        ADD COLUMN ${quoteIdentifier("is_active")} tinyint(1) NOT NULL DEFAULT 1
+        AFTER ${quoteIdentifier("alamat")}
+      `
+    )
+  ) {
+    changes.push("Menambahkan kolom driver.is_active.");
+  }
+
+  if (
     await ensureTable(
       connection,
       "area_route_step",
@@ -399,6 +414,7 @@ const matchesLatestTrackedSchema = async (connection) => {
     hasColumn(connection, "area", "finish_geofence_resource_id"),
     hasColumn(connection, "area", "finish_geofence_zone_id"),
     hasColumn(connection, "area", "finish_geofence_zone_name"),
+    hasColumn(connection, "driver", "is_active"),
     hasColumn(connection, "truck", "wialon_unit_id"),
     hasColumn(connection, "sales_cost_route_history", "step_key"),
     hasColumn(connection, "sales_cost_route_history", "system_step_code")
