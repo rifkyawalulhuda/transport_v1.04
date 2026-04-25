@@ -698,6 +698,7 @@ body {
   .print-sheet {
     box-shadow: none;
     margin: 0;
+    padding-top: 20mm;
     break-after: page;
     page-break-after: always;
   }
