@@ -72,6 +72,21 @@ Perintah ini akan:
 - Membuat database `trucking` secara otomatis
 - Menjalankan semua migration files
 
+### Konfigurasi SQL Mode (Wajib)
+
+MySQL 8.x default strict mode yang tidak compatible dengan project ini. Ubah `sql_mode` agar tidak error:
+
+1. Buka file `C:\laragon\bin\mysql\mysql-8.4.3-winx64\my.ini`
+2. Tambahkan baris berikut di bawah `[mysqld]`:
+
+```ini
+sql_mode=ONLY_FULL_GROUP_BY,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+```
+
+3. Restart MySQL dari Laragon (Stop → Start)
+
+> **⚠️ Kenapa?** MySQL 8.x default-nya punya `STRICT_TRANS_TABLES` dan `NO_ZERO_DATE` yang menolak string kosong untuk kolom integer dan nilai `0000-00-00` untuk DATE. Project ini (dan production XAMPP) menggunakan mode permisif.
+
 ### Jalankan Backend
 
 ```powershell
