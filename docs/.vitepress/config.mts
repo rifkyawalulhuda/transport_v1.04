@@ -20,6 +20,7 @@ export default defineConfig({
           { text: 'Tech Stack', link: '/developer/tech-stack' },
           { text: 'Architecture', link: '/developer/architecture' },
           { text: 'Development Setup', link: '/developer/development-setup' },
+          { text: 'Laragon + MySQL Setup', link: '/developer/laragon-setup' },
           { text: 'Database & Migrations', link: '/developer/database' },
           { text: 'API Reference', link: '/developer/api-reference' },
           { text: 'Deployment', link: '/developer/deployment' },
