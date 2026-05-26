@@ -3,27 +3,28 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Transport Management System',
   description: 'Documentation for Sankyu Transport Management System (TMS)',
-  base: '/',
+  base: '/transport_v1.04/',
   lastUpdated: false,
-  // outline property removed
 
   themeConfig: {
     nav: [
-      { text: 'Home', link: '/' }
+      { text: 'Home', link: '/' },
+      { text: 'Developer', link: '/developer/tech-stack' },
+      { text: 'Guide', link: '/guide/dashboard' }
     ],
 
     sidebar: [
       {
-        text: 'Changelog',
+        text: 'Developer Documentation',
         items: [
-          { text: 'Changelog v0.3', link: '/changelog/changelog' },
-        ]
-      },
-            {
-        text: 'Bug Tracker',
-        collapsed: true, // default tertutup (opsional)
-        items: [
-          { text: '21 Januari 2026', link: '/bug-tracker/21-jan-2026' },
+          { text: 'Tech Stack', link: '/developer/tech-stack' },
+          { text: 'Architecture', link: '/developer/architecture' },
+          { text: 'Development Setup', link: '/developer/development-setup' },
+          { text: 'Database & Migrations', link: '/developer/database' },
+          { text: 'API Reference', link: '/developer/api-reference' },
+          { text: 'Deployment', link: '/developer/deployment' },
+          { text: 'Troubleshooting', link: '/developer/troubleshooting' },
+          { text: 'Coding Conventions', link: '/developer/conventions' }
         ]
       },
       {
@@ -33,6 +34,19 @@ export default defineConfig({
           { text: 'User Guide', link: '/guide/user-guide' },
           { text: 'Admin Guide', link: '/guide/admin-guide' }
         ]
+      },
+      {
+        text: 'Changelog',
+        items: [
+          { text: 'Changelog v0.3', link: '/changelog/changelog' }
+        ]
+      },
+      {
+        text: 'Bug Tracker',
+        collapsed: true,
+        items: [
+          { text: '21 Januari 2026', link: '/bug-tracker/21-jan-2026' }
+        ]
       }
     ],
 
@@ -40,12 +54,10 @@ export default defineConfig({
       provider: 'local'
     },
 
-    // ⬇️ TAMBAHKAN FOOTER DI SINI
-footer: {
-  message: 'Built with ❤️ using VitePress',
-  copyright:
-    '© 2026 <a href="https://sankyu.co.id" target="_blank">Sankyu Transport</a>'
-}
-
+    footer: {
+      message: 'Built with ❤️ using VitePress',
+      copyright:
+        '© 2026 <a href="https://sankyu.co.id" target="_blank">Sankyu Transport</a>'
+    }
   }
 })
