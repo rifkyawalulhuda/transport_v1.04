@@ -17,6 +17,7 @@ function Resolve-MySqlClient {
   }
 
   $candidatePaths = @(
+    "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe",
     "C:\xampp\mysql\bin\mysql.exe",
     (Join-Path $env:ProgramFiles "MySQL\MySQL Server 8.0\bin\mysql.exe")
   )
