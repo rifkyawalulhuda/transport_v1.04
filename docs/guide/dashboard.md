@@ -3,89 +3,87 @@ title: "Dashboard Overview"
 outline: deep
 ---
 
-# Dashboard Overview <Badge type="tip" text="^0.3" />
+# Dashboard Overview
 
 ## Ringkasan Dashboard
-Dashboard menampilkan ringkasan performa operasional dan finansial dalam satu layar. Informasi disusun agar pengguna dapat memantau tren, perbandingan biaya, serta aktivitas terbaru tanpa berpindah halaman.
 
-## Sales Cost Summary
-Ringkasan Sales Cost memberikan gambaran kinerja penjualan dan biaya operasional.
+Dashboard adalah halaman utama setelah login. Menampilkan ringkasan performa operasional dan finansial dalam satu layar, termasuk metrik penjualan, biaya, dan aktivitas terbaru.
 
-### Filter bulan & tahun
-- Pilih bulan dan tahun untuk melihat ringkasan periode tertentu.
-- Perubahan filter akan memperbarui nilai ringkasan secara otomatis.
+### Komponen Utama
 
-### Indikator persentase perubahan
-- Menampilkan perubahan Gross Profit dibanding periode sebelumnya.
-- Warna indikator membantu membaca tren naik atau turun.
+Dashboard terdiri dari beberapa section yang bisa di-collapse/expand:
 
-## Subcontractor Summary
-Ringkasan Subcontractor menampilkan total transaksi subcontractor dan pola tren biaya terkait.
+1. **Ringkasan Dashboard** — Metrik utama dan grafik ringkasan
+2. **Expiry Alerts** — Peringatan dokumen/lisensi yang akan expired
+3. **Statistics Sales Cost** — Grafik tren Sales Cost
+4. **Statistics Subcontractor Cost** — Grafik tren Subcontractor
 
-## Monthly Sales Transaction
-Grafik transaksi bulanan menampilkan volume transaksi berdasarkan periode.
+## Ringkasan Metrik (Sales Cost Summary)
 
-### Grafik bulanan
-- Menunjukkan perbandingan Sales Cost dan Subcontractor per bulan.
-- Membantu identifikasi tren naik atau turun.
+### Filter Bulan & Tahun
 
-### Filter tahun
-- Tersedia filter tahun untuk menampilkan data historis.
-- Pergantian tahun akan memperbarui data grafik.
+- Pilih bulan dan tahun menggunakan dropdown di bagian atas
+- Perubahan filter memperbarui semua metrik dan grafik secara otomatis
+- Tersedia tombol **Print Ringkasan** untuk mencetak laporan bulan terpilih
 
-## Detail Sales Cost (Monthly)
-Detail Sales Cost (Monthly) menampilkan angka kunci untuk periode terpilih:
-- Sales
-- Total Cost
-- Gross Profit
+### Metrik yang Ditampilkan
 
-## Truck Transaction Average
-Bagian ini menampilkan jumlah transaksi yang diterima atau di assign ke masing-masing truck dalam 1 bulan
+| Metrik | Deskripsi |
+|--------|-----------|
+| Sales | Total pendapatan periode terpilih |
+| Total Cost | Total biaya operasional |
+| Gross Profit | Selisih antara Sales dan Total Cost |
 
-### Persentase Chart
-- Loading chart mengacu kepada persentase penggunaan truk dalam satu bulan
-> 21/jumlah transaksi *100 = (menampilkan Persen)
+### Indikator Perubahan
 
+- Menampilkan persentase perubahan dibanding periode sebelumnya
+- Warna hijau = naik, merah = turun
 
-## Calendar Event List
-Daftar event kalender menampilkan aktivitas yang relevan dengan operasional.
+## Monthly Target
 
-### Informasi utama
-- Event
-- Date/Time
-- Created by
-- Ownership
+Grafik target bulanan menampilkan perbandingan realisasi vs target per bulan dalam satu tahun.
 
-### Filter & See All
-- Filter periode untuk membatasi event yang tampil.
-- Tombol See All menuju halaman kalender lengkap.
+## Monthly Sale
 
-## Filter & Interaksi Dashboard
-- Filter periode membantu fokus pada data yang relevan.
-- Komponen grafik dapat dipantau tanpa reload halaman.
-- Ringkasan dan statistik diperbarui mengikuti perubahan filter.
+Grafik penjualan bulanan menampilkan volume transaksi Sales Cost dan Subcontractor per bulan.
 
-## Peran Pengguna
-Dashboard digunakan oleh beberapa peran berikut:
+## Customer Demographic
 
-### Admin
-Mengelola data dan memantau keseluruhan performa.
+Menampilkan sebaran pelanggan berdasarkan lokasi/area untuk memahami fokus pasar.
 
-### Manager
-Memantau KPI, tren biaya, dan performa tim.
+## Recent Orders
 
-### Finance
-Menganalisis biaya, margin, dan tren profit.
+Daftar transaksi terbaru yang masuk ke sistem.
 
-### Operation
-Memantau transaksi harian dan status pengiriman.
+## Expiry Alerts
 
-## Tujuan Penggunaan Dashboard
-- Memberikan ringkasan cepat untuk pengambilan keputusan.
-- Menyajikan tren biaya dan pendapatan dalam satu tampilan.
-- Mempermudah pemantauan aktivitas operasional.
+Peringatan otomatis untuk dokumen kendaraan atau lisensi yang mendekati masa berlaku habis. Membantu admin mengambil tindakan sebelum expired.
 
-## Catatan Pengembangan
-- Pastikan data backend konsisten agar grafik tetap akurat.
-- Tambahkan validasi jika ada perubahan skema data.
-- Dokumentasikan perubahan indikator jika ada penyesuaian bisnis.
+## Statistics Sales Cost
+
+Grafik area yang menampilkan tren:
+- **Sales** (pendapatan)
+- **Total Cost** (biaya)
+- **Gross Profit** (margin)
+
+Filter tersedia: Monthly, Quarterly, Annually.
+
+## Statistics Subcontractor Cost
+
+Grafik serupa untuk transaksi subcontractor dengan format yang sama.
+
+## Interaksi Dashboard
+
+- **Collapse/Expand**: Klik tombol panah untuk menyembunyikan/menampilkan section
+- **Collapse All / Expand All**: Tombol cepat untuk semua section sekaligus
+- **Print Ringkasan**: Mencetak section ringkasan dengan format yang rapi
+- State collapse/expand tersimpan di browser (localStorage)
+
+## Akses Berdasarkan Role
+
+| Role | Akses Dashboard |
+|------|----------------|
+| Admin | Full access — semua section dan metrik |
+| User | Full access — semua section dan metrik |
+| Mekanik | Full access — semua section dan metrik |
+| CS | Tidak bisa akses Dashboard, redirect ke Schedule Pengiriman |
