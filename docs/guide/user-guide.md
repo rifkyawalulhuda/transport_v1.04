@@ -46,6 +46,26 @@ Mekanik bisa mengakses semua kecuali:
 - Sales Cost & Subcontractor (tidak tersedia)
 - Hanya bisa akses **Repair** di menu Transaksi
 
+## Dashboard (Home)
+
+Halaman utama setelah login menampilkan:
+
+### Ringkasan Dashboard
+- **Sales Cost & Subcontractor Metrics** — jumlah transaksi per bulan dengan indikator naik/turun
+- **Detail Sales Cost (Monthly)** — Sales, Total Cost, Gross Profit bulan terpilih
+- **Monthly Sales Transaction** — grafik bar transaksi per bulan
+- **Truck Transaction Average** — persentase penggunaan truck per bulan
+- **Calendar Event List** — daftar event terbaru
+
+### Expiry Alerts
+Peringatan dokumen kendaraan/supir yang mendekati atau sudah expired.
+
+### Statistics Sales Cost
+Grafik area chart (Sales, Total Cost, Gross Profit) dengan filter Monthly/Quarterly/Annually.
+
+### Statistics Subcontractor Cost
+Grafik area chart sama seperti Sales Cost tapi untuk data Subcontractor.
+
 ## Schedule Pengiriman
 
 Halaman untuk melihat jadwal pengiriman yang sedang berjalan.
