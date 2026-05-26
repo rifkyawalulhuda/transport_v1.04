@@ -18,6 +18,7 @@ function Resolve-MySqlDump {
   }
 
   $candidatePaths = @(
+    "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysqldump.exe",
     "C:\xampp\mysql\bin\mysqldump.exe",
     (Join-Path $env:ProgramFiles "MySQL\MySQL Server 8.0\bin\mysqldump.exe")
   )
