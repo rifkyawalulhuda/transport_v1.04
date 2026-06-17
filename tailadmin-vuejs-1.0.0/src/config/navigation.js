@@ -4,6 +4,32 @@ export const getMenuGroups = (userLevel) => {
   const isAdmin = userLevel === 'admin'
   const isMekanik = userLevel === 'mekanik'
   const isCs = userLevel === 'cs'
+  const isPatcher = userLevel === 'patcher'
+
+  if (isPatcher) {
+    return [
+      {
+        title: 'BBS',
+        items: [
+          {
+            icon: GridIcon,
+            name: 'Dashboard BBS',
+            path: '/bbs',
+          },
+        ],
+      },
+      {
+        title: '',
+        items: [
+          {
+            icon: UserCircleIcon,
+            name: 'User Profile',
+            path: '/profile',
+          },
+        ],
+      },
+    ]
+  }
 
   if (isCs) {
     return [

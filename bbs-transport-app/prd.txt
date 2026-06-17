@@ -1,0 +1,7 @@
+5 Modul Utama:
+
+Dashboard — Menampilkan Safe Behavior Rate, jumlah observasi, near-miss, hari tanpa insiden, grafik tren 6 bulan, dan distribusi perilaku berisiko per kategori.
+Observasi Perilaku — Form lengkap untuk menilai 8 parameter perilaku pengemudi (sabuk, kecepatan, jarak, HP, rambu, kondisi, teknik, disiplin) dengan skala Aman / Berisiko / Bahaya.
+Checklist Kendaraan — 16 poin pemeriksaan pra-perjalanan, dibagi 3 tab: Mesin & Bahan Bakar, Keselamatan, dan Eksterior. Skor otomatis dihitung dan divisualisasikan.
+Pelaporan Insiden & Near-Miss — Form kronologi lengkap dengan seleksi faktor penyebab, korban, dan rekomendasi tindakan.
+Riwayat — Semua laporan tersimpan dan dapat difilter per kategori.

@@ -128,6 +128,7 @@
                   <option value="user">User</option>
                   <option value="mekanik">Mekanik</option>
                   <option value="cs">CS</option>
+                  <option value="patcher">Patcher</option>
                 </select>
               </div>
               <div>
@@ -380,6 +381,7 @@
                                 <option value="user">User</option>
                                 <option value="mekanik">Mekanik</option>
                                 <option value="cs">CS</option>
+                                <option value="patcher">Patcher</option>
                               </select>
                             </div>
                             <div>

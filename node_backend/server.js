@@ -23,9 +23,10 @@ const dataChasisRouter = require("./routes/dataChasis");
 const dataSupirRouter = require("./routes/dataSupir");
 const schedulePengirimanRouter = require("./routes/schedulePengiriman");
 const wialonRouter = require("./routes/wialon");
-const { restrictCsAccess } = require("./middleware/rbac");
+const { restrictCsAccess, restrictPatcherAccess } = require("./middleware/rbac");
 const addressBookRouter = require("./routes/addressBook");
 const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
+const bbsRouter = require("./routes/bbs");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
 const { startGeofenceTracking } = require("./services/geofenceTrackingService");
 
@@ -43,6 +44,7 @@ app.use(
 app.options("*", cors());
 app.use(express.json());
 app.use("/api", restrictCsAccess);
+app.use("/api", restrictPatcherAccess);
 app.use("/img", express.static(path.join(__dirname, "img")));
 app.use(
   "/doc-data-truck",
@@ -78,6 +80,7 @@ app.use("/api/schedule-pengiriman", schedulePengirimanRouter);
 app.use("/api/wialon", wialonRouter);
 app.use("/api/address-book", addressBookRouter);
 app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
+app.use("/api/bbs", bbsRouter);
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
