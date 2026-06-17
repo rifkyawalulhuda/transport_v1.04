@@ -104,7 +104,7 @@ const avatarUrl = computed(() => {
 const menuItems = [
   { href: '/profile', icon: UserCircleIcon, text: 'Edit profile' },
   { href: '', icon: SettingsIcon, text: 'Account settings' },
-  { href: 'https://www.notion.so/kipli/Transport-System-PT-Sankyu-b0e1aa1171f5466b9091b85ce3b58b86?source=copy_link', icon: InfoCircleIcon, text: 'Support' },
+  { href: 'https://rifkyawalulhuda.github.io/transport_v1.04/', icon: InfoCircleIcon, text: 'Support' },
 ]
 
 const isExternalLink = (href: string) => /^https?:\/\//i.test(href)
