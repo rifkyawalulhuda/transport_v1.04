@@ -1448,12 +1448,12 @@ const fetchOperationalContext = async () => {
     LEFT JOIN area a ON sc.id_area = a.id_area
     WHERE sc.id_truck IS NOT NULL
       AND (
-        (sc.finish_order IS NOT NULL AND sc.finish_order <> '0000-00-00' AND sc.finish_order > ?)
+        (sc.finish_order IS NOT NULL AND CAST(sc.finish_order AS CHAR) <> '0000-00-00' AND sc.finish_order > ?)
         OR
         (
-          (sc.finish_order IS NULL OR sc.finish_order = '0000-00-00')
+          (sc.finish_order IS NULL OR CAST(sc.finish_order AS CHAR) = '0000-00-00')
           AND
-          (sc.arrival_order IS NULL OR sc.arrival_order = '0000-00-00' OR sc.arrival_order >= ?)
+          (sc.arrival_order IS NULL OR CAST(sc.arrival_order AS CHAR) = '0000-00-00' OR sc.arrival_order >= ?)
         )
       )
     ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC

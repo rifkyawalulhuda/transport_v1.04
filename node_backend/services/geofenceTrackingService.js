@@ -90,14 +90,14 @@ const getActiveSalesCostCandidates = async () => {
         AND (
           (
             sc.finish_order IS NOT NULL
-            AND sc.finish_order <> '0000-00-00'
+            AND CAST(sc.finish_order AS CHAR) <> '0000-00-00'
             AND sc.finish_order > ?
           )
           OR (
-            (sc.finish_order IS NULL OR sc.finish_order = '0000-00-00')
+            (sc.finish_order IS NULL OR CAST(sc.finish_order AS CHAR) = '0000-00-00')
             AND (
               sc.arrival_order IS NULL
-              OR sc.arrival_order = '0000-00-00'
+              OR CAST(sc.arrival_order AS CHAR) = '0000-00-00'
               OR sc.arrival_order >= ?
             )
           )

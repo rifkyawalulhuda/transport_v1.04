@@ -669,7 +669,7 @@ router.get("/", async (req, res) => {
     });
 
     const [salesMonthlyRows] = await db.query(
-      "SELECT YEAR(delivery_order) AS tahun, DATE_FORMAT(delivery_order, '%b') AS label, MONTH(delivery_order) AS bulan, SUM(price) AS sales_bulan, SUM(CAST(margin AS SIGNED)) AS gross_bulan, SUM(ops_cost) AS ops_bulan, COUNT(*) AS trx_bulan FROM sales_cost GROUP BY tahun, bulan ORDER BY tahun, bulan"
+      "SELECT YEAR(delivery_order) AS tahun, DATE_FORMAT(delivery_order, '%b') AS label, MONTH(delivery_order) AS bulan, SUM(price) AS sales_bulan, SUM(CAST(margin AS SIGNED)) AS gross_bulan, SUM(ops_cost) AS ops_bulan, COUNT(*) AS trx_bulan FROM sales_cost GROUP BY tahun, bulan, DATE_FORMAT(delivery_order, '%b') ORDER BY tahun, bulan"
     );
 
     const chartData = {};
@@ -692,7 +692,7 @@ router.get("/", async (req, res) => {
     });
 
     const [subcontMonthlyRows] = await db.query(
-      "SELECT YEAR(delivery_date) AS tahun, DATE_FORMAT(delivery_date, '%b') AS label, MONTH(delivery_date) AS bulan, SUM(sales) AS sales_bulan, SUM(gross_profit) AS gross_bulan, SUM(cost) AS cost_bulan, COUNT(*) AS trx_bulan FROM sub_contractor GROUP BY tahun, bulan ORDER BY tahun, bulan"
+      "SELECT YEAR(delivery_date) AS tahun, DATE_FORMAT(delivery_date, '%b') AS label, MONTH(delivery_date) AS bulan, SUM(sales) AS sales_bulan, SUM(gross_profit) AS gross_bulan, SUM(cost) AS cost_bulan, COUNT(*) AS trx_bulan FROM sub_contractor GROUP BY tahun, bulan, DATE_FORMAT(delivery_date, '%b') ORDER BY tahun, bulan"
     );
 
     const chartDataSubcont = {};
