@@ -82,6 +82,15 @@ app.use("/api/address-book", addressBookRouter);
 app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
 app.use("/api/bbs", bbsRouter);
 
+// Serve frontend production build
+const frontendDist = path.join(__dirname, "..", "tailadmin-vuejs-1.0.0", "dist");
+app.use(express.static(frontendDist));
+app.get("*", (req, res, next) => {
+  // Only serve index.html for non-API routes (SPA fallback)
+  if (req.path.startsWith("/api/")) return next();
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
+
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 

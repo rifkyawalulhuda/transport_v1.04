@@ -1,0 +1,20 @@
+cd backend
+
+npm start
+
+untuk development :
+cd frontend
+
+npm run dev
+
+untuk production :
+cd frontend
+
+npm run build-only
+
+lalu restart backend
+
+restart tunnel :
+cd root project
+
+cloudflared tunnel --config <.cloudflared> ubah dengan source config disimpan\config.yml run
