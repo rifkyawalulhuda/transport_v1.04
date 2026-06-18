@@ -40,6 +40,7 @@ const router = createRouter({
       meta: {
         title: 'Profile',
         allowCS: true,
+        allowPatcher: true,
       },
     },
     {

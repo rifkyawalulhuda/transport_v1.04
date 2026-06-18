@@ -1,4 +1,5 @@
 import { GridIcon, CalenderIcon, UserCircleIcon, PieChartIcon, TableIcon, BoxCubeIcon, DocsIcon } from '@/icons'
+import ShieldCheckIcon from '@/icons/ShieldCheckIcon.vue'
 
 export const getMenuGroups = (userLevel) => {
   const isAdmin = userLevel === 'admin'
@@ -13,7 +14,7 @@ export const getMenuGroups = (userLevel) => {
         title: '',
         items: [
           {
-            icon: DocsIcon,
+            icon: ShieldCheckIcon,
             name: 'BBS Transportasi',
             path: '/bbs',
           },
@@ -103,7 +104,7 @@ export const getMenuGroups = (userLevel) => {
           ],
         },
         {
-          icon: DocsIcon,
+          icon: ShieldCheckIcon,
           name: 'BBS Transportasi',
           path: '/bbs',
         },
