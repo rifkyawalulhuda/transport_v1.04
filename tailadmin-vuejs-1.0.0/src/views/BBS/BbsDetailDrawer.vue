@@ -331,7 +331,7 @@
 
             <div class="flex items-center gap-2 border-t border-gray-200 px-5 py-3 dark:border-gray-800">
               <button
-                v-if="!editing"
+                v-if="!editing && !props.viewOnly"
                 type="button"
                 class="flex items-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
                 @click="startEditing"
@@ -340,7 +340,7 @@
                 Edit
               </button>
               <button
-                v-if="!editing"
+                v-if="!editing && !props.viewOnly"
                 type="button"
                 :disabled="deleting"
                 class="flex items-center gap-1.5 rounded-lg border border-error-300 bg-white px-4 py-2 text-sm font-medium text-error-600 hover:bg-error-50 disabled:opacity-50 dark:border-error-800 dark:text-error-400 dark:hover:bg-error-500/10"
@@ -385,8 +385,8 @@ import { useToast } from '@/composables/useToast'
 import { useDialog } from '@/composables/useDialog'
 import { bbsService, type BbsHistoryRow } from '@/services/bbsService'
 
-type Props = { open: boolean; row: BbsHistoryRow | null }
-const props = defineProps<Props>()
+type Props = { open: boolean; row: BbsHistoryRow | null; viewOnly?: boolean }
+const props = withDefaults(defineProps<Props>(), { viewOnly: false })
 const emit = defineEmits<{ (e: 'close'): void; (e: 'updated'): void; (e: 'deleted'): void }>()
 
 const toast = useToast()

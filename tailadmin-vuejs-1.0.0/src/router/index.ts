@@ -402,6 +402,7 @@ const router = createRouter({
         title: 'BBS Transportasi',
         allowCS: true,
         allowPatcher: true,
+        allowUser: true,
       },
     },
     {

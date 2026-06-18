@@ -5,22 +5,18 @@ export const getMenuGroups = (userLevel) => {
   const isMekanik = userLevel === 'mekanik'
   const isCs = userLevel === 'cs'
   const isPatcher = userLevel === 'patcher'
+  const isUser = userLevel === 'user'
 
   if (isPatcher) {
     return [
       {
-        title: 'BBS',
-        items: [
-          {
-            icon: GridIcon,
-            name: 'Dashboard BBS',
-            path: '/bbs',
-          },
-        ],
-      },
-      {
         title: '',
         items: [
+          {
+            icon: DocsIcon,
+            name: 'BBS Transportasi',
+            path: '/bbs',
+          },
           {
             icon: UserCircleIcon,
             name: 'User Profile',
@@ -106,6 +102,11 @@ export const getMenuGroups = (userLevel) => {
             { name: 'Repair', path: '/repair', pro: false },
           ],
         },
+        {
+          icon: DocsIcon,
+          name: 'BBS Transportasi',
+          path: '/bbs',
+        },
       ],
     },
     {
@@ -137,18 +138,19 @@ export const getMenuGroups = (userLevel) => {
   ]
 
   if (isMekanik) {
-    // Filter menu for mekanik
     menuGroups.forEach((group) => {
-      // Remove Master menu
       group.items = group.items.filter((item) => item.name !== 'Master')
-      
-      // Filter Transaksi menu
       const transaksiMenu = group.items.find((item) => item.name === 'Transaksi')
       if (transaksiMenu) {
         transaksiMenu.subItems = transaksiMenu.subItems.filter(
           (subItem) => subItem.name === 'Repair'
         )
       }
+    })
+  } else if (isUser) {
+    // User: no Master, keep BBS visible
+    menuGroups.forEach((group) => {
+      group.items = group.items.filter((item) => item.name !== 'Master')
     })
   } else if (!isAdmin) {
     menuGroups.forEach((group) => {

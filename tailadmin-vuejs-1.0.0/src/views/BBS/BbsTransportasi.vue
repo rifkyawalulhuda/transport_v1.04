@@ -49,7 +49,7 @@
       </div>
     </div>
 
-    <BbsDetailDrawer :open="drawerOpen" :row="selectedRow" @close="closeDetail" @updated="onDetailUpdated" @deleted="onDetailUpdated" />
+    <BbsDetailDrawer :open="drawerOpen" :row="selectedRow" :view-only="isViewOnly" @close="closeDetail" @updated="onDetailUpdated" @deleted="onDetailUpdated" />
   </AdminLayout>
 </template>
 
@@ -68,17 +68,29 @@ import BbsChecklistTab from './BbsChecklistTab.vue'
 import BbsInsidenTab from './BbsInsidenTab.vue'
 import BbsRiwayatTab from './BbsRiwayatTab.vue'
 import BbsDetailDrawer from './BbsDetailDrawer.vue'
+import { useAuthUser } from '@/services/auth'
 import type { BbsHistoryRow } from '@/services/bbsService'
+
+const authUser = useAuthUser()
+const userLevel = computed(() => authUser.value?.level || '')
+const isViewOnly = computed(() => userLevel.value === 'user')
 
 const pageTitle = 'BBS Transportasi'
 
-const tabs = [
+const allTabs = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChartIcon },
   { key: 'observasi', label: 'Observasi', icon: EyeIcon },
   { key: 'checklist', label: 'Checklist', icon: ChecklistIcon },
   { key: 'insiden', label: 'Insiden', icon: AlertTriangleIcon },
   { key: 'riwayat', label: 'Riwayat', icon: ListIcon },
 ]
+
+const tabs = computed(() => {
+  if (isViewOnly.value) {
+    return allTabs.filter(t => t.key === 'dashboard' || t.key === 'riwayat')
+  }
+  return allTabs
+})
 
 const activeTab = ref<string>('dashboard')
 const historyRefresh = ref(0)
