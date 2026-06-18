@@ -110,13 +110,15 @@ async function fetchDashboard() {
   error.value = ''
   try {
     dashboard.value = await bbsService.fetchDashboard()
-    await nextTick()
-    renderCharts()
   } catch (err: any) {
     error.value = err?.message || 'Gagal memuat dashboard'
+    return
   } finally {
     loading.value = false
   }
+  // Wait DOM update after loading=false + dashboard set → canvas exist
+  await nextTick()
+  renderCharts()
 }
 
 function renderCharts() {
