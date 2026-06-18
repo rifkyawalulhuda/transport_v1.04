@@ -19,15 +19,52 @@
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan</label>
-          <SearchableSelect
-            v-model="truckId"
-            :options="trucks"
-            value-key="id_truck"
-            :label-formatter="formatTruckLabel"
-            :search-keys="['no_police', 'jenis_kendaraan']"
-            placeholder="-Pilih-"
-            search-placeholder="Cari no polisi atau jenis kendaraan"
-          />
+          <div class="relative" ref="truckDropdownRoot">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition hover:bg-gray-50 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              @click="toggleTruckDrop"
+            >
+              <span class="truncate">{{ selectedTruckLabel || '-Pilih-' }}</span>
+              <svg class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+            </button>
+            <div v-if="truckDropOpen" class="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+              <div class="border-b border-gray-200 p-2 dark:border-gray-700">
+                <input
+                  ref="truckSearchRef"
+                  v-model="truckSearch"
+                  type="text"
+                  class="w-full rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  placeholder="Cari no polisi atau jenis kendaraan"
+                  @keydown.escape="truckDropOpen = false"
+                />
+              </div>
+              <ul class="max-h-60 overflow-auto py-1 text-sm text-gray-700 dark:text-gray-200">
+                <li v-if="filteredTruckOptions.length === 0" class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Data tidak ditemukan</li>
+                <li
+                  v-for="truck in filteredTruckOptions"
+                  :key="truck.id_truck"
+                  class="cursor-pointer px-3 py-2 flex items-center justify-between"
+                  :class="[
+                    checkedPlates.includes(truck.no_police)
+                      ? 'bg-success-50 dark:bg-success-500/10'
+                      : 'hover:bg-brand-50 dark:hover:bg-brand-500/10',
+                    truckId === truck.id_truck ? 'font-semibold' : ''
+                  ]"
+                  @click="handleTruckSelect(truck)"
+                >
+                  <span>
+                    <span :class="checkedPlates.includes(truck.no_police) ? 'text-success-700 dark:text-success-400' : ''">{{ truck.no_police }}</span>
+                    <span class="ml-2 text-xs text-gray-400">{{ truck.jenis_kendaraan }}</span>
+                  </span>
+                  <span v-if="checkedPlates.includes(truck.no_police)" class="inline-flex items-center gap-1 rounded-md bg-success-100 px-1.5 py-0.5 text-[10px] font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                    <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    Sudah
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -99,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { bbsService, type BbsDriverOption, type BbsTruckOption } from '@/services/bbsService'
 import SearchableSelect from '@/components/SearchableSelect.vue'
@@ -113,7 +150,52 @@ const trucks = ref<BbsTruckOption[]>([])
 const truckId = ref('')
 const activeChkTab = ref<'mesin' | 'keselamatan' | 'eksterior'>('mesin')
 
-const formatTruckLabel = (truck: BbsTruckOption) => `${truck.no_police} - ${truck.jenis_kendaraan}`
+// Today's checked plates
+const checkedPlates = ref<string[]>([])
+
+// Truck dropdown state
+const truckDropOpen = ref(false)
+const truckSearch = ref('')
+const truckSearchRef = ref<HTMLInputElement | null>(null)
+const truckDropdownRoot = ref<HTMLElement | null>(null)
+
+const selectedTruckLabel = computed(() => {
+  const t = trucks.value.find((tr) => tr.id_truck === truckId.value)
+  return t ? `${t.no_police} - ${t.jenis_kendaraan}` : ''
+})
+
+const filteredTruckOptions = computed(() => {
+  const q = truckSearch.value.trim().toLowerCase()
+  if (!q) return trucks.value
+  return trucks.value.filter(
+    (t) => t.no_police.toLowerCase().includes(q) || t.jenis_kendaraan.toLowerCase().includes(q)
+  )
+})
+
+function handleTruckSelect(truck: BbsTruckOption) {
+  if (checkedPlates.value.includes(truck.no_police)) {
+    toast.error(`Checklist untuk ${truck.no_police} sudah dilakukan hari ini`)
+    return
+  }
+  truckId.value = truck.id_truck
+  truckDropOpen.value = false
+  truckSearch.value = ''
+}
+
+async function toggleTruckDrop() {
+  truckDropOpen.value = !truckDropOpen.value
+  if (truckDropOpen.value) {
+    truckSearch.value = ''
+    await nextTick()
+    truckSearchRef.value?.focus()
+  }
+}
+
+function handleTruckClickOutside(event: MouseEvent) {
+  if (truckDropdownRoot.value && !truckDropdownRoot.value.contains(event.target as Node)) {
+    truckDropOpen.value = false
+  }
+}
 
 const chkTabs = [
   { key: 'mesin' as const, label: 'Mesin & Bahan Bakar' },
@@ -212,6 +294,14 @@ async function submit() {
     return
   }
 
+  const selectedTruck = trucks.value.find((t) => t.id_truck === truckId.value)
+  const plateNumber = selectedTruck?.no_police || ''
+
+  if (checkedPlates.value.includes(plateNumber)) {
+    toast.error(`Checklist untuk ${plateNumber} sudah dilakukan hari ini`)
+    return
+  }
+
   const unselected = allItemIds.filter((id) => checkItems[id] === '')
   if (unselected.length > 0) {
     const firstEmpty = unselected[0]
@@ -226,9 +316,6 @@ async function submit() {
     return
   }
 
-  const selectedTruck = trucks.value.find((t) => t.id_truck === truckId.value)
-  const plateNumber = selectedTruck?.no_police || ''
-
   submitting.value = true
   try {
     await bbsService.createChecklist({
@@ -238,6 +325,7 @@ async function submit() {
       items: { ...checkItems },
     })
     toast.success(`Checklist disimpan — ${scorePct.value}% OK`)
+    checkedPlates.value.push(plateNumber)
     resetForm()
     emit('saved', 'checklist')
   } catch (err: any) {
@@ -249,19 +337,27 @@ async function submit() {
 
 async function fetchOptions() {
   try {
-    const [d, t] = await Promise.all([
+    const [d, t, plates] = await Promise.all([
       bbsService.fetchDrivers(),
       bbsService.fetchTrucks(),
+      bbsService.fetchTodayCheckedPlates(),
     ])
     drivers.value = d
     trucks.value = t
+    checkedPlates.value = plates
   } catch {
     drivers.value = []
     trucks.value = []
+    checkedPlates.value = []
   }
 }
 
 onMounted(() => {
   fetchOptions()
+  document.addEventListener('mousedown', handleTruckClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleTruckClickOutside)
 })
 </script>

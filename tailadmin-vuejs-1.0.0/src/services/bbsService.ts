@@ -116,6 +116,12 @@ export const bbsService = {
     return raw.map((t) => ({ id_truck: String(t.id_truck), no_police: t.no_police, jenis_kendaraan: t.jenis_kendaraan }))
   },
 
+  async fetchTodayCheckedPlates(): Promise<string[]> {
+    const res = await authFetch(`${API_BASE}/bbs/checklists/today-plates`)
+    const data = await handleJson<{ plates: string[] }>(res)
+    return data.plates || []
+  },
+
   async fetchDashboard(month?: string): Promise<BbsDashboardResponse> {
     const qs = month ? `?month=${month}` : ''
     const res = await authFetch(`${API_BASE}/bbs/dashboard${qs}`)

@@ -518,6 +518,20 @@ router.put("/observations/:id", async (req, res) => {
   }
 });
 
+router.get("/checklists/today-plates", async (req, res) => {
+  try {
+    const today = fmtDate(new Date());
+    const [rows] = await db.query(
+      "SELECT DISTINCT plate_number FROM bbs_checklists WHERE date = ?",
+      [today]
+    );
+    res.json({ plates: rows.map((r) => r.plate_number) });
+  } catch (err) {
+    console.error("BBS today-plates error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.get("/checklists/:id", async (req, res) => {
   try {
     const [rows] = await db.query(
