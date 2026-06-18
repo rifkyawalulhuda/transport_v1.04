@@ -29,7 +29,7 @@ router.get("/dashboard", async (req, res) => {
           [firstDay]
         ),
         db.query(
-          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND JSON_EXTRACT(scores, '$.o1') = 'aman' AND JSON_EXTRACT(scores, '$.o2') = 'aman' AND JSON_EXTRACT(scores, '$.o3') = 'aman' AND JSON_EXTRACT(scores, '$.o4') = 'aman' AND JSON_EXTRACT(scores, '$.o5') = 'aman' AND JSON_EXTRACT(scores, '$.o6') = 'aman' AND JSON_EXTRACT(scores, '$.o7') = 'aman' AND JSON_EXTRACT(scores, '$.o8') = 'aman'",
+          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
           [firstDay]
         ),
         db.query(
@@ -38,7 +38,7 @@ router.get("/dashboard", async (req, res) => {
         ),
         db.query(
           `SELECT DATEDIFF(?, IFNULL((SELECT MAX(date) FROM bbs_incidents WHERE type <> 'Near-Miss'), ?)) AS streak`,
-          [now.toISOString().slice(0, 10), firstDay]
+          [fmtDate(now), firstDay]
         )
       ]);
 
@@ -51,9 +51,13 @@ router.get("/dashboard", async (req, res) => {
     const prevYear = month === 1 ? year - 1 : year;
     const prevFirst = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
 
-    const [[prevObs], [prevNearMiss]] = await Promise.all([
+    const [[prevObs], [prevSafeObs], [prevNearMiss]] = await Promise.all([
       db.query(
         "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date < ?",
+        [prevFirst, firstDay]
+      ),
+      db.query(
+        "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date < ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
         [prevFirst, firstDay]
       ),
       db.query(
@@ -63,6 +67,7 @@ router.get("/dashboard", async (req, res) => {
     ]);
 
     const prevObsCount = Number(prevObs[0]?.total || 0);
+    const prevSafeCount = Number(prevSafeObs[0]?.total || 0);
     const prevNearMissCount = Number(prevNearMiss[0]?.total || 0);
 
     const safeRate = totalObs > 0 ? Math.round((fullSafe / totalObs) * 100) : 0;
@@ -71,7 +76,7 @@ router.get("/dashboard", async (req, res) => {
       db.query(
         `SELECT DATE_FORMAT(date, '%Y-%m') AS m,
                 COUNT(*) AS total,
-                SUM(CASE WHEN JSON_EXTRACT(scores, '$.o1') = 'aman' AND JSON_EXTRACT(scores, '$.o2') = 'aman' AND JSON_EXTRACT(scores, '$.o3') = 'aman' AND JSON_EXTRACT(scores, '$.o4') = 'aman' AND JSON_EXTRACT(scores, '$.o5') = 'aman' AND JSON_EXTRACT(scores, '$.o6') = 'aman' AND JSON_EXTRACT(scores, '$.o7') = 'aman' AND JSON_EXTRACT(scores, '$.o8') = 'aman' THEN 1 ELSE 0 END) AS safe_count
+                SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman' THEN 1 ELSE 0 END) AS safe_count
          FROM bbs_observations
          WHERE date >= DATE_SUB(?, INTERVAL 5 MONTH)
          GROUP BY m
@@ -80,11 +85,11 @@ router.get("/dashboard", async (req, res) => {
       ),
       db.query(
         `SELECT
-           SUM(CASE WHEN COALESCE(JSON_EXTRACT(scores, '$.o2'), 'aman') <> 'aman' THEN 1 ELSE 0 END) AS speed_risk,
-           SUM(CASE WHEN COALESCE(JSON_EXTRACT(scores, '$.o1'), 'aman') <> 'aman' THEN 1 ELSE 0 END) AS seatbelt_risk,
-           SUM(CASE WHEN COALESCE(JSON_EXTRACT(scores, '$.o4'), 'aman') <> 'aman' THEN 1 ELSE 0 END) AS phone_risk,
-           SUM(CASE WHEN COALESCE(JSON_EXTRACT(scores, '$.o3'), 'aman') <> 'aman' THEN 1 ELSE 0 END) AS distance_risk,
-           SUM(CASE WHEN COALESCE(JSON_EXTRACT(scores, '$.o5'), 'aman') <> 'aman' OR COALESCE(JSON_EXTRACT(scores, '$.o6'), 'aman') <> 'aman' OR COALESCE(JSON_EXTRACT(scores, '$.o7'), 'aman') <> 'aman' OR COALESCE(JSON_EXTRACT(scores, '$.o8'), 'aman') <> 'aman' THEN 1 ELSE 0 END) AS other_risk,
+           SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'berisiko' OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'berbahaya' THEN 1 ELSE 0 END) AS speed_risk,
+           SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'berisiko' OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'berbahaya' THEN 1 ELSE 0 END) AS seatbelt_risk,
+           SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'berisiko' OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'berbahaya' THEN 1 ELSE 0 END) AS phone_risk,
+           SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'berisiko' OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'berbahaya' THEN 1 ELSE 0 END) AS distance_risk,
+           SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) IN ('berisiko','berbahaya') THEN 1 ELSE 0 END) AS other_risk,
            COUNT(*) AS total
          FROM bbs_observations
          WHERE date >= ?`,
@@ -123,7 +128,7 @@ router.get("/dashboard", async (req, res) => {
       summary: {
         safe_behavior_rate: safeRate,
         prev_safe_rate: prevObsCount > 0
-          ? Math.round((Number(prevObs[0]?.total || 0) > 0 ? 0 : 0)) || null
+          ? Math.round((prevSafeCount / prevObsCount) * 100)
           : null,
         observations_this_month: totalObs,
         observation_target: 60,
@@ -315,8 +320,8 @@ router.get("/history", async (req, res) => {
       if (search) { conds.push("(observer_name LIKE ? OR driver_id LIKE ? OR location LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
       if (month) { conds.push("DATE_FORMAT(date, '%Y-%m') = ?"); params.push(month); }
       if (driverId) { conds.push("driver_id = ?"); params.push(driverId); }
-      if (statusFilter === 'aman') { conds.push("JSON_EXTRACT(scores, '$.o1') = 'aman' AND JSON_EXTRACT(scores, '$.o2') = 'aman' AND JSON_EXTRACT(scores, '$.o3') = 'aman' AND JSON_EXTRACT(scores, '$.o4') = 'aman' AND JSON_EXTRACT(scores, '$.o5') = 'aman' AND JSON_EXTRACT(scores, '$.o6') = 'aman' AND JSON_EXTRACT(scores, '$.o7') = 'aman' AND JSON_EXTRACT(scores, '$.o8') = 'aman'"); }
-      else if (statusFilter === 'perlu_perhatian') { conds.push("NOT (JSON_EXTRACT(scores, '$.o1') = 'aman' AND JSON_EXTRACT(scores, '$.o2') = 'aman' AND JSON_EXTRACT(scores, '$.o3') = 'aman' AND JSON_EXTRACT(scores, '$.o4') = 'aman' AND JSON_EXTRACT(scores, '$.o5') = 'aman' AND JSON_EXTRACT(scores, '$.o6') = 'aman' AND JSON_EXTRACT(scores, '$.o7') = 'aman' AND JSON_EXTRACT(scores, '$.o8') = 'aman')"); }
+      if (statusFilter === 'aman') { conds.push("JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'"); }
+      else if (statusFilter === 'perlu_perhatian') { conds.push("NOT (JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman')"); }
       return { where: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
     };
 
