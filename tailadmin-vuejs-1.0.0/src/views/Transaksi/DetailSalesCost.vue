@@ -23,317 +23,110 @@
           Memuat detail transaksi...
         </p>
 
-        <div v-else class="space-y-4">
-          <div class="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Dibuat oleh
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.created_by_name)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                No. SPK
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.id_sales_cost)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <!-- No DN Field Removed (Moved to DN List) -->
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Customer
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.nama_customer)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Rute
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.nama_area)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Driver
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.nama_driver)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-          </div>
-
-          <!-- Pickup & Drop Fields Removed (Moved to DN List) -->
-
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-            <div class="lg:col-span-2">
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Container Depot
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.container_depot)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div class="lg:col-span-2">
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                No. PO
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.no_po)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div class="lg:col-span-2">
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Bills
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.bills)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Lift On
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(detail.lift_on)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Lift Off
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(detail.lift_of)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                No. Police
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.no_police)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Jenis Kendaraan
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.jenis_kendaraan)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Container Size
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.container_size)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Jenis Pengiriman
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.jenis_trip)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-          </div>
-
-          <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-900/30">
-            <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Timeline Pengiriman
-            </p>
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Delivery Order
-                </label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.delivery_order)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
+        <div v-else class="space-y-6">
+          <!-- Header: Info Utama -->
+          <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="grid grid-cols-2 sm:grid-cols-3 divide-x divide-y divide-gray-200 dark:divide-gray-800">
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">No. SPK</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatText(detail.id_sales_cost) }}</p>
               </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Arrival
-                </label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.arrival_order)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Customer</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatText(detail.nama_customer) }}</p>
               </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Finish Order
-                </label>
-                <input
-                  type="text"
-                  :value="formatDate(detail.finish_order)"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Dibuat oleh</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ formatText(detail.created_by_name) }}</p>
               </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Waktu Pengiriman
-                </label>
-                <input
-                  type="text"
-                  :value="shippingDurationLabel"
-                  class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  readonly
-                />
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Rute</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ formatText(detail.nama_area) }}</p>
+              </div>
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Driver</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ formatText(detail.nama_driver) }}</p>
+              </div>
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Jenis Pengiriman</p>
+                <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ formatText(detail.jenis_trip) }}</p>
               </div>
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                No. Container
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.no_container)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+          <!-- Kendaraan & Container -->
+          <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+            <div class="flex items-center gap-2 mb-4">
+              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h10zm0 0h6l3-3V9h-3"/></svg>
+              <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Kendaraan & Container</p>
             </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Trip
-              </label>
-              <input
-                type="text"
-                :value="formatText(detail.trip)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+            <div class="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">No. Police</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.no_police) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Jenis Kendaraan</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.jenis_kendaraan) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Container Size</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.container_size) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">No. Container</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.no_container) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Container Depot</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.container_depot) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Trip</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.trip) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">No. PO</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.no_po) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Bills</span><p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.bills) }}</p></div>
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Ops Cost
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(detail.ops_cost)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+          <!-- Timeline Pengiriman -->
+          <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-5 dark:border-gray-800 dark:bg-gray-900/30">
+            <div class="flex items-center gap-2 mb-4">
+              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Timeline Pengiriman</p>
             </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Additional Cost
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(detail.additional_cost)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Total Cost
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(totalCost)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">Delivery Order</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDate(detail.delivery_order) }}</p>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">Arrival</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDate(detail.arrival_order) }}</p>
+              </div>
+              <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">Finish Order</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDate(detail.finish_order) }}</p>
+              </div>
+              <div class="rounded-lg border border-brand-200 bg-brand-50/60 p-3 dark:border-brand-500/30 dark:bg-brand-500/10">
+                <p class="text-[11px] text-brand-600 dark:text-brand-400">Waktu Pengiriman</p>
+                <p class="mt-1 text-sm font-bold text-brand-700 dark:text-brand-300">{{ shippingDurationLabel }}</p>
+              </div>
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Sales
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(detail.price)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+          <!-- Biaya -->
+          <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+            <div class="flex items-center gap-2 mb-4">
+              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Rincian Biaya</p>
             </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Gross Profit
-              </label>
-              <input
-                type="text"
-                :value="formatNumber(grossProfit)"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                readonly
-              />
+            <div class="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 mb-4">
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Lift On</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.lift_on) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Lift Off</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.lift_of) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Demurrage</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.demurrage_chargers) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Detention</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.detention_chargers) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Container Repair</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.container_repair) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Extend Gate Pass</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.extend_gate_pass) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Ops Cost</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.ops_cost) }}</p></div>
+              <div><span class="text-xs text-gray-400 dark:text-gray-500">Additional Cost</span><p class="text-sm text-gray-700 dark:text-gray-200">Rp {{ formatNumber(detail.additional_cost) }}</p></div>
+            </div>
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4 grid gap-4 sm:grid-cols-3">
+              <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">Total Cost</p>
+                <p class="mt-1 text-sm font-bold text-gray-800 dark:text-gray-100">Rp {{ formatNumber(totalCost) }}</p>
+              </div>
+              <div class="rounded-lg border border-brand-200 bg-brand-50/60 p-3 dark:border-brand-500/30 dark:bg-brand-500/10">
+                <p class="text-[11px] text-brand-600 dark:text-brand-400">Sales</p>
+                <p class="mt-1 text-sm font-bold text-brand-700 dark:text-brand-300">Rp {{ formatNumber(detail.price) }}</p>
+              </div>
+              <div class="rounded-lg border p-3" :class="grossProfit >= 0 ? 'border-success-200 bg-success-50/60 dark:border-success-500/30 dark:bg-success-500/10' : 'border-error-200 bg-error-50/60 dark:border-error-500/30 dark:bg-error-500/10'">
+                <p class="text-[11px]" :class="grossProfit >= 0 ? 'text-success-600 dark:text-success-400' : 'text-error-600 dark:text-error-400'">Gross Profit</p>
+                <p class="mt-1 text-sm font-bold" :class="grossProfit >= 0 ? 'text-success-700 dark:text-success-300' : 'text-error-700 dark:text-error-300'">Rp {{ formatNumber(grossProfit) }}</p>
+              </div>
             </div>
           </div>
           
