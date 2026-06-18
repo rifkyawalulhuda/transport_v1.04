@@ -165,33 +165,88 @@
 
     <div v-if="loading" class="py-8 text-center text-sm text-gray-500">Memuat riwayat...</div>
     <div v-else-if="rows.length === 0" class="py-8 text-center text-sm text-gray-500">Belum ada data</div>
-    <div v-else class="space-y-0 divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-200 dark:border-gray-800">
-      <div
-        v-for="row in rows"
-        :key="`${row.type}-${row.id}`"
-        class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors"
-        @click="$emit('select', row)"
-      >
+    <template v-else>
+      <div class="space-y-0 divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-200 dark:border-gray-800">
         <div
-          :class="[
-            'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full',
-            iconBgClass(row)
-          ]"
+          v-for="row in paginatedRows"
+          :key="`${row.type}-${row.id}`"
+          class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors"
+          @click="$emit('select', row)"
         >
-          <component :is="iconComp(row)" :class="iconColorClass(row)" class="h-4 w-4" />
+          <div
+            :class="[
+              'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full',
+              iconBgClass(row)
+            ]"
+          >
+            <component :is="iconComp(row)" :class="iconColorClass(row)" class="h-4 w-4" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-800 dark:text-white/90">{{ row.title }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatMeta(row.meta) }}</p>
+          </div>
+          <span
+            :class="[
+              'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium flex-shrink-0',
+              badgeClass(row)
+            ]"
+          >{{ row.status }}</span>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-gray-800 dark:text-white/90">{{ row.title }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatMeta(row.meta) }}</p>
-        </div>
-        <span
-          :class="[
-            'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium flex-shrink-0',
-            badgeClass(row)
-          ]"
-        >{{ row.status }}</span>
       </div>
-    </div>
+
+      <!-- Pagination -->
+      <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <span>Tampilkan</span>
+          <select
+            v-model.number="perPage"
+            class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            @change="currentPage = 1"
+          >
+            <option :value="15">15</option>
+            <option :value="30">30</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+          <span>dari {{ rows.length }} data</span>
+        </div>
+
+        <nav v-if="totalPages > 1" class="flex items-center gap-1">
+          <button
+            type="button"
+            :disabled="currentPage <= 1"
+            class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5"
+            @click="currentPage--"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+
+          <template v-for="page in visiblePages" :key="page">
+            <button
+              v-if="page !== '...'"
+              type="button"
+              :class="[
+                'flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-sm font-medium transition-colors',
+                currentPage === page
+                  ? 'bg-brand-500 text-white'
+                  : 'border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5'
+              ]"
+              @click="currentPage = page as number"
+            >{{ page }}</button>
+            <span v-else class="flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
+          </template>
+
+          <button
+            type="button"
+            :disabled="currentPage >= totalPages"
+            class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5"
+            @click="currentPage++"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </nav>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -225,6 +280,36 @@ const loading = ref(false)
 const rows = ref<BbsHistoryRow[]>([])
 const activeFilter = ref('semua')
 const monthInput = ref<HTMLInputElement | null>(null)
+
+// Pagination
+const perPage = ref(15)
+const currentPage = ref(1)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / perPage.value)))
+
+const paginatedRows = computed(() => {
+  const start = (currentPage.value - 1) * perPage.value
+  return rows.value.slice(start, start + perPage.value)
+})
+
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const pages: (number | string)[] = []
+
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (current > 3) pages.push('...')
+    const start = Math.max(2, current - 1)
+    const end = Math.min(total - 1, current + 1)
+    for (let i = start; i <= end; i++) pages.push(i)
+    if (current < total - 2) pages.push('...')
+    pages.push(total)
+  }
+  return pages
+})
 
 const historyTabs = [
   { key: 'semua', label: 'Semua' },
@@ -282,9 +367,10 @@ function formatMeta(meta: string) {
 
 async function fetchHistory() {
   loading.value = true
+  currentPage.value = 1
   try {
     const type = activeFilter.value === 'semua' ? 'all' : activeFilter.value === 'observasi' ? 'observation' : activeFilter.value
-    const params: Record<string, string> = { type }
+    const params: Record<string, string> = { type, limit: '200' }
     if (filter.search) params.search = filter.search
     if (filter.month) params.month = filter.month
     if (filter.status) params.status = filter.status
