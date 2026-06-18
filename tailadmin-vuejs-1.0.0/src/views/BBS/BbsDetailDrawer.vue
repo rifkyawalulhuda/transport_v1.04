@@ -38,31 +38,47 @@
 
               <!-- Observation Detail -->
               <template v-else-if="detail && rowType === 'observation'">
-                <div v-if="!editing" class="space-y-3">
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Observer</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.observer_name }}</p>
+                <div v-if="!editing" class="space-y-5">
+                  <!-- Status Badge -->
+                  <div class="flex items-center gap-2">
+                    <span :class="scoreBadge(computeOverallObs(scoresObj))" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold">
+                      {{ computeOverallObs(scoresObj) === 'aman' ? '✓ Aman' : '⚠ Perlu Perhatian' }}
+                    </span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ fmt(detail.date) }}</span>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">ID Pengemudi</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.nama_driver || detail.driver_id }}</p>
+
+                  <!-- Info Utama -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                    <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Observer</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.observer_name }}</p>
+                      </div>
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Pengemudi</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.nama_driver || detail.driver_id }}</p>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800 border-t border-gray-200 dark:border-gray-800">
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Lokasi</p>
+                        <p class="text-sm text-gray-800 dark:text-gray-100 mt-1">{{ detail.location || '-' }}</p>
+                      </div>
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Kendaraan</p>
+                        <p class="text-sm text-gray-800 dark:text-gray-100 mt-1">{{ detail.vehicle_type || '-' }}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tanggal</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ fmt(detail.date) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Lokasi</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.location || '-' }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Jenis Kendaraan</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.vehicle_type || '-' }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Penilaian Perilaku</p>
-                    <div class="rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-                      <div v-for="item in observationItems" :key="item.id" class="flex items-center justify-between px-3 py-2.5">
+
+                  <!-- Penilaian Perilaku -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02]">
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Penilaian Perilaku</p>
+                    </div>
+                    <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                      <div v-for="item in observationItems" :key="item.id" class="flex items-center justify-between px-4 py-2.5">
                         <span class="text-sm text-gray-700 dark:text-gray-200">{{ item.label }}</span>
                         <span :class="scoreBadge(scoresObj[item.id])" class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium">
                           {{ scoreLabel(scoresObj[item.id]) }}
@@ -70,13 +86,17 @@
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Umpan Balik</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.feedback || '-' }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tindak Lanjut</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.follow_up || '-' }}</p>
+
+                  <!-- Feedback & Follow Up -->
+                  <div class="grid grid-cols-1 gap-4">
+                    <div v-if="detail.feedback" class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                      <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Umpan Balik</p>
+                      <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{{ detail.feedback }}</p>
+                    </div>
+                    <div v-if="detail.follow_up" class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                      <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">Tindak Lanjut</p>
+                      <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{{ detail.follow_up }}</p>
+                    </div>
                   </div>
                 </div>
                 <div v-else class="space-y-4">
@@ -126,29 +146,49 @@
 
               <!-- Checklist Detail -->
               <template v-else-if="detail && rowType === 'checklist'">
-                <div v-if="!editing" class="space-y-3">
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">ID Pengemudi</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.nama_driver || detail.driver_id }}</p>
+                <div v-if="!editing" class="space-y-5">
+                  <!-- Status + Score -->
+                  <div class="flex items-center gap-3">
+                    <span :class="detail.score >= 80 ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400'" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold">
+                      {{ detail.status === 'passed' ? '✓ Lulus' : '⚠ Perlu Perbaikan' }}
+                    </span>
+                    <span class="text-sm font-bold text-gray-800 dark:text-white/90">{{ detail.score }}%</span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ fmt(detail.date) }}</span>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Plat Kendaraan</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.plate_number }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tanggal</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ fmt(detail.date) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Skor: {{ detail.score }}% — {{ detail.status === 'passed' ? 'Lulus' : 'Perlu Perbaikan' }}</p>
-                    <div class="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                      <div class="h-2 rounded-full" :style="{ width: detail.score + '%', background: detail.score >= 80 ? '#3B6D11' : detail.score >= 50 ? '#EF9F27' : '#E24B4A' }"></div>
+
+                  <!-- Info Utama -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                    <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Pengemudi</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.nama_driver || detail.driver_id }}</p>
+                      </div>
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Plat Kendaraan</p>
+                        <p class="text-sm font-semibold text-gray-800 dark:text-gray-100 mt-1 tracking-wide">{{ detail.plate_number }}</p>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Item Pemeriksaan</p>
-                    <div class="rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-                      <div v-for="(val, key) in itemsObj" :key="key" class="flex items-center justify-between px-3 py-2.5">
+
+                  <!-- Score Bar -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Skor Keseluruhan</p>
+                      <p class="text-sm font-bold" :class="detail.score >= 80 ? 'text-success-600' : detail.score >= 50 ? 'text-warning-600' : 'text-error-600'">{{ detail.score }}%</p>
+                    </div>
+                    <div class="h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                      <div class="h-2.5 rounded-full transition-all" :style="{ width: detail.score + '%', background: detail.score >= 80 ? '#3B6D11' : detail.score >= 50 ? '#EF9F27' : '#E24B4A' }"></div>
+                    </div>
+                  </div>
+
+                  <!-- Item Pemeriksaan -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02]">
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Item Pemeriksaan</p>
+                    </div>
+                    <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                      <div v-for="(val, key) in itemsObj" :key="key" class="flex items-center justify-between px-4 py-2.5">
                         <span class="text-sm text-gray-700 dark:text-gray-200">{{ chkItemLabel(key) }}</span>
                         <span :class="chkBadge(val)" class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium">{{ chkStatusLabel(val) }}</span>
                       </div>
@@ -184,44 +224,70 @@
 
               <!-- Incident Detail -->
               <template v-else-if="detail && rowType === 'incident'">
-                <div v-if="!editing" class="space-y-3">
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Nama Pelapor</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.reporter_name }}</p>
+                <div v-if="!editing" class="space-y-5">
+                  <!-- Status Badge -->
+                  <div class="flex items-center gap-2">
+                    <span :class="incidentBadgeClass(detail.type)" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold">
+                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-2.97L13.73 4.99c-.77-1.33-2.69-1.33-3.46 0L3.34 16.03c-.77 1.3.19 2.97 1.73 2.97z"/></svg>
+                      {{ detail.type }}
+                    </span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ fmt(detail.date) }}</span>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tanggal Kejadian</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ fmt(detail.date) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Jenis Laporan</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.type }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Lokasi Kejadian</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.location }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Plat Kendaraan</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.plate_number || '-' }}</p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Kronologi</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.chronology || '-' }}</p>
-                  </div>
-                  <div v-if="detail.factors">
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Faktor Penyebab</p>
-                    <div class="flex flex-wrap gap-1">
-                      <span v-for="f in parsedFactors" :key="f" class="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ f }}</span>
+
+                  <!-- Info Utama -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                    <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Pelapor</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.reporter_name }}</p>
+                      </div>
+                      <div class="p-3">
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Lokasi</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.location }}</p>
+                      </div>
+                    </div>
+                    <div class="border-t border-gray-200 dark:border-gray-800 p-3">
+                      <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Plat Kendaraan</p>
+                      <p class="text-sm font-semibold text-gray-800 dark:text-gray-100 mt-1 tracking-wide">{{ detail.plate_number || '-' }}</p>
                     </div>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Korban / Kerugian</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.casualties || '-' }}</p>
+
+                  <!-- Kronologi -->
+                  <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                    <div class="flex items-center gap-2 mb-2.5">
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Kronologi Kejadian</p>
+                    </div>
+                    <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">{{ detail.chronology || 'Tidak ada data kronologi.' }}</p>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Rekomendasi</p>
-                    <p class="text-sm text-gray-800 dark:text-gray-200 mt-0.5">{{ detail.recommendations || '-' }}</p>
+
+                  <!-- Faktor Penyebab -->
+                  <div v-if="parsedFactors.length > 0" class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                    <div class="flex items-center gap-2 mb-2.5">
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Faktor Penyebab</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <span v-for="f in parsedFactors" :key="f" class="inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ f }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Korban & Rekomendasi -->
+                  <div class="grid grid-cols-1 gap-4">
+                    <div v-if="detail.casualties" class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                      <div class="flex items-center gap-2 mb-2">
+                        <svg class="h-4 w-4 text-error-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M4.93 4.93l14.14 14.14M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Korban / Kerugian</p>
+                      </div>
+                      <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{{ detail.casualties }}</p>
+                    </div>
+                    <div v-if="detail.recommendations" class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                      <div class="flex items-center gap-2 mb-2">
+                        <svg class="h-4 w-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Rekomendasi Tindakan</p>
+                      </div>
+                      <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{{ detail.recommendations }}</p>
+                    </div>
                   </div>
                 </div>
                 <div v-else class="space-y-4">
@@ -409,6 +475,11 @@ function scoreBadge(val: string) {
   if (val === 'berbahaya') return 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400'
   return 'bg-gray-100 text-gray-500'
 }
+function computeOverallObs(scores: Record<string, string>) {
+  const vals = Object.values(scores || {})
+  if (vals.length === 0) return ''
+  return vals.every(v => v === 'aman') ? 'aman' : 'berisiko'
+}
 function scoreLabel(val: string) {
   if (val === 'aman') return 'Aman'
   if (val === 'berisiko') return 'Berisiko'
@@ -419,6 +490,12 @@ function chkBadge(val: string) {
   if (val === 'safe') return 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400'
   if (val === 'unsafe') return 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400'
   return 'bg-gray-100 text-gray-500'
+}
+function incidentBadgeClass(type: string) {
+  if (type === 'Near-Miss') return 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400'
+  if (type === 'Insiden Ringan') return 'bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300'
+  if (type === 'Insiden Sedang') return 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400'
+  return 'bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-300'
 }
 function chkStatusLabel(val: string) {
   if (val === 'safe') return 'OK'

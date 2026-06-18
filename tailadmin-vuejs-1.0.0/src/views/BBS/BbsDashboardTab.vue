@@ -1,5 +1,20 @@
 <template>
   <div>
+    <!-- Filter Bulan -->
+    <div class="flex items-center gap-3 mb-5">
+      <div>
+        <input
+          ref="dashMonthInput"
+          v-model="selectedMonth"
+          type="month"
+          class="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 cursor-pointer"
+          @change="fetchDashboard"
+          @click="dashMonthInput?.showPicker?.()"
+        />
+      </div>
+      <p class="text-xs text-gray-400 dark:text-gray-500">Data ditampilkan berdasarkan bulan yang dipilih</p>
+    </div>
+
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-5">
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03] text-center">
         <p class="text-xs text-gray-500 dark:text-gray-400">Safe Behavior Rate</p>
@@ -97,11 +112,18 @@ import { bbsService, type BbsDashboardResponse } from '@/services/bbsService'
 
 Chart.register(...registerables)
 
+function currentMonth() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 const loading = ref(false)
 const error = ref('')
 const dashboard = ref<BbsDashboardResponse | null>(null)
 const trendCanvas = ref<HTMLCanvasElement | null>(null)
 const riskCanvas = ref<HTMLCanvasElement | null>(null)
+const selectedMonth = ref(currentMonth())
+const dashMonthInput = ref<HTMLInputElement | null>(null)
 let trendChart: Chart | null = null
 let riskChart: Chart | null = null
 
@@ -109,7 +131,7 @@ async function fetchDashboard() {
   loading.value = true
   error.value = ''
   try {
-    dashboard.value = await bbsService.fetchDashboard()
+    dashboard.value = await bbsService.fetchDashboard(selectedMonth.value)
   } catch (err: any) {
     error.value = err?.message || 'Gagal memuat dashboard'
     return

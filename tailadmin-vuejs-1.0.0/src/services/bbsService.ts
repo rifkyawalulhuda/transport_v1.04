@@ -116,8 +116,9 @@ export const bbsService = {
     return raw.map((t) => ({ id_truck: String(t.id_truck), no_police: t.no_police, jenis_kendaraan: t.jenis_kendaraan }))
   },
 
-  async fetchDashboard(): Promise<BbsDashboardResponse> {
-    const res = await authFetch(`${API_BASE}/bbs/dashboard`)
+  async fetchDashboard(month?: string): Promise<BbsDashboardResponse> {
+    const qs = month ? `?month=${month}` : ''
+    const res = await authFetch(`${API_BASE}/bbs/dashboard${qs}`)
     return handleJson(res)
   },
 

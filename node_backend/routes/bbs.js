@@ -17,29 +17,42 @@ const fmtDate = (value) => {
 
 router.get("/dashboard", async (req, res) => {
   try {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const monthParam = String(req.query.month || "").trim();
+    let year, month;
+
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [y, m] = monthParam.split("-").map(Number);
+      year = y;
+      month = m;
+    } else {
+      const now = new Date();
+      year = now.getFullYear();
+      month = now.getMonth() + 1;
+    }
+
     const monthStr = `${year}-${String(month).padStart(2, "0")}`;
     const firstDay = `${monthStr}-01`;
+    // Last day of month
+    const lastDay = new Date(year, month, 0);
+    const endDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDay.getDate()).padStart(2, "0")}`;
 
     const [[obsCount], [safeCount], [nearMissCount], [incidentFree]] =
       await Promise.all([
         db.query(
-          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ?",
-          [firstDay]
+          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date <= ?",
+          [firstDay, endDay]
         ),
         db.query(
-          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
-          [firstDay]
+          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date <= ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
+          [firstDay, endDay]
         ),
         db.query(
-          "SELECT COUNT(*) AS total FROM bbs_incidents WHERE type = 'Near-Miss' AND date >= ?",
-          [firstDay]
+          "SELECT COUNT(*) AS total FROM bbs_incidents WHERE type = 'Near-Miss' AND date >= ? AND date <= ?",
+          [firstDay, endDay]
         ),
         db.query(
-          `SELECT DATEDIFF(?, IFNULL((SELECT MAX(date) FROM bbs_incidents WHERE type <> 'Near-Miss'), ?)) AS streak`,
-          [fmtDate(now), firstDay]
+          `SELECT DATEDIFF(?, IFNULL((SELECT MAX(date) FROM bbs_incidents WHERE type <> 'Near-Miss' AND date <= ?), ?)) AS streak`,
+          [endDay, endDay, firstDay]
         )
       ]);
 
@@ -93,8 +106,8 @@ router.get("/dashboard", async (req, res) => {
            SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) IN ('berisiko','berbahaya') THEN 1 ELSE 0 END) AS other_risk,
            COUNT(*) AS total
          FROM bbs_observations
-         WHERE date >= ?`,
-        [firstDay]
+         WHERE date >= ? AND date <= ?`,
+        [firstDay, endDay]
       )
     ]);
 
