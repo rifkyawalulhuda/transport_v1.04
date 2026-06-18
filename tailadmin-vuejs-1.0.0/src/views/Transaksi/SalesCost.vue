@@ -82,9 +82,10 @@
               type="button"
               class="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-gray-900"
               :disabled="isExporting"
-              @click="exportExcel"
+              @click="showExportModal = true"
             >
-              {{ isExporting ? 'Mengekspor...' : 'Export Excel' }}
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export Excel
             </button>
           </div>
           <p
@@ -1092,6 +1093,95 @@
         </div>
       </div>
     </div>
+
+    <!-- Export Modal -->
+    <Teleport to="body">
+      <Transition name="fade-export">
+        <div v-if="showExportModal" class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showExportModal = false"></div>
+          <div class="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <div class="flex items-center justify-between mb-5">
+              <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Export Sales Cost</h3>
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/10 dark:hover:text-gray-200 transition-colors"
+                @click="showExportModal = false"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Pilih rentang data berdasarkan <span class="font-medium text-gray-700 dark:text-gray-200">Tanggal Delivery Order</span></p>
+
+            <div class="space-y-3 mb-5">
+              <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer transition-colors hover:border-brand-300 dark:border-gray-700 dark:hover:border-brand-500/50" :class="exportRange === 'month' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 dark:border-brand-500' : ''">
+                <input v-model="exportRange" type="radio" value="month" class="h-4 w-4 text-brand-500 border-gray-300 focus:ring-brand-500" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Per Bulan</span>
+                  <p class="text-xs text-gray-400 mt-0.5">Export data satu bulan berdasarkan tanggal DO</p>
+                </div>
+              </label>
+
+              <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer transition-colors hover:border-brand-300 dark:border-gray-700 dark:hover:border-brand-500/50" :class="exportRange === 'year' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 dark:border-brand-500' : ''">
+                <input v-model="exportRange" type="radio" value="year" class="h-4 w-4 text-brand-500 border-gray-300 focus:ring-brand-500" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Per Tahun</span>
+                  <p class="text-xs text-gray-400 mt-0.5">Export data satu tahun penuh berdasarkan tanggal DO</p>
+                </div>
+              </label>
+
+              <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer transition-colors hover:border-brand-300 dark:border-gray-700 dark:hover:border-brand-500/50" :class="exportRange === 'all' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 dark:border-brand-500' : ''">
+                <input v-model="exportRange" type="radio" value="all" class="h-4 w-4 text-brand-500 border-gray-300 focus:ring-brand-500" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Semua Data</span>
+                  <p class="text-xs text-gray-400 mt-0.5">Export seluruh data Sales Cost</p>
+                </div>
+              </label>
+            </div>
+
+            <div v-if="exportRange === 'month'" class="mb-5">
+              <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">Pilih Bulan</label>
+              <input
+                ref="exportMonthInputSC"
+                v-model="exportMonthSC"
+                type="month"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 cursor-pointer"
+                @click="(exportMonthInputSC as HTMLInputElement)?.showPicker?.()"
+              />
+            </div>
+
+            <div v-if="exportRange === 'year'" class="mb-5">
+              <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">Pilih Tahun</label>
+              <select
+                v-model="exportYearSC"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              >
+                <option v-for="y in exportYearOptions" :key="y" :value="y">{{ y }}</option>
+              </select>
+            </div>
+
+            <div class="flex gap-3">
+              <button
+                type="button"
+                class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5 transition-colors"
+                @click="showExportModal = false"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                :disabled="isExporting"
+                class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                @click="doExportModal"
+              >
+                <svg v-if="isExporting" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                {{ isExporting ? 'Mengunduh...' : 'Download Excel' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </AdminLayout>
 </template>
 
@@ -1171,6 +1261,19 @@ const loading = ref(false)
 const isExporting = ref(false)
 const isImporting = ref(false)
 const isDownloadingTemplate = ref(false)
+
+// Export Modal state
+const showExportModal = ref(false)
+const exportRange = ref<'month' | 'year' | 'all'>('month')
+const exportMonthSC = ref((() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` })())
+const exportMonthInputSC = ref<HTMLInputElement | null>(null)
+const exportYearSC = ref(String(new Date().getFullYear()))
+const exportYearOptions = computed(() => {
+  const current = new Date().getFullYear()
+  const years: string[] = []
+  for (let y = current; y >= current - 5; y--) years.push(String(y))
+  return years
+})
 const showImportModal = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -1698,6 +1801,54 @@ const exportExcel = async () => {
   }
 }
 
+const doExportModal = async () => {
+  isExporting.value = true
+  try {
+    const params = new URLSearchParams()
+    if (exportRange.value === 'month' && exportMonthSC.value) {
+      const [y, m] = exportMonthSC.value.split('-')
+      const lastDay = new Date(Number(y), Number(m), 0).getDate()
+      params.append('start_date', `${exportMonthSC.value}-01`)
+      params.append('end_date', `${exportMonthSC.value}-${String(lastDay).padStart(2, '0')}`)
+    } else if (exportRange.value === 'year' && exportYearSC.value) {
+      params.append('start_date', `${exportYearSC.value}-01-01`)
+      params.append('end_date', `${exportYearSC.value}-12-31`)
+    }
+    // 'all' → no date params sent = export all
+
+    const url = `${apiBase}/sales-costs/export${params.toString() ? `?${params}` : ''}`
+    const res = await authFetch(url)
+    if (!res.ok) {
+      const message = await res.text()
+      toast.error(message || 'Gagal export data.')
+      return
+    }
+    const blob = await res.blob()
+    if (!blob || blob.size === 0) {
+      toast.info('Tidak ada data untuk diexport.')
+      return
+    }
+    const today = new Date().toISOString().slice(0, 10)
+    const fallbackName = `sales-cost_${today}.xlsx`
+    const filename = getFilenameFromHeader(res.headers.get('content-disposition')) || fallbackName
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(downloadUrl)
+    toast.success('Export berhasil.')
+    showExportModal.value = false
+  } catch (error) {
+    console.error(error)
+    toast.error('Gagal export data.')
+  } finally {
+    isExporting.value = false
+  }
+}
+
 const triggerImport = () => {
   showImportModal.value = true
 }
@@ -2060,3 +2211,14 @@ watch(
   { flush: 'post', immediate: true },
 )
 </script>
+
+<style scoped>
+.fade-export-enter-active,
+.fade-export-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-export-enter-from,
+.fade-export-leave-to {
+  opacity: 0;
+}
+</style>
