@@ -17,19 +17,32 @@ Modul ini terintegrasi penuh dengan project existing — menggunakan stack yang 
 | Charts | Chart.js v4 (npm) |
 | Icons | SVG custom (matching existing Tabler-style pattern) |
 
-## Role: Patcher
+## Role & Akses
 
-Modul BBS memperkenalkan role baru **`patcher`** — role terisolasi yang hanya bisa mengakses modul BBS.
+Modul BBS dapat diakses oleh beberapa role dengan tingkat akses berbeda.
 
+### Role: Patcher (terisolasi)
 | Aspek | Detail |
 |-------|--------|
 | Level di DB | `ENUM('admin','user','mekanik','cs','patcher')` |
-| Halaman yang bisa diakses | `/bbs` (Dashboard, Observasi, Checklist, Insiden, Riwayat) + `/profile` |
+| Halaman yang bisa diakses | `/bbs` (semua tab) + `/profile` (User Profile + Edit Profile) |
 | API yang diizinkan | `GET/POST/PUT/DELETE /api/bbs/*`, `GET/PUT /api/auth/me`, `GET /api/trucks`, `GET /api/drivers` |
 | Redirect setelah login | `/bbs` |
-| Navigasi sidebar | Hanya: Dashboard BBS + User Profile |
+| Navigasi sidebar | Hanya: BBS Transportasi + User Profile (menu lain disembunyikan) |
 | Notifikasi header | Disembunyikan |
-| Admin (role lain) | Admin bisa akses semua halaman termasuk BBS. User, mekanik, cs tidak terpengaruh |
+
+### Akses BBS per Role
+| Role | Sidebar BBS | Tab yang bisa diakses | Detail Drawer |
+|------|-------------|----------------------|---------------|
+| **admin** | ✅ (di bawah Transaksi) | Semua tab (Dashboard, Observasi, Checklist, Insiden, Riwayat) | View + Edit + Hapus |
+| **patcher** | ✅ (hanya BBS + Profile) | Semua tab | View + Edit + Hapus |
+| **user** | ✅ visible | Hanya **Dashboard** & **Riwayat** | **View-only** (Edit & Hapus disembunyikan) |
+| **mekanik** | ✅ visible | Semua tab | View + Edit + Hapus |
+| **cs** | ❌ tidak ada | - | - |
+
+- Icon sidebar BBS: `ShieldCheckIcon` (perisai + centang)
+- Posisi sidebar: item langsung di bawah grup **Transaksi**
+- Route `/bbs` meta: `allowCS: true, allowPatcher: true, allowUser: true`
 
 ## File Structure
 
@@ -37,7 +50,7 @@ Modul BBS memperkenalkan role baru **`patcher`** — role terisolasi yang hanya 
 
 | File | Deskripsi |
 |------|-----------|
-| `routes/bbs.js` | 16 endpoint REST API untuk BBS |
+| `routes/bbs.js` | 18 endpoint REST API untuk BBS (CRUD + dashboard + history + export + today-plates) |
 | `middleware/rbac.js` | `restrictPatcherAccess` — blok patcher dari API non-BBS |
 | `server.js` | Register middleware + router BBS |
 | `db/migrations/20260617000000_add_patcher_role.sql` | ALTER TABLE admin ENUM + patcher |
@@ -49,18 +62,20 @@ Modul BBS memperkenalkan role baru **`patcher`** — role terisolasi yang hanya 
 | File | Deskripsi |
 |------|-----------|
 | `src/views/BBS/BbsTransportasi.vue` | Main layout — 5 tab navigasi + drawer host |
-| `src/views/BBS/BbsDashboardTab.vue` | 4 metric cards + 2 Chart.js charts + top risiko |
+| `src/views/BBS/BbsDashboardTab.vue` | 4 metric cards + 2 Chart.js charts + top risiko + filter bulan (month picker) |
 | `src/views/BBS/BbsObservasiTab.vue` | Form observasi 8 parameter + SearchableSelect driver + DatePickerInput |
-| `src/views/BBS/BbsChecklistTab.vue` | Form checklist 16 item (3 sub-tab) + skor progres bar + validasi wajib isi semua item |
-| `src/views/BBS/BbsInsidenTab.vue` | Form laporan insiden + faktor toggle |
-| `src/views/BBS/BbsRiwayatTab.vue` | Filter + list riwayat dengan filter search/bulan/status (default bulan = current month) |
-| `src/views/BBS/BbsDetailDrawer.vue` | Drawer slide-in kanan: detail view + edit mode + tombol hapus |
+| `src/views/BBS/BbsChecklistTab.vue` | Form checklist 16 item (3 sub-tab) + skor progres bar + validasi wajib isi semua item + dropdown truck dengan highlight hijau (sudah dichecklist hari ini) + tab berubah hijau realtime saat grup lengkap |
+| `src/views/BBS/BbsInsidenTab.vue` | Form laporan insiden + faktor toggle + autocomplete plat (master truck + input manual) |
+| `src/views/BBS/BbsRiwayatTab.vue` | Filter search/bulan/status (default bulan = current month) + pagination (15/30/50/100 per page) + Export modal |
+| `src/views/BBS/BbsDetailDrawer.vue` | Drawer slide-in kanan: detail view (card grouping) + edit mode + hapus; role `user` view-only |
 | `src/services/bbsService.ts` | API wrapper typed |
-| `src/router/index.ts` | Route `/bbs` + patcher guard |
-| `src/config/navigation.js` | Patcher menu group |
+| `src/router/index.ts` | Route `/bbs` + guard role |
+| `src/config/navigation.js` | Menu BBS di sidebar utama + filter per role |
 | `src/icons/EyeIcon.vue` | Icon mata (observasi) |
 | `src/icons/ChecklistIcon.vue` | Icon checklist (checklist) |
 | `src/icons/AlertTriangleIcon.vue` | Icon peringatan (insiden) |
+| `src/icons/ShieldCheckIcon.vue` | Icon perisai+centang (sidebar BBS) |
+| `src/components/common/ToastHost.vue` | Toast notification (bottom-right, icon per variant) — dipakai global |
 
 ### Edited existing files
 
@@ -125,7 +140,7 @@ Semua endpoint prefix: `/api/bbs`
 ### Dashboard
 | Method | Path | Auth | Deskripsi |
 |--------|------|------|-----------|
-| GET | `/dashboard` | token | Metric cards + trend chart + risk chart + top risks |
+| GET | `/dashboard` | token | Metric cards + trend chart + risk chart + top risks. Query param: `month` (YYYY-MM, default bulan saat ini) |
 
 ### Observations
 | Method | Path | Auth | Deskripsi |
@@ -138,6 +153,7 @@ Semua endpoint prefix: `/api/bbs`
 ### Checklists
 | Method | Path | Auth | Deskripsi |
 |--------|------|------|-----------|
+| GET | `/checklists/today-plates` | token | List plat yang sudah dichecklist hari ini (untuk highlight hijau + blok duplikat) |
 | GET | `/checklists/:id` | token | Detail satu checklist (JOIN driver) |
 | POST | `/checklists` | token | Simpan checklist baru |
 | PUT | `/checklists/:id` | token | Update checklist |
@@ -151,10 +167,11 @@ Semua endpoint prefix: `/api/bbs`
 | PUT | `/incidents/:id` | token | Update insiden |
 | DELETE | `/incidents/:id` | token | Hapus insiden |
 
-### History
+### History & Export
 | Method | Path | Auth | Deskripsi |
 |--------|------|------|-----------|
-| GET | `/history` | token | Riwayat gabungan. Query params: `type` (all/observation/checklist/incident), `search`, `month`, `status` |
+| GET | `/history` | token | Riwayat gabungan. Query params: `type` (all/observation/checklist/incident), `search`, `month`, `status`, `limit` |
+| GET | `/export` | token | Export Excel (3 sheet: Observasi, Checklist, Insiden). Query params: `range` (month/year/all), `month` (YYYY-MM), `year` (YYYY) |
 
 ### Lookup (existing API reused)
 | Method | Path | Auth | Deskripsi |
@@ -174,24 +191,36 @@ Semua endpoint prefix: `/api/bbs`
 7. Redirect ke tab Riwayat, data tersimpan
 
 ### Checklist Kendaraan
-1. Tab Checklist → pilih Pengemudi + Plat (SearchableSelect)
-2. 3 sub-tab: Mesin & Bahan Bakar (5), Keselamatan (6), Eksterior (5)
-3. Setiap item: OK / NOK / N/A (button group) — **semua 16 item wajib diisi** sebelum submit
-4. Jika ada item kosong saat submit → error toast + item merah highlight + auto-switch tab ke item kosong pertama
-5. Skor otomatis dihitung: hijau ≥80%, kuning 50-79%, merah <50%
-6. Simpan → data masuk riwayat
+1. Tab Checklist → pilih Pengemudi + Plat
+2. **Plat Kendaraan**: dropdown dari master truck. Truk yang **sudah dichecklist hari ini** ditandai hijau + badge "✓ Sudah" dan tidak bisa dipilih (toast error). Plat yang belum dichecklist tetap warna default.
+3. 3 sub-tab: Mesin & Bahan Bakar (5), Keselamatan (6), Eksterior (5)
+4. Setiap item: OK / NOK / N/A (button group) — **semua 16 item wajib diisi** sebelum submit
+5. Tab sub-grup berubah **hijau secara realtime** saat semua item di grup tersebut sudah terisi (✓ prefix)
+6. Jika ada item kosong saat submit → error toast + item merah highlight + auto-switch tab ke item kosong pertama
+7. Skor otomatis dihitung: hijau ≥80%, kuning 50-79%, merah <50%
+8. Submit guard: tolak jika plat sudah dichecklist hari ini → data masuk riwayat
 
 ### Detail & Edit
 1. Tab Riwayat → klik baris → drawer slide-in dari kanan
-2. View mode: semua field ditampilkan (Observer, Driver, Tanggal, Lokasi, Skor, dll)
-3. Tombol Edit → form inline dalam drawer → Simpan → PUT ke backend
+2. View mode: field dikelompokkan dalam card (status badge, info utama, kronologi/penilaian, dll)
+3. Tombol Edit (hanya admin/patcher/mekanik) → form inline:
+   - **Pengemudi**: SearchableSelect dari master driver (observasi & checklist)
+   - **Plat Checklist**: dropdown master truck + highlight hijau (sudah dichecklist hari ini); plat record sendiri dikecualikan agar tetap bisa dipilih
+   - **Plat Insiden**: autocomplete master truck + bisa input manual
 4. Tombol Hapus → ConfirmDialog → DELETE → drawer tertutup
+5. Role `user`: view-only — tombol Edit & Hapus disembunyikan
 
-### Filter Riwayat
-- Text search (cari di nama, lokasi, plat) — mencakup nama driver dari JOIN
-- Month picker (filter bulan) — default ke bulan saat ini
-- Status dropdown (Aman, Perlu Perhatian, Lulus, Perlu Perbaikan, Near-Miss, Insiden)
-- Filter status bersifat selektif per jenis: status `aman` hanya filter observasi, `passed` hanya checklist, `Near-Miss` hanya insiden (tidak campur aduk)
+### Export Excel (Riwayat)
+1. Tombol Export → modal popup
+2. 3 pilihan: Per Bulan, Per Tahun, Semua Data
+3. Per Bulan → month picker; Per Tahun → year dropdown
+4. Download → file `.xlsx` 3 sheet (Observasi, Checklist, Insiden)
+
+### Filter & Pagination Riwayat
+- Text search realtime (debounce 300ms, case-insensitive) — mencakup nama driver dari JOIN
+- Month picker — default ke bulan saat ini, klik di mana saja buka picker
+- Status dropdown — selektif per jenis (status `aman` hanya observasi, `passed` hanya checklist, `Near-Miss` hanya insiden)
+- Pagination: 15/30/50/100 per page + navigasi angka halaman
 
 ## Data Flow
 
@@ -267,6 +296,39 @@ Akses `http://localhost:5173/bbs` dengan role `patcher` atau `admin`.
 
 ### History Filter Search Checklist
 - **Fix:** Tambah `d.nama_driver LIKE ?` ke search checklist query agar bisa cari driver by nama.
+
+## Enhancements (Session 2026-06-19)
+
+### Sidebar & Role Restructure
+- BBS dipindah ke **sidebar utama** (di bawah grup Transaksi) dengan icon `ShieldCheckIcon`.
+- **Patcher**: hanya lihat BBS + User Profile, bisa akses `/profile` (edit profile).
+- **User**: BBS visible di sidebar, hanya tab Dashboard & Riwayat, detail drawer **view-only**.
+- Route `/bbs` tambah `allowUser: true`.
+
+### Dashboard Filter Bulan
+- Tambah month picker di Dashboard — semua metric/chart di-bound ke range bulan terpilih (`?month=YYYY-MM`).
+
+### Export Excel
+- BBS Riwayat: tombol Export → modal (Per Bulan / Per Tahun / Semua Data) → endpoint `/api/bbs/export`.
+- Pola modal yang sama diterapkan ke **Sales Cost**, **Subcontractor**, **Repair** (acuan tanggal: DO / Pengerjaan / Kerusakan). Format Excel tidak diubah.
+
+### Pagination Riwayat
+- 15/30/50/100 per page + navigasi angka halaman (client-side).
+
+### Checklist Rules
+- Dropdown truck: highlight hijau + badge "Sudah" untuk truk yang sudah dichecklist hari ini, blok duplikat (toast).
+- Tab sub-grup berubah hijau realtime saat semua item grup terisi.
+- Berlaku juga di edit drawer (plat record sendiri dikecualikan dari blokir).
+
+### Detail Drawer Polish
+- View mode redesign: card grouping + status badge + section icons.
+- Edit Pengemudi → SearchableSelect; Edit Plat Insiden → autocomplete; Edit Plat Checklist → dropdown master truck + rule hijau.
+
+### Toast Notification
+- Dipindah ke **bottom-right**, redesign dengan icon per variant + judul kontekstual, animasi slide-in. Berlaku global (semua modul).
+
+### Month Picker UX
+- Semua input `type="month"` & `type="date"` di BBS: klik area mana saja buka picker via `showPicker()`.
 
 ## Testing Role Patcher
 
