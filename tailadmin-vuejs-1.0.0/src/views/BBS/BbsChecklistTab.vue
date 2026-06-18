@@ -51,6 +51,7 @@
           v-for="item in currentTabItems"
           :key="item.id"
           class="flex items-center gap-3 px-4 py-3"
+          :class="emptyMap[item.id] ? 'bg-error-50 dark:bg-error-500/10' : ''"
         >
           <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ item.label }}</span>
           <div class="flex gap-1.5">
@@ -159,7 +160,7 @@ const checkItems = reactive<Record<string, string>>(
 
 const form = reactive({
   driver_id: '',
-  date: new Date().toISOString().slice(0, 10),
+  date: todayStr(),
 })
 
 const currentTabItems = computed(() => chkData[activeChkTab.value])
@@ -170,21 +171,58 @@ const safeCount = computed(() => allValues.value.filter((v) => v === 'safe').len
 const answeredCount = computed(() => allValues.value.filter((v) => v !== '').length)
 const scorePct = computed(() => answeredCount.value > 0 ? Math.round((safeCount.value / answeredCount.value) * 100) : 0)
 
+const emptyMap = computed(() => {
+  const map: Record<string, boolean> = {}
+  if (submitAttempted.value) {
+    allItemIds.forEach((id) => {
+      map[id] = checkItems[id] === ''
+    })
+  }
+  return map
+})
+
+const submitAttempted = ref(false)
+
+function todayStr() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function resetForm() {
   form.driver_id = ''
   truckId.value = ''
-  form.date = new Date().toISOString().slice(0, 10)
+  form.date = todayStr()
   allItemIds.forEach((id) => { checkItems[id] = '' })
   activeChkTab.value = 'mesin'
+  submitAttempted.value = false
 }
 
 async function submit() {
+  submitAttempted.value = true
+
   if (!form.driver_id) {
     toast.error('ID Pengemudi wajib diisi')
     return
   }
   if (!truckId.value) {
     toast.error('Plat Kendaraan wajib diisi')
+    return
+  }
+
+  const unselected = allItemIds.filter((id) => checkItems[id] === '')
+  if (unselected.length > 0) {
+    const firstEmpty = unselected[0]
+    // Switch tab to where first empty item lives
+    for (const [tabKey, items] of Object.entries(chkData)) {
+      if (items.some((i) => i.id === firstEmpty)) {
+        activeChkTab.value = tabKey as 'mesin' | 'keselamatan' | 'eksterior'
+        break
+      }
+    }
+    toast.error(`Semua item wajib diisi. ${unselected.length} item belum dipilih`)
     return
   }
 
@@ -196,7 +234,7 @@ async function submit() {
     await bbsService.createChecklist({
       driver_id: form.driver_id,
       plate_number: plateNumber,
-      date: form.date || new Date().toISOString().slice(0, 10),
+      date: form.date || todayStr(),
       items: { ...checkItems },
     })
     toast.success(`Checklist disimpan — ${scorePct.value}% OK`)

@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("../db");
+const xlsx = require("xlsx");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -314,26 +315,37 @@ router.get("/history", async (req, res) => {
 
     const results = [];
 
+    const obsStatuses = ['aman', 'perlu_perhatian'];
+    const chkStatuses = ['passed', 'needs_fix'];
+    const incStatuses = ['Near-Miss', 'Insiden Ringan', 'Insiden Sedang', 'Insiden Berat'];
+
+    const isObsFilter = statusFilter && obsStatuses.includes(statusFilter);
+    const isChkFilter = statusFilter && chkStatuses.includes(statusFilter);
+    const isIncFilter = statusFilter && incStatuses.includes(statusFilter);
+
     const buildObsWhere = () => {
       const conds = [];
       const params = [];
-      if (search) { conds.push("(observer_name LIKE ? OR driver_id LIKE ? OR location LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
-      if (month) { conds.push("DATE_FORMAT(date, '%Y-%m') = ?"); params.push(month); }
-      if (driverId) { conds.push("driver_id = ?"); params.push(driverId); }
-      if (statusFilter === 'aman') { conds.push("JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'"); }
-      else if (statusFilter === 'perlu_perhatian') { conds.push("NOT (JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman')"); }
+      if (search) { conds.push("(o.observer_name LIKE ? OR o.driver_id LIKE ? OR o.location LIKE ? OR d.nama_driver LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
+      if (month) { conds.push("DATE_FORMAT(o.date, '%Y-%m') = ?"); params.push(month); }
+      if (driverId) { conds.push("o.driver_id = ?"); params.push(driverId); }
+      if (isObsFilter) {
+        if (statusFilter === 'aman') { conds.push("JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o8')) = 'aman'"); }
+        else { conds.push("NOT (JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(o.scores, '$.o8')) = 'aman')"); }
+      }
       return { where: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
     };
 
     const buildChkWhere = () => {
       const conds = [];
       const params = [];
-      if (search) { conds.push("(driver_id LIKE ? OR plate_number LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
-      if (month) { conds.push("DATE_FORMAT(date, '%Y-%m') = ?"); params.push(month); }
-      if (driverId) { conds.push("driver_id = ?"); params.push(driverId); }
-      if (plateNumber) { conds.push("plate_number = ?"); params.push(plateNumber); }
-      if (statusFilter === 'passed') { conds.push("status = 'passed'"); }
-      else if (statusFilter === 'needs_fix') { conds.push("status = 'needs_fix'"); }
+      if (search) { conds.push("(c.driver_id LIKE ? OR c.plate_number LIKE ? OR d.nama_driver LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+      if (month) { conds.push("DATE_FORMAT(c.date, '%Y-%m') = ?"); params.push(month); }
+      if (driverId) { conds.push("c.driver_id = ?"); params.push(driverId); }
+      if (plateNumber) { conds.push("c.plate_number = ?"); params.push(plateNumber); }
+      if (isChkFilter) {
+        conds.push("c.status = ?"); params.push(statusFilter);
+      }
       return { where: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
     };
 
@@ -344,11 +356,18 @@ router.get("/history", async (req, res) => {
       if (month) { conds.push("DATE_FORMAT(date, '%Y-%m') = ?"); params.push(month); }
       if (driverId) { conds.push("reporter_name LIKE ?"); params.push(`%${driverId}%`); }
       if (plateNumber) { conds.push("plate_number = ?"); params.push(plateNumber); }
-      if (statusFilter && statusFilter !== 'all') { conds.push("type = ?"); params.push(statusFilter); }
+      if (isIncFilter) {
+        conds.push("type = ?"); params.push(statusFilter);
+      }
       return { where: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
     };
 
-    if (type === "all" || type === "observasi" || type === "observation") {
+    // When type=all but a type-specific status is selected, only query that type
+    const shouldQueryObs = (type === "all" && !isChkFilter && !isIncFilter) || type === "observasi" || type === "observation";
+    const shouldQueryChk = (type === "all" && !isObsFilter && !isIncFilter) || type === "checklist";
+    const shouldQueryInc = (type === "all" && !isObsFilter && !isChkFilter) || type === "insiden" || type === "incident";
+
+    if (shouldQueryObs) {
       const { where, params } = buildObsWhere();
       const [rows] = await db.query(
         `SELECT o.id_observation AS id, 'observation' AS type, o.observer_name, o.driver_id, o.date, o.location,
@@ -373,7 +392,7 @@ router.get("/history", async (req, res) => {
       );
     }
 
-    if (type === "all" || type === "checklist") {
+    if (shouldQueryChk) {
       const { where, params } = buildChkWhere();
       const [rows] = await db.query(
         `SELECT c.id_checklist AS id, 'checklist' AS type, c.driver_id, c.plate_number, c.date,
@@ -399,7 +418,7 @@ router.get("/history", async (req, res) => {
       );
     }
 
-    if (type === "all" || type === "insiden" || type === "incident") {
+    if (shouldQueryInc) {
       const { where, params } = buildIncWhere();
       const [rows] = await db.query(
         `SELECT id_incident AS id, 'incident' AS type, reporter_name, date, type AS incident_type,
@@ -590,6 +609,151 @@ router.delete("/incidents/:id", async (req, res) => {
     res.json({ message: "Insiden dihapus" });
   } catch (err) {
     console.error("BBS delete incident error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/export", async (req, res) => {
+  try {
+    const range = String(req.query.range || "month").toLowerCase();
+    const month = String(req.query.month || "").trim();
+    const year = String(req.query.year || "").trim();
+
+    let dateCond = "";
+    const dateParams = [];
+
+    if (range === "month" && month) {
+      dateCond = "DATE_FORMAT(date, '%Y-%m') = ?";
+      dateParams.push(month);
+    } else if (range === "year" && year) {
+      dateCond = "YEAR(date) = ?";
+      dateParams.push(year);
+    }
+
+    const obsWhere = dateCond ? `WHERE ${dateCond}` : "";
+    const chkWhere = dateCond ? `WHERE ${dateCond}` : "";
+    const incWhere = dateCond ? `WHERE ${dateCond}` : "";
+
+    const [[obsRows], [chkRows], [incRows]] = await Promise.all([
+      db.query(
+        `SELECT o.id_observation, o.observer_name, o.driver_id, d.nama_driver,
+                o.date, o.location, o.vehicle_type, o.scores, o.feedback, o.follow_up, o.created_at
+         FROM bbs_observations o
+         LEFT JOIN driver d ON o.driver_id = d.id_driver
+         ${obsWhere}
+         ORDER BY o.date DESC`,
+        dateParams
+      ),
+      db.query(
+        `SELECT c.id_checklist, c.driver_id, d.nama_driver, c.plate_number,
+                c.date, c.score, c.status, c.items, c.created_at
+         FROM bbs_checklists c
+         LEFT JOIN driver d ON c.driver_id = d.id_driver
+         ${chkWhere}
+         ORDER BY c.date DESC`,
+        dateParams
+      ),
+      db.query(
+        `SELECT id_incident, reporter_name, date, type, location, plate_number,
+                chronology, factors, casualties, recommendations, created_at
+         FROM bbs_incidents
+         ${incWhere}
+         ORDER BY date DESC`,
+        dateParams
+      ),
+    ]);
+
+    const scoreLabels = {
+      o1: "Sabuk Pengaman",
+      o2: "Kecepatan",
+      o3: "Jarak Aman",
+      o4: "HP/Distraksi",
+      o5: "Rambu & Marka",
+      o6: "Kondisi Kendaraan",
+      o7: "Kelelahan",
+      o8: "Lainnya",
+    };
+
+    const obsData = obsRows.map((r) => {
+      const scores = typeof r.scores === "string" ? JSON.parse(r.scores) : (r.scores || {});
+      const row = {
+        "ID": r.id_observation,
+        "Observer": r.observer_name,
+        "Driver ID": r.driver_id,
+        "Nama Driver": r.nama_driver || "-",
+        "Tanggal": fmtDate(r.date),
+        "Lokasi": r.location || "-",
+        "Jenis Kendaraan": r.vehicle_type || "-",
+      };
+      Object.entries(scoreLabels).forEach(([key, label]) => {
+        row[label] = scores[key] || "-";
+      });
+      row["Feedback"] = r.feedback || "-";
+      row["Tindak Lanjut"] = r.follow_up || "-";
+      return row;
+    });
+
+    const chkData = chkRows.map((r) => ({
+      "ID": r.id_checklist,
+      "Driver ID": r.driver_id,
+      "Nama Driver": r.nama_driver || "-",
+      "Plat Kendaraan": r.plate_number,
+      "Tanggal": fmtDate(r.date),
+      "Skor (%)": r.score,
+      "Status": r.status === "passed" ? "Lulus" : "Perlu Perbaikan",
+    }));
+
+    const incData = incRows.map((r) => ({
+      "ID": r.id_incident,
+      "Pelapor": r.reporter_name,
+      "Tanggal": fmtDate(r.date),
+      "Jenis": r.type,
+      "Lokasi": r.location,
+      "Plat": r.plate_number || "-",
+      "Kronologi": r.chronology || "-",
+      "Faktor": Array.isArray(r.factors) ? r.factors.join(", ") : (typeof r.factors === "string" ? (() => { try { return JSON.parse(r.factors).join(", "); } catch { return r.factors; } })() : "-"),
+      "Korban/Kerugian": r.casualties || "-",
+      "Rekomendasi": r.recommendations || "-",
+    }));
+
+    const workbook = xlsx.utils.book_new();
+
+    if (obsData.length > 0) {
+      const obsSheet = xlsx.utils.json_to_sheet(obsData);
+      obsSheet["!cols"] = Array(Object.keys(obsData[0]).length).fill({ wch: 18 });
+      xlsx.utils.book_append_sheet(workbook, obsSheet, "Observasi");
+    }
+
+    if (chkData.length > 0) {
+      const chkSheet = xlsx.utils.json_to_sheet(chkData);
+      chkSheet["!cols"] = Array(Object.keys(chkData[0]).length).fill({ wch: 18 });
+      xlsx.utils.book_append_sheet(workbook, chkSheet, "Checklist");
+    }
+
+    if (incData.length > 0) {
+      const incSheet = xlsx.utils.json_to_sheet(incData);
+      incSheet["!cols"] = Array(Object.keys(incData[0]).length).fill({ wch: 18 });
+      xlsx.utils.book_append_sheet(workbook, incSheet, "Insiden");
+    }
+
+    if (!obsData.length && !chkData.length && !incData.length) {
+      const emptySheet = xlsx.utils.aoa_to_sheet([["Tidak ada data untuk periode yang dipilih"]]);
+      xlsx.utils.book_append_sheet(workbook, emptySheet, "Kosong");
+    }
+
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    let filename = "BBS_Riwayat";
+    if (range === "month" && month) filename += `_${month}`;
+    else if (range === "year" && year) filename += `_${year}`;
+    else filename += "_Semua";
+    filename += ".xlsx";
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error("BBS export error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });

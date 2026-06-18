@@ -42,6 +42,7 @@ Modul BBS memperkenalkan role baru **`patcher`** — role terisolasi yang hanya 
 | `server.js` | Register middleware + router BBS |
 | `db/migrations/20260617000000_add_patcher_role.sql` | ALTER TABLE admin ENUM + patcher |
 | `db/migrations/20260617010000_create_bbs_tables.sql` | CREATE 3 tabel BBS |
+| `bbs_dummy_data.sql` | Dummy test data (27 observasi, 4 checklist, 4 insiden) |
 
 ### Frontend (`tailadmin-vuejs-1.0.0/`)
 
@@ -50,9 +51,9 @@ Modul BBS memperkenalkan role baru **`patcher`** — role terisolasi yang hanya 
 | `src/views/BBS/BbsTransportasi.vue` | Main layout — 5 tab navigasi + drawer host |
 | `src/views/BBS/BbsDashboardTab.vue` | 4 metric cards + 2 Chart.js charts + top risiko |
 | `src/views/BBS/BbsObservasiTab.vue` | Form observasi 8 parameter + SearchableSelect driver + DatePickerInput |
-| `src/views/BBS/BbsChecklistTab.vue` | Form checklist 16 item (3 sub-tab) + skor progres bar |
+| `src/views/BBS/BbsChecklistTab.vue` | Form checklist 16 item (3 sub-tab) + skor progres bar + validasi wajib isi semua item |
 | `src/views/BBS/BbsInsidenTab.vue` | Form laporan insiden + faktor toggle |
-| `src/views/BBS/BbsRiwayatTab.vue` | Filter + list riwayat dengan filter search/bulan/status |
+| `src/views/BBS/BbsRiwayatTab.vue` | Filter + list riwayat dengan filter search/bulan/status (default bulan = current month) |
 | `src/views/BBS/BbsDetailDrawer.vue` | Drawer slide-in kanan: detail view + edit mode + tombol hapus |
 | `src/services/bbsService.ts` | API wrapper typed |
 | `src/router/index.ts` | Route `/bbs` + patcher guard |
@@ -175,9 +176,10 @@ Semua endpoint prefix: `/api/bbs`
 ### Checklist Kendaraan
 1. Tab Checklist → pilih Pengemudi + Plat (SearchableSelect)
 2. 3 sub-tab: Mesin & Bahan Bakar (5), Keselamatan (6), Eksterior (5)
-3. Setiap item: OK / NOK / N/A (button group)
-4. Skor otomatis dihitung: hijau ≥80%, kuning 50-79%, merah <50%
-5. Simpan → data masuk riwayat
+3. Setiap item: OK / NOK / N/A (button group) — **semua 16 item wajib diisi** sebelum submit
+4. Jika ada item kosong saat submit → error toast + item merah highlight + auto-switch tab ke item kosong pertama
+5. Skor otomatis dihitung: hijau ≥80%, kuning 50-79%, merah <50%
+6. Simpan → data masuk riwayat
 
 ### Detail & Edit
 1. Tab Riwayat → klik baris → drawer slide-in dari kanan
@@ -186,9 +188,10 @@ Semua endpoint prefix: `/api/bbs`
 4. Tombol Hapus → ConfirmDialog → DELETE → drawer tertutup
 
 ### Filter Riwayat
-- Text search (cari di nama, lokasi, plat)
-- Month picker (filter bulan)
+- Text search (cari di nama, lokasi, plat) — mencakup nama driver dari JOIN
+- Month picker (filter bulan) — default ke bulan saat ini
 - Status dropdown (Aman, Perlu Perhatian, Lulus, Perlu Perbaikan, Near-Miss, Insiden)
+- Filter status bersifat selektif per jenis: status `aman` hanya filter observasi, `passed` hanya checklist, `Near-Miss` hanya insiden (tidak campur aduk)
 
 ## Data Flow
 
@@ -205,7 +208,8 @@ Semua endpoint prefix: `/api/bbs`
 ## SQL Mode Compatibility
 
 Semua query menggunakan:
-- `fmtDate()` wrapper untuk konversi ISO timestamp → `YYYY-MM-DD` sebelum INSERT/UPDATE
+- `fmtDate()` wrapper untuk konversi ISO timestamp → `YYYY-MM-DD` sebelum INSERT/UPDATE — menggunakan local timezone, bukan `.toISOString()`
+- `JSON_UNQUOTE(JSON_EXTRACT(...))` untuk membaca nilai dari kolom LONGTEXT JSON (MySQL `JSON_EXTRACT` return quoted string)
 - `CAST(column AS CHAR)` untuk deteksi zero-date (`'0000-00-00'`) di query lain
 - `DATE_FORMAT()` eksplisit di GROUP BY untuk kompatibilitas `only_full_group_by`
 - Kompatibel dengan MySQL strict mode maupun relaxed mode
@@ -231,6 +235,38 @@ npm run dev
 ```
 
 Akses `http://localhost:5173/bbs` dengan role `patcher` atau `admin`.
+
+## Bug Fixes (Session 2026-06-18)
+
+### Dashboard Charts Tidak Muncul
+- **Root cause:** `JSON_EXTRACT(scores, '$.oX')` di MySQL return nilai quoted (`"aman"` bukan `aman`). Semua `= 'aman'` comparison jadi false → data 0.
+- **Fix:** Ganti semua `JSON_EXTRACT(...)` dengan `JSON_UNQUOTE(JSON_EXTRACT(...))` di 11 lokasi dashboard + 2 lokasi history filter.
+
+### prev_safe_rate Selalu null
+- **Root cause:** Hitungan safe rate bulan lalu pakai total count bukan safe count, ternary `0 || null`.
+- **Fix:** Query terpisah `prevSafeObs` + `Math.round((prevSafeCount / prevObsCount) * 100)`.
+
+### Risk Categories Selalu 100%
+- **Root cause:** `COALESCE(JSON_EXTRACT(...), 'aman') <> 'aman'` — quoted JSON selalu `<> 'aman'`.
+- **Fix:** `JSON_UNQUOTE(JSON_EXTRACT(...)) IN ('berisiko','berbahaya')`.
+
+### Chart Rendering Race Condition
+- **Root cause:** `nextTick()` dipanggil sebelum `loading=false`, canvas belum di-DOM → ref null.
+- **Fix:** Pindah `finally { loading = false }` sebelum `await nextTick()`.
+
+### toISOString UTC Bug
+- **Root cause:** `new Date().toISOString().slice(0,10)` mengubah tanggal di GMT/UTC.
+- **Fix:** Ganti ke `fmtDate()` helper (local timezone) di incidentFree query, form.date, resetForm.
+
+### Checklist Mandatory Validation
+- **Fix:** Tambah `submitAttempted` flag + `emptyMap` computed + `unselected.length > 0` check sebelum submit. Item kosong highlighted merah + auto-switch tab.
+
+### History Filter Tidak Berfungsi di Tab "Semua"
+- **Root cause:** Filter status diterapkan ke semua tabel tanpa seleksi jenis — `status=aman` juga filter tabel checklist.
+- **Fix:** Kategorisasi status ke `obsStatuses`, `chkStatuses`, `incStatuses`. Masing-masing `build*Where()` hanya pakai status yang relevan.
+
+### History Filter Search Checklist
+- **Fix:** Tambah `d.nama_driver LIKE ?` ke search checklist query agar bisa cari driver by nama.
 
 ## Testing Role Patcher
 
