@@ -75,12 +75,16 @@
           type="button"
           :class="[
             'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors border',
-            activeChkTab === tab.key
-              ? 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-white/10 dark:text-white dark:border-gray-600'
-              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700'
+            tabComplete[tab.key]
+              ? 'bg-success-50 text-success-700 border-success-300 dark:bg-success-500/15 dark:text-success-400 dark:border-success-500/40'
+              : activeChkTab === tab.key
+                ? 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-white/10 dark:text-white dark:border-gray-600'
+                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700'
           ]"
           @click="activeChkTab = tab.key"
-        >{{ tab.label }}</button>
+        >
+          <span v-if="tabComplete[tab.key]" class="mr-1">✓</span>{{ tab.label }}
+        </button>
       </div>
 
       <div class="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
@@ -239,6 +243,14 @@ const allItemIds = Object.values(chkData).flat().map((i) => i.id)
 const checkItems = reactive<Record<string, string>>(
   Object.fromEntries(allItemIds.map((id) => [id, '']))
 )
+
+const tabComplete = computed(() => {
+  const result: Record<string, boolean> = {}
+  for (const [key, items] of Object.entries(chkData)) {
+    result[key] = items.every((item) => checkItems[item.id] !== '')
+  }
+  return result
+})
 
 const form = reactive({
   driver_id: '',

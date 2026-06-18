@@ -101,8 +101,16 @@
                 </div>
                 <div v-else class="space-y-4">
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">ID Pengemudi</label>
-                    <input v-model="editForm.driver_id" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Pengemudi</label>
+                    <SearchableSelect
+                      v-model="editForm.driver_id"
+                      :options="drivers"
+                      value-key="id_driver"
+                      label-key="nama_driver"
+                      :search-keys="['nama_driver', 'id_driver']"
+                      placeholder="-Pilih-"
+                      search-placeholder="Cari nama driver"
+                    />
                   </div>
                   <div>
                     <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal</label>
@@ -197,12 +205,64 @@
                 </div>
                 <div v-else class="space-y-4">
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">ID Pengemudi</label>
-                    <input v-model="editForm.driver_id" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Pengemudi</label>
+                    <SearchableSelect
+                      v-model="editForm.driver_id"
+                      :options="drivers"
+                      value-key="id_driver"
+                      label-key="nama_driver"
+                      :search-keys="['nama_driver', 'id_driver']"
+                      placeholder="-Pilih-"
+                      search-placeholder="Cari nama driver"
+                    />
                   </div>
                   <div>
                     <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan</label>
-                    <input v-model="editForm.plate_number" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 uppercase outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
+                    <div class="relative" ref="chkPlateRoot">
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition hover:bg-gray-50 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        @click="chkPlateDropOpen = !chkPlateDropOpen"
+                      >
+                        <span class="truncate">{{ editForm.plate_number || '-Pilih-' }}</span>
+                        <svg class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+                      </button>
+                      <div v-if="chkPlateDropOpen" class="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                        <div class="border-b border-gray-200 p-2 dark:border-gray-700">
+                          <input
+                            v-model="chkPlateSearch"
+                            type="text"
+                            class="w-full rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                            placeholder="Cari no polisi atau jenis kendaraan"
+                            @keydown.escape="chkPlateDropOpen = false"
+                          />
+                        </div>
+                        <ul class="max-h-48 overflow-auto py-1 text-sm text-gray-700 dark:text-gray-200">
+                          <li v-if="filteredChkTrucks.length === 0" class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Data tidak ditemukan</li>
+                          <li
+                            v-for="truck in filteredChkTrucks"
+                            :key="truck.id_truck"
+                            class="cursor-pointer px-3 py-2 flex items-center justify-between"
+                            :class="[
+                              isPlateChecked(truck.no_police)
+                                ? 'bg-success-50 dark:bg-success-500/10'
+                                : 'hover:bg-brand-50 dark:hover:bg-brand-500/10',
+                              editForm.plate_number === truck.no_police ? 'font-semibold' : ''
+                            ]"
+                            @click="handleChkPlateSelect(truck)"
+                          >
+                            <span>
+                              <span :class="isPlateChecked(truck.no_police) ? 'text-success-700 dark:text-success-400' : ''">{{ truck.no_police }}</span>
+                              <span class="ml-2 text-xs text-gray-400">{{ truck.jenis_kendaraan }}</span>
+                            </span>
+                            <span v-if="isPlateChecked(truck.no_police)" class="inline-flex items-center gap-1 rounded-md bg-success-100 px-1.5 py-0.5 text-[10px] font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                              <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                              Sudah
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal</label>
@@ -311,7 +371,33 @@
                   </div>
                   <div>
                     <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan</label>
-                    <input v-model="editForm.plate_number" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 uppercase outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
+                    <div class="relative" ref="editPlateRoot">
+                      <input
+                        v-model="editForm.plate_number"
+                        type="text"
+                        placeholder="Pilih atau ketik plat kendaraan"
+                        autocomplete="off"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 uppercase outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        @focus="editPlateSuggestOpen = true"
+                        @input="editPlateSuggestOpen = true; editPlateTouched = true"
+                        @keydown.escape="editPlateSuggestOpen = false"
+                      />
+                      <div
+                        v-if="editPlateSuggestOpen && filteredEditTrucks.length > 0"
+                        class="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 max-h-40 overflow-auto py-1"
+                      >
+                        <div
+                          v-for="truck in filteredEditTrucks"
+                          :key="truck.id_truck"
+                          class="cursor-pointer px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+                          @mousedown.prevent="editForm.plate_number = truck.no_police; editPlateSuggestOpen = false; editPlateTouched = false"
+                        >
+                          <span class="font-medium">{{ truck.no_police }}</span>
+                          <span class="ml-2 text-xs text-gray-400">{{ truck.jenis_kendaraan }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Pilih dari daftar atau ketik manual</p>
                   </div>
                   <div>
                     <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Kronologi</label>
@@ -383,7 +469,8 @@ import AlertTriangleIcon from '@/icons/AlertTriangleIcon.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
 import { useToast } from '@/composables/useToast'
 import { useDialog } from '@/composables/useDialog'
-import { bbsService, type BbsHistoryRow } from '@/services/bbsService'
+import { bbsService, type BbsHistoryRow, type BbsDriverOption } from '@/services/bbsService'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 
 type Props = { open: boolean; row: BbsHistoryRow | null; viewOnly?: boolean }
 const props = withDefaults(defineProps<Props>(), { viewOnly: false })
@@ -397,6 +484,17 @@ const detail = ref<any>(null)
 const editing = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
+const drivers = ref<BbsDriverOption[]>([])
+const trucks = ref<Array<{ id_truck: string; no_police: string; jenis_kendaraan: string }>>([])
+const editPlateSuggestOpen = ref(false)
+const editPlateTouched = ref(false)
+const editPlateRoot = ref<HTMLElement | null>(null)
+// Checklist plate dropdown
+const chkPlateDropOpen = ref(false)
+const chkPlateSearch = ref('')
+const chkPlateRoot = ref<HTMLElement | null>(null)
+const checkedPlates = ref<string[]>([])
+const originalPlate = ref('')
 
 const rowType = computed(() => props.row?.type || 'observation')
 const title = computed(() => props.row?.title || 'Detail')
@@ -526,6 +624,9 @@ function handleClose() {
 }
 
 function startEditing() {
+  fetchDriversIfNeeded()
+  editPlateTouched.value = false
+  editPlateSuggestOpen.value = false
   if (rowType.value === 'observation') {
     editForm.driver_id = detail.value?.driver_id || ''
     editForm.date = norm(detail.value?.date)
@@ -538,6 +639,10 @@ function startEditing() {
     editForm.driver_id = detail.value?.driver_id || ''
     editForm.plate_number = detail.value?.plate_number || ''
     editForm.date = norm(detail.value?.date)
+    originalPlate.value = detail.value?.plate_number || ''
+    chkPlateDropOpen.value = false
+    chkPlateSearch.value = ''
+    fetchCheckedPlates()
     const items = detail.value?.items || {}
     Object.keys(items).forEach((k) => { editCheckItems[k] = items[k] || '' })
   } else if (rowType.value === 'incident') {
@@ -557,7 +662,69 @@ function cancelEdit() {
   editing.value = false
 }
 
+async function fetchDriversIfNeeded() {
+  if (drivers.value.length > 0 && trucks.value.length > 0) return
+  try {
+    const [d, t] = await Promise.all([
+      bbsService.fetchDrivers(),
+      bbsService.fetchTrucks(),
+    ])
+    drivers.value = d
+    trucks.value = t
+  } catch {
+    drivers.value = []
+    trucks.value = []
+  }
+}
+
+async function fetchCheckedPlates() {
+  try {
+    checkedPlates.value = await bbsService.fetchTodayCheckedPlates()
+  } catch {
+    checkedPlates.value = []
+  }
+}
+
+const filteredEditTrucks = computed(() => {
+  const q = (editForm.plate_number || '').trim().toLowerCase()
+  // Before user starts typing, show full list (value is pre-loaded selection)
+  if (!editPlateTouched.value) return trucks.value.slice(0, 15)
+  if (!q) return trucks.value.slice(0, 15)
+  return trucks.value.filter(
+    (t) => t.no_police.toLowerCase().includes(q) || t.jenis_kendaraan.toLowerCase().includes(q)
+  ).slice(0, 15)
+})
+
+const filteredChkTrucks = computed(() => {
+  const q = chkPlateSearch.value.trim().toLowerCase()
+  if (!q) return trucks.value
+  return trucks.value.filter(
+    (t) => t.no_police.toLowerCase().includes(q) || t.jenis_kendaraan.toLowerCase().includes(q)
+  )
+})
+
+// Checked today, but exclude the plate of the record being edited (so it stays selectable)
+function isPlateChecked(plate: string) {
+  if (plate === originalPlate.value) return false
+  return checkedPlates.value.includes(plate)
+}
+
+function handleChkPlateSelect(truck: { id_truck: string; no_police: string; jenis_kendaraan: string }) {
+  if (isPlateChecked(truck.no_police)) {
+    toast.error(`Checklist untuk ${truck.no_police} sudah dilakukan hari ini`)
+    return
+  }
+  editForm.plate_number = truck.no_police
+  chkPlateDropOpen.value = false
+  chkPlateSearch.value = ''
+}
+
 async function handleSave() {
+  // Guard: checklist plate already checked today (excluding own record's plate)
+  if (rowType.value === 'checklist' && isPlateChecked(editForm.plate_number)) {
+    toast.error(`Checklist untuk ${editForm.plate_number} sudah dilakukan hari ini`)
+    return
+  }
   saving.value = true
   try {
     const id = props.row?.id
@@ -644,15 +811,38 @@ async function fetchDetail(id: number) {
   }
 }
 
+function handleEditPlateClickOutside(event: MouseEvent) {
+  if (editPlateRoot.value && !editPlateRoot.value.contains(event.target as Node)) {
+    editPlateSuggestOpen.value = false
+  }
+  if (chkPlateRoot.value && !chkPlateRoot.value.contains(event.target as Node)) {
+    chkPlateDropOpen.value = false
+  }
+}
+
 watch(
   () => props.open && props.row?.id,
   (shouldFetch) => {
     if (shouldFetch && props.row?.id) {
       editing.value = false
+      editPlateSuggestOpen.value = false
       fetchDetail(props.row.id)
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => editing.value,
+  (isEditing) => {
+    if (isEditing) {
+      document.addEventListener('mousedown', handleEditPlateClickOutside)
+    } else {
+      document.removeEventListener('mousedown', handleEditPlateClickOutside)
+      editPlateSuggestOpen.value = false
+      chkPlateDropOpen.value = false
+    }
+  }
 )
 </script>
 
