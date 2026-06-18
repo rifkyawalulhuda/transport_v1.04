@@ -3,3 +3,4 @@ node_backend/logs/audit.log
 .env
 .env.*
 !.env.example
+.cloudflared

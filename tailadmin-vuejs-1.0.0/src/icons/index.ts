@@ -45,6 +45,9 @@ import LayoutDashboardIcon from "./LayoutDashboardIcon.vue";
 import UserGroupIcon from "./UserGroupIcon.vue";
 import BellIcon from "./BellIcon.vue";
 import BarChartIcon from "./BarChartIcon.vue";
+import EyeIcon from "./EyeIcon.vue";
+import ChecklistIcon from "./ChecklistIcon.vue";
+import AlertTriangleIcon from "./AlertTriangleIcon.vue";
 
 export {
   BellIcon,
@@ -94,4 +97,7 @@ export {
   MailBox,
   SendIcon,
   DraftIcon,
+  EyeIcon,
+  ChecklistIcon,
+  AlertTriangleIcon,
 };

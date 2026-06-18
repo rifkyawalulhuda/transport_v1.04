@@ -76,7 +76,7 @@
       >
         <div class="flex items-center gap-2 2xsm:gap-3">
           <ThemeToggler />
-          <NotificationMenu v-if="!isCs" />
+          <NotificationMenu v-if="!isCs && !isPatcher" />
         </div>
         <UserMenu />
       </div>
@@ -97,6 +97,7 @@ import { useAuthUser } from '@/services/auth'
 const { toggleSidebar, toggleMobileSidebar, isMobileOpen } = useSidebar()
 const authUser = useAuthUser()
 const isCs = computed(() => authUser.value?.level === 'cs')
+const isPatcher = computed(() => authUser.value?.level === 'patcher')
 
 const handleToggle = () => {
   if (window.innerWidth >= 1024) {

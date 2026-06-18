@@ -11,5 +11,9 @@ import { RouterLink } from 'vue-router'
 import { useAuthUser } from '@/services/auth'
 
 const authUser = useAuthUser()
-const homePath = computed(() => (authUser.value?.level === 'cs' ? '/schedule-pengiriman' : '/'))
+const homePath = computed(() => {
+  if (authUser.value?.level === 'cs') return '/schedule-pengiriman'
+  if (authUser.value?.level === 'patcher') return '/bbs'
+  return '/'
+})
 </script>

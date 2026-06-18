@@ -228,9 +228,11 @@ const route = useRoute();
 const { isExpanded, isMobileOpen, isHovered, openSubmenu } = useSidebar();
 const user = ref(authService.getUser());
 const isAdmin = computed(() => user.value?.level === "admin");
-const homePath = computed(() =>
-  user.value?.level === "cs" ? "/schedule-pengiriman" : "/"
-);
+const homePath = computed(() => {
+  if (user.value?.level === 'cs') return '/schedule-pengiriman'
+  if (user.value?.level === 'patcher') return '/bbs'
+  return '/'
+});
 
 const menuGroups = computed(() => getMenuGroups(user.value?.level));
 

@@ -1,9 +1,32 @@
 import { GridIcon, CalenderIcon, UserCircleIcon, PieChartIcon, TableIcon, BoxCubeIcon, DocsIcon } from '@/icons'
+import ShieldCheckIcon from '@/icons/ShieldCheckIcon.vue'
 
 export const getMenuGroups = (userLevel) => {
   const isAdmin = userLevel === 'admin'
   const isMekanik = userLevel === 'mekanik'
   const isCs = userLevel === 'cs'
+  const isPatcher = userLevel === 'patcher'
+  const isUser = userLevel === 'user'
+
+  if (isPatcher) {
+    return [
+      {
+        title: '',
+        items: [
+          {
+            icon: ShieldCheckIcon,
+            name: 'BBS Transportasi',
+            path: '/bbs',
+          },
+          {
+            icon: UserCircleIcon,
+            name: 'User Profile',
+            path: '/profile',
+          },
+        ],
+      },
+    ]
+  }
 
   if (isCs) {
     return [
@@ -80,6 +103,11 @@ export const getMenuGroups = (userLevel) => {
             { name: 'Repair', path: '/repair', pro: false },
           ],
         },
+        {
+          icon: ShieldCheckIcon,
+          name: 'BBS Transportasi',
+          path: '/bbs',
+        },
       ],
     },
     {
@@ -111,18 +139,19 @@ export const getMenuGroups = (userLevel) => {
   ]
 
   if (isMekanik) {
-    // Filter menu for mekanik
     menuGroups.forEach((group) => {
-      // Remove Master menu
       group.items = group.items.filter((item) => item.name !== 'Master')
-      
-      // Filter Transaksi menu
       const transaksiMenu = group.items.find((item) => item.name === 'Transaksi')
       if (transaksiMenu) {
         transaksiMenu.subItems = transaksiMenu.subItems.filter(
           (subItem) => subItem.name === 'Repair'
         )
       }
+    })
+  } else if (isUser) {
+    // User: no Master, keep BBS visible
+    menuGroups.forEach((group) => {
+      group.items = group.items.filter((item) => item.name !== 'Master')
     })
   } else if (!isAdmin) {
     menuGroups.forEach((group) => {

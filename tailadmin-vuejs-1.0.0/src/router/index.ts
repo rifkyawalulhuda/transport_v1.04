@@ -40,6 +40,7 @@ const router = createRouter({
       meta: {
         title: 'Profile',
         allowCS: true,
+        allowPatcher: true,
       },
     },
     {
@@ -395,6 +396,17 @@ const router = createRouter({
       },
     },
     {
+      path: '/bbs',
+      name: 'BBS Transportasi',
+      component: () => import('../views/BBS/BbsTransportasi.vue'),
+      meta: {
+        title: 'BBS Transportasi',
+        allowCS: true,
+        allowPatcher: true,
+        allowUser: true,
+      },
+    },
+    {
       path: '/login',
       name: 'Login',
       component: () => import('../views/Auth/Login.vue'),
@@ -473,6 +485,9 @@ router.beforeEach(async (to, from, next) => {
     if (user?.level === 'cs') {
       return next('/schedule-pengiriman')
     }
+    if (user?.level === 'patcher') {
+      return next('/bbs')
+    }
     return next('/')
   }
 
@@ -502,6 +517,10 @@ router.beforeEach(async (to, from, next) => {
 
   if (user?.level === 'cs' && to.meta.allowCS !== true) {
     return next('/403')
+  }
+
+  if (user?.level === 'patcher' && to.meta.allowPatcher !== true) {
+    return next('/bbs')
   }
 
   return next()
