@@ -1,13 +1,13 @@
 <template>
   <div>
-    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">Pelaporan Insiden & Near-Miss</h4>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Laporkan setiap kejadian, baik insiden maupun hampir terjadi</p>
+    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">{{ t.incTitle }}</h4>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.incSub }}</p>
 
     <div class="space-y-4">
       <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800 space-y-4">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Nama Pelapor</label>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblReporter }}</label>
             <input
               v-model="form.reporter_name"
               type="text"
@@ -16,26 +16,26 @@
             />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal Kejadian</label>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncDate }}</label>
             <DatePickerInput
               v-model="form.date"
-              placeholder="Pilih tanggal"
+              :placeholder="t.placeholderDate"
             />
           </div>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Jenis Laporan</label>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncType }}</label>
             <select
               v-model="form.type"
               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
             >
-              <option value="">-- Pilih --</option>
-              <option v-for="t in incidentTypes" :key="t" :value="t">{{ t }}</option>
+              <option value="">{{ t.placeholderSelect }}</option>
+              <option v-for="it in incidentTypes" :key="it.value" :value="it.value">{{ it.label }}</option>
             </select>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Lokasi Kejadian</label>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncLocation }}</label>
             <input
               v-model="form.location"
               type="text"
@@ -45,7 +45,7 @@
           </div>
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan Terlibat</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncPlat }}</label>
           <div class="relative" ref="plateRoot">
             <input
               v-model="form.plate_number"
@@ -83,49 +83,49 @@
 
       <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800 space-y-4">
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Kronologi Kejadian</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblChronology }}</label>
           <textarea
             v-model="form.chronology"
             rows="4"
-            placeholder="Jelaskan secara runtut apa yang terjadi..."
+            :placeholder="t.placeholderChronology"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 resize-y"
           ></textarea>
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Faktor Penyebab</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblFactors }}</label>
           <div class="flex flex-wrap gap-2 mt-1">
             <button
               v-for="factor in factorOptions"
-              :key="factor"
+              :key="factor.value"
               type="button"
               :class="[
                 'rounded-md px-3 py-1.5 text-xs font-medium border transition-colors',
-                selectedFactors.includes(factor)
+                selectedFactors.includes(factor.value)
                   ? 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-white/10 dark:text-white dark:border-gray-600'
                   : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
               ]"
-              @click="toggleFactor(factor)"
-            >{{ factor }}</button>
+              @click="toggleFactor(factor.value)"
+            >{{ factor.label }}</button>
           </div>
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Korban / Kerugian</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblCasualties }}</label>
           <textarea
             v-model="form.casualties"
             rows="2"
-            placeholder="Jelaskan korban atau kerugian material..."
+            :placeholder="t.placeholderCasualties"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 resize-y"
           ></textarea>
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Rekomendasi Tindakan</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblRecommendations }}</label>
           <textarea
             v-model="form.recommendations"
             rows="2"
-            placeholder="Apa yang sebaiknya dilakukan untuk mencegah kejadian serupa?"
+            :placeholder="t.placeholderRecommendations"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 resize-y"
           ></textarea>
         </div>
@@ -136,7 +136,7 @@
           class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           @click="submit"
         >
-          {{ submitting ? 'Mengirim...' : 'Kirim Laporan' }}
+          {{ submitting ? t.btnSaving : t.btnSubmitInc }}
         </button>
       </div>
     </div>
@@ -147,20 +147,34 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useAuthUser } from '@/services/auth'
 import { useToast } from '@/composables/useToast'
+import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsTruckOption } from '@/services/bbsService'
 import DatePickerInput from '@/components/DatePickerInput.vue'
 
 const emit = defineEmits<{ (e: 'saved', type: string): void }>()
 
+const { t } = useBbsLang()
 const authUser = useAuthUser()
 const toast = useToast()
 const submitting = ref(false)
 
-const incidentTypes = ['Near-Miss', 'Insiden Ringan', 'Insiden Sedang', 'Insiden Berat']
-const factorOptions = [
-  'Kecepatan', 'Kelelahan', 'Cuaca', 'Jalan Rusak',
-  'Perilaku Pengendara Lain', 'Kendaraan', 'HP / Distraksi', 'Lainnya'
-]
+const incidentTypes = computed(() => [
+  { value: 'Near-Miss', label: t.value.incNearMiss },
+  { value: 'Insiden Ringan', label: t.value.incRingan },
+  { value: 'Insiden Sedang', label: t.value.incSedang },
+  { value: 'Insiden Berat', label: t.value.incBerat },
+])
+
+const factorOptions = computed(() => [
+  { value: 'Kecepatan', label: t.value.factKecepatan },
+  { value: 'Kelelahan', label: t.value.factKelelahan },
+  { value: 'Cuaca', label: t.value.factCuaca },
+  { value: 'Jalan Rusak', label: t.value.factJalan },
+  { value: 'Perilaku Pengendara Lain', label: t.value.factPengendara },
+  { value: 'Kendaraan', label: t.value.factKendaraan },
+  { value: 'HP / Distraksi', label: t.value.factHP },
+  { value: 'Lainnya', label: t.value.factLainnya },
+])
 
 const form = reactive({
   reporter_name: authUser.value?.nama_admin || '',
@@ -185,7 +199,7 @@ const filteredTrucks = computed(() => {
   const q = form.plate_number.trim().toLowerCase()
   if (!q) return trucks.value.slice(0, 20)
   return trucks.value.filter(
-    (t) => t.no_police.toLowerCase().includes(q) || t.jenis_kendaraan.toLowerCase().includes(q)
+    (trk) => trk.no_police.toLowerCase().includes(q) || trk.jenis_kendaraan.toLowerCase().includes(q)
   ).slice(0, 20)
 })
 
@@ -262,15 +276,15 @@ function resetForm() {
 
 async function submit() {
   if (!form.reporter_name.trim()) {
-    toast.error('Nama Pelapor wajib diisi')
+    toast.error(t.value.toastDriverRequired)
     return
   }
   if (!form.type) {
-    toast.error('Jenis Laporan wajib dipilih')
+    toast.error(t.value.toastTypeRequired)
     return
   }
   if (!form.location.trim()) {
-    toast.error('Lokasi Kejadian wajib diisi')
+    toast.error(t.value.toastError)
     return
   }
 
@@ -287,11 +301,11 @@ async function submit() {
       casualties: form.casualties || undefined,
       recommendations: form.recommendations || undefined,
     })
-    toast.success('Laporan insiden terkirim')
+    toast.success(t.value.toastIncSaved)
     resetForm()
     emit('saved', 'insiden')
   } catch (err: any) {
-    toast.error(err?.message || 'Gagal mengirim laporan')
+    toast.error(err?.message || t.value.toastError)
   } finally {
     submitting.value = false
   }

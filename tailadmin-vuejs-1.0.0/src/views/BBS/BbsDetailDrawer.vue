@@ -33,7 +33,7 @@
             </div>
 
             <div class="flex-1 overflow-y-auto px-5 py-4">
-              <div v-if="loading" class="py-8 text-center text-sm text-gray-500">Memuat detail...</div>
+              <div v-if="loading" class="py-8 text-center text-sm text-gray-500">{{ t.detailLoading }}</div>
               <div v-else-if="error" class="py-8 text-center text-sm text-error-500">{{ error }}</div>
 
               <!-- Observation Detail -->
@@ -42,7 +42,7 @@
                   <!-- Status Badge -->
                   <div class="flex items-center gap-2">
                     <span :class="scoreBadge(computeOverallObs(scoresObj))" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold">
-                      {{ computeOverallObs(scoresObj) === 'aman' ? '✓ Aman' : '⚠ Perlu Perhatian' }}
+                      {{ computeOverallObs(scoresObj) === 'aman' ? t.statusAman : t.statusPerluPerhatian }}
                     </span>
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ fmt(detail.date) }}</span>
                   </div>
@@ -51,21 +51,21 @@
                   <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                     <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Observer</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailObserver }}</p>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.observer_name }}</p>
                       </div>
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Pengemudi</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailPengemudi }}</p>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.nama_driver || detail.driver_id }}</p>
                       </div>
                     </div>
                     <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800 border-t border-gray-200 dark:border-gray-800">
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Lokasi</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailLokasi }}</p>
                         <p class="text-sm text-gray-800 dark:text-gray-100 mt-1">{{ detail.location || '-' }}</p>
                       </div>
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Kendaraan</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailKendaraan }}</p>
                         <p class="text-sm text-gray-800 dark:text-gray-100 mt-1">{{ detail.vehicle_type || '-' }}</p>
                       </div>
                     </div>
@@ -75,7 +75,7 @@
                   <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                     <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02]">
                       <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Penilaian Perilaku</p>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">{{ t.obsRatingTitle }}</p>
                     </div>
                     <div class="divide-y divide-gray-100 dark:divide-gray-800">
                       <div v-for="item in observationItems" :key="item.id" class="flex items-center justify-between px-4 py-2.5">
@@ -101,34 +101,34 @@
                 </div>
                 <div v-else class="space-y-4">
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Pengemudi</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailPengemudi }}</label>
                     <SearchableSelect
                       v-model="editForm.driver_id"
                       :options="drivers"
                       value-key="id_driver"
                       label-key="nama_driver"
                       :search-keys="['nama_driver', 'id_driver']"
-                      placeholder="-Pilih-"
-                      search-placeholder="Cari nama driver"
+                      :placeholder="t.placeholderSelectDriver"
+                      :search-placeholder="t.placeholderSearchDriver"
                     />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal</label>
-                    <DatePickerInput v-model="editForm.date" placeholder="Pilih tanggal" />
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailTanggal }}</label>
+                    <DatePickerInput v-model="editForm.date" :placeholder="t.placeholderDate" />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Lokasi</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailLokasi }}</label>
                     <input v-model="editForm.location" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Jenis Kendaraan</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblVehicleType }}</label>
                     <select v-model="editForm.vehicle_type" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                      <option value="">-- Pilih --</option>
+                      <option value="">{{ t.placeholderSelect }}</option>
                       <option v-for="v in vehicleOptions" :key="v" :value="v">{{ v }}</option>
                     </select>
                   </div>
                   <div>
-                    <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">Penilaian Perilaku</p>
+                    <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.obsRatingTitle }}</p>
                     <div class="rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
                       <div v-for="item in observationItems" :key="item.id" class="flex items-center gap-2 px-3 py-2.5">
                         <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ item.label }}</span>
@@ -158,7 +158,7 @@
                   <!-- Status + Score -->
                   <div class="flex items-center gap-3">
                     <span :class="detail.score >= 80 ? 'bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' : 'bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400'" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold">
-                      {{ detail.status === 'passed' ? '✓ Lulus' : '⚠ Perlu Perbaikan' }}
+                      {{ detail.status === 'passed' ? t.statusLulus : t.statusPerluPerbaikan }}
                     </span>
                     <span class="text-sm font-bold text-gray-800 dark:text-white/90">{{ detail.score }}%</span>
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ fmt(detail.date) }}</span>
@@ -168,11 +168,11 @@
                   <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                     <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Pengemudi</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailPengemudi }}</p>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.nama_driver || detail.driver_id }}</p>
                       </div>
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Plat Kendaraan</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailPlat }}</p>
                         <p class="text-sm font-semibold text-gray-800 dark:text-gray-100 mt-1 tracking-wide">{{ detail.plate_number }}</p>
                       </div>
                     </div>
@@ -181,7 +181,7 @@
                   <!-- Score Bar -->
                   <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
                     <div class="flex items-center justify-between mb-2">
-                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Skor Keseluruhan</p>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">{{ t.detailSkorKeseluruhan }}</p>
                       <p class="text-sm font-bold" :class="detail.score >= 80 ? 'text-success-600' : detail.score >= 50 ? 'text-warning-600' : 'text-error-600'">{{ detail.score }}%</p>
                     </div>
                     <div class="h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
@@ -193,7 +193,7 @@
                   <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                     <div class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-white/[0.02]">
                       <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">Item Pemeriksaan</p>
+                      <p class="text-xs font-semibold text-gray-600 dark:text-gray-300">{{ t.detailItemPemeriksaan }}</p>
                     </div>
                     <div class="divide-y divide-gray-100 dark:divide-gray-800">
                       <div v-for="(val, key) in itemsObj" :key="key" class="flex items-center justify-between px-4 py-2.5">
@@ -205,19 +205,19 @@
                 </div>
                 <div v-else class="space-y-4">
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Pengemudi</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailPengemudi }}</label>
                     <SearchableSelect
                       v-model="editForm.driver_id"
                       :options="drivers"
                       value-key="id_driver"
                       label-key="nama_driver"
                       :search-keys="['nama_driver', 'id_driver']"
-                      placeholder="-Pilih-"
-                      search-placeholder="Cari nama driver"
+                      :placeholder="t.placeholderSelectDriver"
+                      :search-placeholder="t.placeholderSearchDriver"
                     />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailPlat }}</label>
                     <div class="relative" ref="chkPlateRoot">
                       <button
                         type="button"
@@ -265,11 +265,11 @@
                     </div>
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal</label>
-                    <DatePickerInput v-model="editForm.date" placeholder="Pilih tanggal" />
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailTanggal }}</label>
+                    <DatePickerInput v-model="editForm.date" :placeholder="t.placeholderDate" />
                   </div>
                   <div>
-                    <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">Item Pemeriksaan</p>
+                    <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.chkTitle }}</p>
                     <div class="rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
                       <div v-for="(val, key) in editCheckItems" :key="key" class="flex items-center gap-2 px-3 py-2.5">
                         <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ chkItemLabel(key) }}</span>
@@ -298,16 +298,16 @@
                   <div class="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                     <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Pelapor</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.lblReporter }}</p>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.reporter_name }}</p>
                       </div>
                       <div class="p-3">
-                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Lokasi</p>
+                        <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailLokasi }}</p>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.location }}</p>
                       </div>
                     </div>
                     <div class="border-t border-gray-200 dark:border-gray-800 p-3">
-                      <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Plat Kendaraan</p>
+                      <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailPlat }}</p>
                       <p class="text-sm font-semibold text-gray-800 dark:text-gray-100 mt-1 tracking-wide">{{ detail.plate_number || '-' }}</p>
                     </div>
                   </div>
@@ -352,30 +352,30 @@
                 </div>
                 <div v-else class="space-y-4">
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Nama Pelapor</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblReporter }}</label>
                     <input v-model="editForm.reporter_name" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal Kejadian</label>
-                    <DatePickerInput v-model="editForm.date" placeholder="Pilih tanggal" />
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailTanggalKejadian }}</label>
+                    <DatePickerInput v-model="editForm.date" :placeholder="t.placeholderDate" />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Jenis Laporan</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncType }}</label>
                     <select v-model="editForm.type" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                      <option v-for="t in incidentTypes" :key="t" :value="t">{{ t }}</option>
+                      <option v-for="it in incidentTypes" :key="it" :value="it">{{ it }}</option>
                     </select>
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Lokasi Kejadian</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailLokasiKejadian }}</label>
                     <input v-model="editForm.location" type="text" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" />
                   </div>
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan</label>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.detailPlat }}</label>
                     <div class="relative" ref="editPlateRoot">
                       <input
                         v-model="editForm.plate_number"
                         type="text"
-                        placeholder="Pilih atau ketik plat kendaraan"
+                        :placeholder="t.placeholderSelect"
                         autocomplete="off"
                         class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 uppercase outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                         @focus="editPlateSuggestOpen = true"
@@ -433,7 +433,7 @@
                 @click="handleDelete"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                {{ deleting ? 'Menghapus...' : 'Hapus' }}
+                {{ deleting ? t.btnSaving : t.detailDelete }}
               </button>
               <div class="flex-1"></div>
               <template v-if="editing">
@@ -443,14 +443,14 @@
                   class="flex items-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
                   @click="handleSave"
                 >
-                  {{ saving ? 'Menyimpan...' : 'Simpan' }}
+                  {{ saving ? t.btnSaving : t.detailSave }}
                 </button>
                 <button
                   type="button"
                   class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
                   @click="cancelEdit"
                 >
-                  Batal
+                  {{ t.detailCancel }}
                 </button>
               </template>
             </div>
@@ -469,8 +469,11 @@ import AlertTriangleIcon from '@/icons/AlertTriangleIcon.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
 import { useToast } from '@/composables/useToast'
 import { useDialog } from '@/composables/useDialog'
+import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsHistoryRow, type BbsDriverOption } from '@/services/bbsService'
 import SearchableSelect from '@/components/SearchableSelect.vue'
+
+const { t } = useBbsLang()
 
 type Props = { open: boolean; row: BbsHistoryRow | null; viewOnly?: boolean }
 const props = withDefaults(defineProps<Props>(), { viewOnly: false })
@@ -516,42 +519,40 @@ const iconColor = computed(() => {
   return 'text-warning-600'
 })
 
-const vehicleOptions = ['Truk Besar', 'Truk Sedang', 'Minibus', 'Pick-up', 'Sepeda Motor']
-const followUpOptions = ['Apresiasi langsung', 'Coaching on the spot', 'Pelaporan ke supervisor', 'Rencana pelatihan']
+const vehicleOptions = computed(() => [t.value.vehTrukBesar, t.value.vehTrukSedang, t.value.vehMinibus, t.value.vehPickup, t.value.vehMotor])
+const followUpOptions = computed(() => [t.value.fuApresiasi, t.value.fuCoaching, t.value.fuLaporan, t.value.fuPelatihan])
 const incidentTypes = ['Near-Miss', 'Insiden Ringan', 'Insiden Sedang', 'Insiden Berat']
 
-const ratingOpts = [
-  { v: 'aman', l: 'Aman', cls: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
-  { v: 'berisiko', l: 'Berisiko', cls: 'border-warning-500 bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400' },
-  { v: 'berbahaya', l: 'Bahaya', cls: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
-]
-const chkOpts = [
-  { v: 'safe', l: '✓ OK', cls: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
-  { v: 'unsafe', l: '✗ NOK', cls: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
-  { v: 'na', l: 'N/A', cls: 'border-gray-300 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
-]
+const ratingOpts = computed(() => [
+  { v: 'aman', l: t.value.ratingAman, cls: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
+  { v: 'berisiko', l: t.value.ratingBerisiko, cls: 'border-warning-500 bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400' },
+  { v: 'berbahaya', l: t.value.ratingBerbahaya, cls: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
+])
+const chkOpts = computed(() => [
+  { v: 'safe', l: `✓ ${t.value.chkSafe}`, cls: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
+  { v: 'unsafe', l: `✗ ${t.value.chkUnsafe}`, cls: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
+  { v: 'na', l: t.value.chkNa, cls: 'border-gray-300 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
+])
 
-const observationItems = [
-  { id: 'o1', label: 'Memakai sabuk pengaman' },
-  { id: 'o2', label: 'Kecepatan sesuai batas' },
-  { id: 'o3', label: 'Menjaga jarak aman' },
-  { id: 'o4', label: 'Tidak menggunakan HP saat berkendara' },
-  { id: 'o5', label: 'Mematuhi rambu lalu lintas' },
-  { id: 'o6', label: 'Kondisi fisik & mental baik' },
-  { id: 'o7', label: 'Teknik pengereman benar' },
-  { id: 'o8', label: 'Tidak merokok saat berkendara' },
-]
+const observationItems = computed(() => [
+  { id: 'o1', label: t.value.o1 },
+  { id: 'o2', label: t.value.o2 },
+  { id: 'o3', label: t.value.o3 },
+  { id: 'o4', label: t.value.o4 },
+  { id: 'o5', label: t.value.o5 },
+  { id: 'o6', label: t.value.o6 },
+  { id: 'o7', label: t.value.o7 },
+  { id: 'o8', label: t.value.o8 },
+])
 
-const chkItemLabels: Record<string, string> = {
-  m1: 'Level oli mesin cukup', m2: 'Level air radiator cukup', m3: 'Bahan bakar cukup untuk rute',
-  m4: 'Tidak ada kebocoran oli/cairan', m5: 'Belt / fan belt dalam kondisi baik',
-  s1: 'Rem utama berfungsi normal', s2: 'Rem tangan berfungsi', s3: 'Semua lampu berfungsi',
-  s4: 'APAR tersedia & tidak kadaluarsa', s5: 'Sabuk pengaman berfungsi', s6: 'Klakson berfungsi',
-  e1: 'Kaca depan bersih & tidak retak', e2: 'Wiper berfungsi', e3: 'Tekanan ban sesuai standar',
-  e4: 'Kondisi ban tidak aus berlebihan', e5: 'Spion lengkap & dapat diatur',
+const chkItemLabel = (key: string) => {
+  const map: Record<string, string> = {
+    m1: t.value.m1, m2: t.value.m2, m3: t.value.m3, m4: t.value.m4, m5: t.value.m5,
+    s1: t.value.s1, s2: t.value.s2, s3: t.value.s3, s4: t.value.s4, s5: t.value.s5, s6: t.value.s6,
+    e1: t.value.e1, e2: t.value.e2, e3: t.value.e3, e4: t.value.e4, e5: t.value.e5,
+  }
+  return map[key] || key
 }
-
-const chkItemLabel = (key: string) => chkItemLabels[key] || key
 
 const scoresObj = computed(() => detail.value?.scores || {})
 const itemsObj = computed(() => detail.value?.items || {})
@@ -579,9 +580,9 @@ function computeOverallObs(scores: Record<string, string>) {
   return vals.every(v => v === 'aman') ? 'aman' : 'berisiko'
 }
 function scoreLabel(val: string) {
-  if (val === 'aman') return 'Aman'
-  if (val === 'berisiko') return 'Berisiko'
-  if (val === 'berbahaya') return 'Bahaya'
+  if (val === 'aman') return t.value.ratingAman
+  if (val === 'berisiko') return t.value.ratingBerisiko
+  if (val === 'berbahaya') return t.value.ratingBerbahaya
   return '-'
 }
 function chkBadge(val: string) {
@@ -596,9 +597,9 @@ function incidentBadgeClass(type: string) {
   return 'bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-300'
 }
 function chkStatusLabel(val: string) {
-  if (val === 'safe') return 'OK'
-  if (val === 'unsafe') return 'NOK'
-  return 'N/A'
+  if (val === 'safe') return t.value.chkSafe
+  if (val === 'unsafe') return t.value.chkUnsafe
+  return t.value.chkNa
 }
 function fmt(val: any) {
   if (!val) return '-'
@@ -774,10 +775,10 @@ async function handleDelete() {
   const id = props.row?.id
   if (!id) return
   const ok = await confirm({
-    title: 'Hapus Data',
-    message: 'Yakin hapus data ini? Tindakan tidak dapat dibatalkan.',
-    confirmText: 'Ya, hapus',
-    cancelText: 'Batal',
+    title: t.value.detailDelete,
+    message: t.value.detailConfirmDelete,
+    confirmText: t.value.detailYes,
+    cancelText: t.value.detailNo,
     variant: 'danger',
   })
   if (!ok) return
