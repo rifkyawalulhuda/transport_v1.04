@@ -33,13 +33,14 @@ export default defineConfig({
         items: [
           { text: 'Dashboard Overview', link: '/guide/dashboard' },
           { text: 'User Guide', link: '/guide/user-guide' },
-          { text: 'Admin Guide', link: '/guide/admin-guide' }
+          { text: 'Admin Guide', link: '/guide/admin-guide' },
+          { text: 'BBS (Safety)', link: '/guide/bbs-guide' }
         ]
       },
       {
         text: 'Changelog',
         items: [
-          { text: 'Changelog v0.3', link: '/changelog/changelog' }
+          { text: 'Changelog v1.04', link: '/changelog/changelog' }
         ]
       },
       {

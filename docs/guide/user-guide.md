@@ -32,6 +32,7 @@ Setelah login, pengguna diarahkan ke halaman sesuai role:
 | Master | Truck, Driver, Customer, Area, Warehouse, Subcont, Admin | Data master |
 | Data Transport | Data Truck, Data Chasis, Data Supir | Data historis kendaraan & supir |
 | Transaksi | Sales Cost, Subcontractor, Repair | Transaksi operasional |
+| BBS Transportasi | — | Keselamatan berbasis perilaku |
 
 ### Menu CS
 
@@ -282,6 +283,26 @@ Data administratif supir: dokumen SIM, KTP, foto, masa berlaku.
 - Import/Export Excel
 - CRUD (Create, Read, Update, Delete)
 - Upload dokumen pendukung
+
+## BBS Transportasi (Behavior-Based Safety)
+
+Modul untuk pencatatan dan pemantauan keselamatan kerja. Terdiri dari 5 tab:
+
+| Tab | Fungsi |
+|-----|--------|
+| Dashboard | Ringkasan metric keselamatan bulanan + chart |
+| Observasi | Form penilaian perilaku pengemudi (8 parameter) |
+| Checklist | Pemeriksaan pra-perjalanan kendaraan (16 item) |
+| Insiden | Pelaporan insiden & near-miss |
+| Riwayat | Daftar semua data + filter + export Excel |
+
+### Pilihan Bahasa
+
+Modul BBS mendukung **Indonesia** dan **English**. Klik tombol 🌐 EN/ID di pojok kanan atas header BBS untuk switch bahasa.
+
+::: tip
+Untuk panduan lengkap modul BBS, lihat [BBS Guide](/guide/bbs-guide).
+:::
 
 ## User Profile
 
