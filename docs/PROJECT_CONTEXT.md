@@ -491,6 +491,25 @@ npm run build-only
 
 ## Updates (2026-06-19)
 
+### BBS Module — Multi-Language Support (ID/EN)
+
+- Added language toggle (Indonesia / English) to the entire BBS module.
+- Toggle button located at top-right of the BBS header with globe icon, shows "EN" or "ID" depending on current state.
+- Language state is global/shared across all BBS components via `src/composables/useBbsLang.ts`.
+- All UI text in BBS is now reactive to language selection:
+  - Tab labels (Dashboard, Observasi/Observation, Checklist, Insiden/Incident, Riwayat/History)
+  - Form labels, placeholders, validation messages, toast messages
+  - Observation items (8 parameters) + categories
+  - Checklist items (16 items across 3 sub-tabs) + OK/NOK/N/A buttons
+  - Incident form fields, factor buttons, type options
+  - Dashboard metrics, chart titles, risk labels
+  - History page: status badges, filter dropdowns, pagination text, export modal
+  - Detail Drawer: all field labels, status badges, edit form, delete confirmation
+- Backend data labels (risk names, status values) are mapped client-side via `riskLabelMap` and `statusMap` in the composable.
+- Chart.js charts re-render on language change via `watch(lang, ...)`.
+- No external i18n library added — lightweight composable-only approach.
+- New file: `src/composables/useBbsLang.ts`
+
 ### Toast Notification Redesign (Global)
 
 - Moved from **top-right** to **bottom-right** to avoid being hidden behind header.
