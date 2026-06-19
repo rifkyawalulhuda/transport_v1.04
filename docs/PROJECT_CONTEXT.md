@@ -547,3 +547,35 @@ npm run build-only
 - BBS Transportasi added to **main sidebar** (below Transaksi group) with `ShieldCheckIcon`.
 - Navigation filtering updated per role (patcher sees only BBS + Profile, user sees BBS visible, etc.).
 - File changed: `src/config/navigation.js`, new icon: `src/icons/ShieldCheckIcon.vue`.
+
+### BBS Location Map Picker (Observasi & Insiden)
+
+- Replaced plain text input for "Lokasi" with interactive **Leaflet map picker** in both BBS Observasi and Insiden forms.
+- New reusable component: `src/views/BBS/BbsLocationPicker.vue`
+- Features:
+  - Click on map → place pin → reverse geocode → display address
+  - Search autocomplete with debounce (Nominatim, 5 suggestions, keyboard navigation)
+  - "Lokasi Saya" button (browser geolocation)
+  - Draggable marker → re-geocode on drag end
+  - Expand/collapse map size (240px ↔ 460px) via button
+  - Double fallback geocode: backend Geoapify → Nominatim → coordinates
+  - Loading spinner during address resolution
+- Database changes:
+  - `bbs_observations`: added `latitude DECIMAL(10,7)`, `longitude DECIMAL(10,7)`, extended `location` to `VARCHAR(500)`
+  - `bbs_incidents`: added `latitude DECIMAL(10,7)`, `longitude DECIMAL(10,7)`, extended `location` to `VARCHAR(500)`
+- Backend: POST/PUT endpoints for observations and incidents now accept and store `latitude`/`longitude`
+- Detail Drawer: incident location resolved via reverse geocode when coordinates are stored
+- Z-index management: search bar `z-[1000]`, suggestions `z-[1100]`, SearchableSelect dropdown `z-[1100]`, driver grid row `z-[1200]` to prevent stacking conflicts with Leaflet map
+
+### Detail Subcontractor Page Redesign
+
+- Replaced all `<input readonly>` with structured card sections (same pattern as Detail Sales Cost).
+- Sections: Info Utama, Kendaraan, Timeline Pengiriman, Rincian Biaya (with Gross Profit color indicator).
+- Applied: `field-grouping`, `visual-hierarchy`, `whitespace-balance`, `color-semantic`, `read-only-distinction`.
+
+### Detail Repair Page Redesign
+
+- Replaced all `<input readonly>` with structured card sections.
+- Sections: Info Utama, Timeline, Detail Kerusakan, Biaya Perbaikan.
+- Status badge redesign: compact with dot indicator (Selesai/Proses).
+- Applied same UI/UX pattern as Detail Sales Cost and Detail Subcontractor.

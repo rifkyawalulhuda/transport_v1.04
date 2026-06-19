@@ -387,3 +387,84 @@ Modul BBS mendukung pemilihan bahasa Indonesia dan English. Toggle bahasa berupa
 | `src/views/BBS/BbsInsidenTab.vue` | Form labels, types, factors, toasts via `t` |
 | `src/views/BBS/BbsRiwayatTab.vue` | Filters, pagination, export modal, status badge via `t` + `statusMap` |
 | `src/views/BBS/BbsDetailDrawer.vue` | All view/edit labels, status badges, checklist items, action buttons via `t` |
+
+## Location Map Picker — Session 2026-06-20
+
+### Overview
+
+Halaman Observasi dan Insiden sekarang menggunakan **Map Picker** interaktif (Leaflet + OpenStreetMap) untuk kolom Lokasi, menggantikan input teks biasa.
+
+### Komponen
+
+- **File baru**: `src/views/BBS/BbsLocationPicker.vue` — reusable map picker component
+- Digunakan di: `BbsObservasiTab.vue` dan `BbsInsidenTab.vue`
+
+### Fitur Map Picker
+
+| Fitur | Detail |
+|-------|--------|
+| Klik Map | Pin marker + reverse geocode → alamat |
+| Search Autocomplete | Debounce 350ms, Nominatim, max 5 suggestions, keyboard ↑↓ + Enter |
+| Lokasi Saya | `navigator.geolocation` → pin + geocode |
+| Drag Pin | Marker draggable → re-geocode on drag end |
+| Expand/Collapse | Tombol "Perbesar/Perkecil" (240px ↔ 460px) |
+| Double Fallback | Geoapify (backend cache) → Nominatim → koordinat (last resort) |
+| Loading State | Spinner "Mengambil alamat lokasi..." selama geocode |
+| Default Center | Cikarang (-6.3105, 107.1731) zoom 13 |
+
+### Database Changes
+
+| Tabel | Perubahan |
+|-------|-----------|
+| `bbs_observations` | +`latitude DECIMAL(10,7)`, +`longitude DECIMAL(10,7)`, `location` → VARCHAR(500) |
+| `bbs_incidents` | +`latitude DECIMAL(10,7)`, +`longitude DECIMAL(10,7)`, `location` → VARCHAR(500) |
+
+### Migrations
+
+| File | Deskripsi |
+|------|-----------|
+| `20260619120000_add_coordinates_to_bbs_incidents.sql` | +lat/lng ke incidents |
+| `20260619130000_extend_bbs_incidents_location.sql` | location VARCHAR(500) |
+| `20260619140000_add_coordinates_to_bbs_observations.sql` | +lat/lng + location VARCHAR(500) ke observations |
+
+### Backend Changes
+
+| Endpoint | Perubahan |
+|----------|-----------|
+| `POST /api/bbs/observations` | Accept & store `latitude`, `longitude` |
+| `PUT /api/bbs/observations/:id` | Accept & store `latitude`, `longitude` |
+| `POST /api/bbs/incidents` | Accept & store `latitude`, `longitude` |
+| `PUT /api/bbs/incidents/:id` | Accept & store `latitude`, `longitude` |
+| `GET /api/bbs/observations/:id` | Returns lat/lng (SELECT *) |
+| `GET /api/bbs/incidents/:id` | Returns lat/lng (SELECT *) |
+
+### Frontend Changes
+
+| File | Perubahan |
+|------|-----------|
+| `src/views/BBS/BbsLocationPicker.vue` | **NEW** — map picker component |
+| `src/views/BBS/BbsObservasiTab.vue` | Input lokasi → BbsLocationPicker, +lat/lng form, +lang import |
+| `src/views/BBS/BbsInsidenTab.vue` | Input lokasi → BbsLocationPicker, +lat/lng form |
+| `src/views/BBS/BbsDetailDrawer.vue` | Incident lokasi di-resolve via reverse geocode, fix computed .value bug |
+| `src/services/bbsService.ts` | +`latitude?`, `longitude?` di BbsObservationInput & BbsIncidentInput |
+| `src/components/SearchableSelect.vue` | Dropdown z-index → z-[1100] (fix stacking conflict) |
+
+### Z-Index Hierarchy (BBS Forms)
+
+```
+z-[1200]  — Driver grid row (dropdown muncul di atas semua)
+z-[1100]  — SearchableSelect dropdown, Map suggestion dropdown
+z-[1000]  — Map search bar wrapper
+z-auto    — Leaflet map internal (up to ~400)
+z-[500]   — Map expand/collapse button
+```
+
+### Bug Fixes
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Edit button tidak merespon (Observasi) | `observationItems` diubah ke computed, tapi `startEditing()` akses tanpa `.value` | `observationItems.value.forEach(...)` |
+| Dropdown driver tertutup map | Stacking context: driver grid z-1000 = map z-1000, sibling paint order | Driver grid → z-[1200] |
+| Suggestions tertutup map | Dropdown z-30 < Leaflet internal z-index | Dropdown → z-[1100], parent → z-[1000] |
+| Location too long error | `location VARCHAR(100)` tidak cukup untuk alamat geocode | Extend ke VARCHAR(500) |
+| Koordinat mentah di preview | Reverse geocode fallback langsung emit koordinat | Double fallback Geoapify → Nominatim, loading state |
