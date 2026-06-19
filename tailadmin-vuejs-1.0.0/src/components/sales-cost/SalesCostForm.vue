@@ -8,7 +8,7 @@
     </p>
     <p v-if="loading" class="text-sm text-gray-500 dark:text-gray-400">Memuat data transaksi...</p>
 
-    <form class="space-y-4" @submit.prevent="handleSubmit">
+    <form class="space-y-6" @submit.prevent="handleSubmit">
       <div v-if="checkingTruckStatus" class="text-xs text-gray-500 dark:text-gray-400">
         Memeriksa status truck...
       </div>
@@ -23,8 +23,14 @@
       >
         {{ truckStatus.message }}
       </div>
-      <fieldset :disabled="isDisabled" class="space-y-4">
-        <div class="grid gap-4 sm:grid-cols-2">
+      <fieldset :disabled="isDisabled" class="space-y-6">
+        <!-- Section: Kendaraan & Driver -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h10zm0 0h6l3-3V9h-3"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Data Kendaraan & Driver</p>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >No. Police</label
@@ -61,9 +67,9 @@
               {{ errors.id_driver }}
             </p>
           </div>
-        </div>
+          </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-4 sm:grid-cols-2 mt-4">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Customer</label
@@ -118,6 +124,14 @@
             </select>
           </div>
         </div>
+        </div>
+
+        <!-- Section: Tanggal Transaksi -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Tanggal Transaksi</p>
+          </div>
 
         <div class="grid gap-4 md:grid-cols-3">
           <div>
@@ -169,10 +183,15 @@
             </p>
           </div>
         </div>
+        </div>
 
         <!-- Main Fields: No DN, Pickup, Drop Removed -->
-        <!-- Divider -->
-        <div class="my-6 border-t border-gray-200 dark:border-gray-800"></div>
+        <!-- Section: Informasi Pesanan -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Informasi Pesanan</p>
+          </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="sm:col-span-1">
@@ -199,40 +218,75 @@
             />
           </div>
         </div>
-
-        <div class="flex items-center justify-between mb-4 mt-6">
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            DN LIST / RINCIAN DN
-          </h4>
-          <button
-            type="button"
-            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            @click="addDnItem"
-          >
-            + Add DN
-          </button>
         </div>
 
-        <div class="space-y-6">
+        <!-- Section: DN List -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div class="flex items-center gap-2">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">DN List / Rincian DN</p>
+            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ dnList.length }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+              @click="expandAllDn"
+            >
+              Buka Semua
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+              @click="collapseAllDn"
+            >
+              Tutup Semua
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              @click="addDnItem"
+            >
+              + Add DN
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-4">
           <div
             v-for="(item, index) in dnList"
             :key="index"
-            class="rounded-lg border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+            class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden"
           >
-            <div class="mb-4 flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-500 dark:text-gray-400"
-                >Item #{{ index + 1 }}</span
-              >
-              <button
+            <button
+              type="button"
+              class="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              @click="toggleDnItem(index)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <svg
+                  class="h-4 w-4 flex-none text-gray-400 transition-transform duration-200"
+                  :class="dnCollapsed[index] ? '' : 'rotate-90'"
+                  fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">Item #{{ index + 1 }}</span>
+                <span v-if="item.no_dn" class="ml-1 truncate text-xs text-gray-400">— {{ item.no_dn }}</span>
+              </div>
+              <span
                 v-if="dnList.length > 1"
-                type="button"
-                class="text-error-500 hover:text-error-700 text-xs"
-                @click="removeDnItem(index)"
+                class="flex-none text-error-500 hover:text-error-700 text-xs cursor-pointer px-2 py-1"
+                role="button"
+                @click.stop="removeDnItem(index)"
               >
                 Hapus
-              </button>
-            </div>
+              </span>
+            </button>
 
+            <Transition name="dn-collapse">
+              <div v-show="!dnCollapsed[index]" class="px-4 pb-4">
             <div class="space-y-4">
               <!-- No DN -->
               <div>
@@ -354,11 +408,18 @@
                 ></textarea>
               </div>
             </div>
+              </div>
+            </Transition>
           </div>
         </div>
+        </div>
 
-        <!-- Divider -->
-        <div class="my-6 border-t border-gray-200 dark:border-gray-800"></div>
+        <!-- Section: Biaya & Detail -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Biaya & Detail</p>
+          </div>
         <h4 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
           BIAYA OPSIONAL & DETAIL
         </h4>
@@ -374,7 +435,7 @@
         </div>
 
         <div v-show="showOptionalCosts" class="space-y-4">
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Lift On</label
@@ -399,10 +460,7 @@
                 @input="formatNumeric('lift_of')"
               />
             </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="lg:col-span-2">
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Container Depot</label
               >
@@ -414,7 +472,7 @@
                 required
               />
             </div>
-            <div class="lg:col-span-1">
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >TAX</label
               >
@@ -426,7 +484,7 @@
                 required
               />
             </div>
-            <div class="lg:col-span-1">
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Admin Charge</label
               >
@@ -439,9 +497,6 @@
                 @input="formatNumeric('admin_charge')"
               />
             </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Allowance Cost</label
@@ -450,7 +505,7 @@
                 v-model="form.materai"
                 type="text"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                placeholder="Masukan Materai"
+                placeholder="Masukan Allowance Cost"
                 required
                 @input="formatNumeric('materai')"
               />
@@ -539,7 +594,7 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Sales</label
@@ -563,9 +618,6 @@
               @input="formatNumeric('additional_cost')"
             />
           </div>
-        </div>
-
-        <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Operasional Cost</label
@@ -582,6 +634,7 @@
               {{ errors.ops_cost }}
             </p>
           </div>
+        </div>
         </div>
       </fieldset>
 
@@ -773,6 +826,31 @@ const dnList = ref<DnItem[]>([
   },
 ])
 
+const dnCollapsed = ref<boolean[]>([])
+
+// Default all DN items to collapsed when the list changes (load/edit/initial)
+watch(
+  () => dnList.value.length,
+  (len) => {
+    dnCollapsed.value = Array.from({ length: len }, (_, i) =>
+      dnCollapsed.value[i] === undefined ? true : dnCollapsed.value[i]
+    )
+  },
+  { immediate: true }
+)
+
+const toggleDnItem = (index: number) => {
+  dnCollapsed.value[index] = !dnCollapsed.value[index]
+}
+
+const expandAllDn = () => {
+  dnCollapsed.value = dnList.value.map(() => false)
+}
+
+const collapseAllDn = () => {
+  dnCollapsed.value = dnList.value.map(() => true)
+}
+
 const addDnItem = () => {
   dnList.value.push({
     no_dn: '',
@@ -785,11 +863,15 @@ const addDnItem = () => {
     no_aju: '',
     remarks: '',
   })
+  // New item starts expanded; collapse existing others for focus
+  dnCollapsed.value = dnList.value.map(() => true)
+  dnCollapsed.value[dnList.value.length - 1] = false
 }
 
 const removeDnItem = (index: number) => {
   if (dnList.value.length > 1) {
     dnList.value.splice(index, 1)
+    dnCollapsed.value.splice(index, 1)
   }
 }
 
@@ -1114,8 +1196,7 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
     form.lift_of,
   ]
   // Cek jika ada nilai yang tidak kosong/0 untuk menampilkan opsi
-  showOptionalCosts.value =
-    props.mode === 'edit' || optionalValues.some((value) => value !== '0' && value !== '')
+  showOptionalCosts.value = false
 }
 
 const buildPayload = () => ({
@@ -1336,3 +1417,21 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.dn-collapse-enter-active,
+.dn-collapse-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+.dn-collapse-enter-from,
+.dn-collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.dn-collapse-enter-to,
+.dn-collapse-leave-from {
+  opacity: 1;
+  max-height: 1200px;
+}
+</style>
