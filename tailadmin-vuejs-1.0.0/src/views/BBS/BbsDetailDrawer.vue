@@ -644,7 +644,7 @@ function startEditing() {
     editForm.vehicle_type = detail.value?.vehicle_type || ''
     editForm.feedback = detail.value?.feedback || ''
     editForm.follow_up = detail.value?.follow_up || ''
-    observationItems.forEach((i) => { editScores[i.id] = detail.value?.scores?.[i.id] || '' })
+    observationItems.value.forEach((i) => { editScores[i.id] = detail.value?.scores?.[i.id] || '' })
   } else if (rowType.value === 'checklist') {
     editForm.driver_id = detail.value?.driver_id || ''
     editForm.plate_number = detail.value?.plate_number || ''

@@ -4,7 +4,7 @@
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.obsSub }}</p>
 
     <div class="space-y-4">
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="relative z-[1200] grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblObserver }}</label>
           <input
@@ -38,26 +38,27 @@
           />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblLocation }}</label>
-          <input
-            v-model="form.location"
-            type="text"
-            :placeholder="t.placeholderRoute"
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblVehicleType }}</label>
+          <select
+            v-model="form.vehicle_type"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-          />
+          >
+            <option value="">{{ t.placeholderSelect }}</option>
+            <option v-for="v in vehicleOptions" :key="v" :value="v">{{ v }}</option>
+          </select>
         </div>
       </div>
 
-      <div>
-        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblVehicleType }}</label>
-        <select
-          v-model="form.vehicle_type"
-          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-        >
-          <option value="">{{ t.placeholderSelect }}</option>
-          <option v-for="v in vehicleOptions" :key="v" :value="v">{{ v }}</option>
-        </select>
-      </div>
+      <!-- Location Map Picker -->
+      <BbsLocationPicker
+        v-model="form.location"
+        v-model:latitude="form.latitude"
+        v-model:longitude="form.longitude"
+        :label="t.lblLocation"
+        :search-placeholder="lang === 'id' ? 'Cari alamat atau ketik lokasi...' : 'Search address or type location...'"
+        :my-location-label="lang === 'id' ? 'Lokasi Saya' : 'My Location'"
+        :hint-text="lang === 'id' ? 'Klik pada peta atau cari alamat untuk menandai lokasi pengamatan' : 'Click on the map or search to mark the observation location'"
+      />
 
       <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
         <h5 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">{{ t.obsRatingTitle }}</h5>
@@ -128,10 +129,11 @@ import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsDriverOption } from '@/services/bbsService'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
+import BbsLocationPicker from './BbsLocationPicker.vue'
 
 const emit = defineEmits<{ (e: 'saved', type: string): void }>()
 
-const { t } = useBbsLang()
+const { t, lang } = useBbsLang()
 const authUser = useAuthUser()
 const toast = useToast()
 const submitting = ref(false)
@@ -173,6 +175,8 @@ const form = reactive({
   driver_id: '',
   date: new Date().toISOString().slice(0, 10),
   location: '',
+  latitude: null as number | null,
+  longitude: null as number | null,
   vehicle_type: '',
   feedback: '',
   follow_up: '',
@@ -186,6 +190,8 @@ function resetForm() {
   form.driver_id = ''
   form.date = new Date().toISOString().slice(0, 10)
   form.location = ''
+  form.latitude = null
+  form.longitude = null
   form.vehicle_type = ''
   form.feedback = ''
   form.follow_up = ''
@@ -208,6 +214,8 @@ async function submit() {
       driver_id: form.driver_id.trim(),
       date: form.date,
       location: form.location || undefined,
+      latitude: form.latitude,
+      longitude: form.longitude,
       vehicle_type: form.vehicle_type || undefined,
       scores: { ...scores },
       feedback: form.feedback || undefined,

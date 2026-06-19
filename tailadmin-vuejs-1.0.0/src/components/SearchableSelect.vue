@@ -30,7 +30,7 @@
 
     <div
       v-if="isOpen"
-      class="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+      class="absolute z-[1100] mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
     >
       <div class="border-b border-gray-200 p-2 dark:border-gray-700">
         <input

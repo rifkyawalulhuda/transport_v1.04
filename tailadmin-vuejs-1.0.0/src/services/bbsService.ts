@@ -48,6 +48,8 @@ export interface BbsObservationInput {
   driver_id: string
   date: string
   location?: string
+  latitude?: number | null
+  longitude?: number | null
   vehicle_type?: string
   scores: Record<string, string>
   feedback?: string
