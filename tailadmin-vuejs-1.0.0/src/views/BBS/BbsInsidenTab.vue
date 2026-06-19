@@ -23,27 +23,27 @@
             />
           </div>
         </div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncType }}</label>
-            <select
-              v-model="form.type"
-              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-            >
-              <option value="">{{ t.placeholderSelect }}</option>
-              <option v-for="it in incidentTypes" :key="it.value" :value="it.value">{{ it.label }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncLocation }}</label>
-            <input
-              v-model="form.location"
-              type="text"
-              placeholder="Nama jalan / area"
-              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-            />
-          </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncType }}</label>
+          <select
+            v-model="form.type"
+            class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          >
+            <option value="">{{ t.placeholderSelect }}</option>
+            <option v-for="it in incidentTypes" :key="it.value" :value="it.value">{{ it.label }}</option>
+          </select>
         </div>
+
+        <!-- Location Map Picker -->
+        <BbsLocationPicker
+          v-model="form.location"
+          v-model:latitude="form.latitude"
+          v-model:longitude="form.longitude"
+          :label="t.lblIncLocation"
+          :search-placeholder="lang === 'id' ? 'Cari alamat atau ketik lokasi...' : 'Search address or type location...'"
+          :my-location-label="lang === 'id' ? 'Lokasi Saya' : 'My Location'"
+          :hint-text="lang === 'id' ? 'Klik pada peta atau cari alamat untuk menandai lokasi kejadian' : 'Click on the map or search to mark the incident location'"
+        />
         <div>
           <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblIncPlat }}</label>
           <div class="relative" ref="plateRoot">
@@ -150,10 +150,11 @@ import { useToast } from '@/composables/useToast'
 import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsTruckOption } from '@/services/bbsService'
 import DatePickerInput from '@/components/DatePickerInput.vue'
+import BbsLocationPicker from './BbsLocationPicker.vue'
 
 const emit = defineEmits<{ (e: 'saved', type: string): void }>()
 
-const { t } = useBbsLang()
+const { t, lang } = useBbsLang()
 const authUser = useAuthUser()
 const toast = useToast()
 const submitting = ref(false)
@@ -181,6 +182,8 @@ const form = reactive({
   date: new Date().toISOString().slice(0, 10),
   type: '',
   location: '',
+  latitude: null as number | null,
+  longitude: null as number | null,
   plate_number: '',
   chronology: '',
   casualties: '',
@@ -267,6 +270,8 @@ function resetForm() {
   form.date = new Date().toISOString().slice(0, 10)
   form.type = ''
   form.location = ''
+  form.latitude = null
+  form.longitude = null
   form.plate_number = ''
   form.chronology = ''
   form.casualties = ''
@@ -295,6 +300,8 @@ async function submit() {
       date: form.date || new Date().toISOString().slice(0, 10),
       type: form.type,
       location: form.location.trim(),
+      latitude: form.latitude,
+      longitude: form.longitude,
       plate_number: form.plate_number || undefined,
       chronology: form.chronology || undefined,
       factors: selectedFactors.value.length > 0 ? [...selectedFactors.value] : undefined,

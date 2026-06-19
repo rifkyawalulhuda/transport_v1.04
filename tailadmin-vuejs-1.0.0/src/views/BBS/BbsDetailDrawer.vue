@@ -303,7 +303,10 @@
                       </div>
                       <div class="p-3">
                         <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">{{ t.detailLokasi }}</p>
-                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">{{ detail.location }}</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mt-1">
+                          <span v-if="incidentAddressLoading" class="text-gray-400 dark:text-gray-500">Memuat alamat...</span>
+                          <span v-else>{{ incidentAddress || detail.location || '-' }}</span>
+                        </p>
                       </div>
                     </div>
                     <div class="border-t border-gray-200 dark:border-gray-800 p-3">
@@ -472,6 +475,8 @@ import { useDialog } from '@/composables/useDialog'
 import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsHistoryRow, type BbsDriverOption } from '@/services/bbsService'
 import SearchableSelect from '@/components/SearchableSelect.vue'
+import { authFetch } from '@/services/auth'
+import { API_BASE } from '@/config/api'
 
 const { t } = useBbsLang()
 
@@ -491,6 +496,10 @@ const drivers = ref<BbsDriverOption[]>([])
 const trucks = ref<Array<{ id_truck: string; no_police: string; jenis_kendaraan: string }>>([])
 const editPlateSuggestOpen = ref(false)
 const editPlateTouched = ref(false)
+
+// Incident address resolution
+const incidentAddress = ref('')
+const incidentAddressLoading = ref(false)
 const editPlateRoot = ref<HTMLElement | null>(null)
 // Checklist plate dropdown
 const chkPlateDropOpen = ref(false)
@@ -801,14 +810,45 @@ async function handleDelete() {
 async function fetchDetail(id: number) {
   loading.value = true
   error.value = ''
+  incidentAddress.value = ''
   try {
     if (rowType.value === 'observation') detail.value = await bbsService.fetchObservationDetail(id)
     else if (rowType.value === 'checklist') detail.value = await bbsService.fetchChecklistDetail(id)
-    else detail.value = await bbsService.fetchIncidentDetail(id)
+    else {
+      detail.value = await bbsService.fetchIncidentDetail(id)
+      resolveIncidentAddress()
+    }
   } catch (err: any) {
     error.value = err?.message || 'Gagal memuat detail'
   } finally {
     loading.value = false
+  }
+}
+
+async function resolveIncidentAddress() {
+  if (!detail.value) return
+  const lat = Number(detail.value.latitude)
+  const lng = Number(detail.value.longitude)
+
+  // If we have valid coordinates, fetch address
+  if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+    incidentAddressLoading.value = true
+    try {
+      const res = await authFetch(`${API_BASE}/wialon/reverse-geocode?lat=${lat}&lon=${lng}`)
+      if (res.ok) {
+        const data = await res.json()
+        incidentAddress.value = data.formatted || data.address || detail.value.location || ''
+      } else {
+        incidentAddress.value = detail.value.location || ''
+      }
+    } catch {
+      incidentAddress.value = detail.value.location || ''
+    } finally {
+      incidentAddressLoading.value = false
+    }
+  } else {
+    // No coordinates — just use stored location as-is
+    incidentAddress.value = detail.value.location || ''
   }
 }
 

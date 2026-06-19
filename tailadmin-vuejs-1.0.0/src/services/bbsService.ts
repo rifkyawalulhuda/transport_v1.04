@@ -66,6 +66,8 @@ export interface BbsIncidentInput {
   date: string
   type: string
   location: string
+  latitude?: number | null
+  longitude?: number | null
   plate_number?: string
   chronology?: string
   factors?: string[]

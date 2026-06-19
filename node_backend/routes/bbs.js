@@ -272,6 +272,8 @@ router.post("/incidents", async (req, res) => {
       date,
       type,
       location,
+      latitude,
+      longitude,
       plate_number,
       chronology,
       factors,
@@ -284,16 +286,20 @@ router.post("/incidents", async (req, res) => {
     }
 
     const factorsJson = Array.isArray(factors) ? JSON.stringify(factors) : null;
+    const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+    const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
 
     const [result] = await db.query(
-      `INSERT INTO bbs_incidents (id_admin, reporter_name, date, type, location, plate_number, chronology, factors, casualties, recommendations)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO bbs_incidents (id_admin, reporter_name, date, type, location, latitude, longitude, plate_number, chronology, factors, casualties, recommendations)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user.id_admin,
         String(reporter_name).trim(),
         fmtDate(date),
         type,
         String(location).trim(),
+        lat,
+        lng,
         plate_number ? String(plate_number).trim().toUpperCase() : null,
         chronology || null,
         factorsJson,
@@ -590,14 +596,16 @@ router.get("/incidents/:id", async (req, res) => {
 router.put("/incidents/:id", async (req, res) => {
   try {
     const body = req.body || {};
-    const { reporter_name, date, type, location, plate_number, chronology, factors, casualties, recommendations } = body;
+    const { reporter_name, date, type, location, latitude, longitude, plate_number, chronology, factors, casualties, recommendations } = body;
     if (!reporter_name || !type || !location || !date) {
       return res.status(400).json({ message: "Nama pelapor, jenis laporan, lokasi, dan tanggal wajib diisi" });
     }
     const factorsJson = Array.isArray(factors) ? JSON.stringify(factors) : null;
+    const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+    const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
     const [result] = await db.query(
-      `UPDATE bbs_incidents SET reporter_name=?, date=?, type=?, location=?, plate_number=?, chronology=?, factors=?, casualties=?, recommendations=? WHERE id_incident=?`,
-      [String(reporter_name).trim(), fmtDate(date), type, String(location).trim(), plate_number || null, chronology || null, factorsJson, casualties || null, recommendations || null, req.params.id]
+      `UPDATE bbs_incidents SET reporter_name=?, date=?, type=?, location=?, latitude=?, longitude=?, plate_number=?, chronology=?, factors=?, casualties=?, recommendations=? WHERE id_incident=?`,
+      [String(reporter_name).trim(), fmtDate(date), type, String(location).trim(), lat, lng, plate_number || null, chronology || null, factorsJson, casualties || null, recommendations || null, req.params.id]
     );
     if (!result.affectedRows) return res.status(404).json({ message: "Insiden tidak ditemukan" });
     res.json({ id: Number(req.params.id), reporter_name, date, type });
