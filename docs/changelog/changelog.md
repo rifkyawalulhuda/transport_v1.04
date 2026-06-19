@@ -40,6 +40,43 @@ outline: deep
 - Backend serve frontend build dari `dist/`
 - Cloudflared tunnel: `sankyu-transport.fun` → `localhost:3000`
 
+## 20 Juni 2026
+
+### BBS Location Map Picker (Observasi & Insiden)
+
+- Kolom "Lokasi" di halaman Observasi dan Insiden diganti dengan **peta interaktif** (Leaflet + OpenStreetMap)
+- Komponen reusable baru: `BbsLocationPicker.vue`
+- Fitur:
+  - Klik peta → pin + reverse geocode → alamat lengkap
+  - Search autocomplete (debounce 350ms, max 5 saran, keyboard navigation)
+  - Tombol "Lokasi Saya" (GPS browser)
+  - Marker bisa di-drag → re-geocode otomatis
+  - Expand/collapse ukuran peta (240px ↔ 460px)
+  - Double fallback geocode: Geoapify → Nominatim → koordinat
+  - Custom inline SVG pin icon (tidak bergantung pada file external)
+- Database: `latitude` + `longitude` ditambahkan ke `bbs_observations` dan `bbs_incidents`
+- `location` column diperbesar ke VARCHAR(500)
+- Detail Drawer: lokasi insiden di-resolve via reverse geocode
+
+### Detail Subcontractor Redesign
+
+- Layout diubah dari `<input readonly>` ke structured card sections
+- Sections: Info Utama, Kendaraan, Timeline, Rincian Biaya + Gross Profit indicator
+
+### Detail Repair Redesign
+
+- Layout diubah dari `<input readonly>` ke structured card sections
+- Sections: Info Utama, Timeline, Detail Kerusakan, Biaya Perbaikan
+- Status badge: compact dot indicator (Selesai/Proses)
+
+### Bug Fixes
+
+- Fix: tombol Edit Observasi tidak merespon (computed ref tanpa `.value`)
+- Fix: dropdown driver tertutup map frame (z-index stacking context)
+- Fix: autocomplete suggestions tertutup map (z-index hierarchy)
+- Fix: error "Data too long" saat simpan insiden (VARCHAR(100) → 500)
+- Fix: marker icon rusak di production build (inline SVG, bukan external PNG)
+
 ---
 
 # Changelog V_1.03 <Badge type="tip" text="Production" />

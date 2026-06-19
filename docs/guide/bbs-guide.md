@@ -92,7 +92,7 @@ Form untuk mencatat dan menilai perilaku pengemudi di lapangan.
 | Observer | Auto-filled dari nama admin yang login |
 | ID Pengemudi | Pilih dari dropdown master driver (searchable) |
 | Tanggal | Date picker |
-| Lokasi | Rute / titik pengamatan |
+| Lokasi | **Peta interaktif** (map picker) — lihat [Map Picker](#map-picker-lokasi) |
 | Jenis Kendaraan | Dropdown: Truk Besar, Truk Sedang, Minibus, Pick-up, Sepeda Motor |
 
 ### Penilaian Perilaku (8 Parameter)
@@ -173,7 +173,7 @@ Form pelaporan insiden atau kejadian hampir celaka.
 | Nama Pelapor | Auto-filled dari nama admin |
 | Tanggal Kejadian | Date picker |
 | Jenis Laporan | Near-Miss, Insiden Ringan, Insiden Sedang, Insiden Berat |
-| Lokasi Kejadian | Input teks |
+| Lokasi Kejadian | **Peta interaktif** (map picker) — lihat [Map Picker](#map-picker-lokasi) |
 | Plat Kendaraan | Autocomplete dari master truck + bisa input manual |
 
 ### Field Kronologi & Analisis
@@ -235,3 +235,48 @@ Klik baris di Riwayat untuk membuka drawer slide-in dari kanan.
 
 - Klik **Hapus** → dialog konfirmasi → data dihapus permanen
 - Role `user` tidak melihat tombol Edit & Hapus (view-only)
+
+## Map Picker (Lokasi) {#map-picker-lokasi}
+
+Halaman Observasi dan Insiden menggunakan peta interaktif untuk menandai lokasi kejadian/pengamatan.
+
+### Cara Menggunakan
+
+#### 1. Klik di Peta
+
+Klik langsung pada titik di peta → pin akan muncul → sistem otomatis mengambil alamat lokasi tersebut.
+
+#### 2. Cari Alamat
+
+1. Ketik nama tempat di kolom pencarian (minimal 3 karakter)
+2. Tunggu saran lokasi muncul (max 5 hasil)
+3. Pilih dari daftar saran (klik atau gunakan ↑↓ + Enter)
+4. Peta akan fly ke lokasi tersebut dan pin otomatis terpasang
+
+#### 3. Gunakan Lokasi Saya
+
+Klik tombol **Lokasi Saya** → browser akan minta izin GPS → peta fly ke posisi Anda.
+
+#### 4. Geser Pin
+
+Pin marker bisa di-drag ke posisi lain → alamat akan di-update otomatis.
+
+### Memperbesar Peta
+
+Klik tombol **Perbesar** di pojok kanan bawah peta untuk memperluas area peta (240px → 460px). Klik **Perkecil** untuk kembali ke ukuran compact.
+
+### Data yang Tersimpan
+
+| Data | Keterangan |
+|------|-----------|
+| Alamat | Teks alamat hasil reverse geocode |
+| Latitude | Koordinat lintang |
+| Longitude | Koordinat bujur |
+
+::: tip
+Alamat diperoleh otomatis dari koordinat. Jika layanan geocode tidak tersedia, koordinat akan tetap tersimpan dan bisa di-resolve kemudian.
+:::
+
+::: warning
+Pastikan browser mengizinkan akses lokasi jika ingin menggunakan tombol "Lokasi Saya".
+:::

@@ -170,6 +170,18 @@ let map: L.Map | null = null
 let marker: L.Marker | null = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
+// Custom marker icon (inline SVG) to avoid Leaflet default icon bundling issues with Vite
+const pinIcon = L.divIcon({
+  className: '',
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42" fill="none">
+    <path d="M16 0C7.164 0 0 7.164 0 16c0 12 16 26 16 26s16-14 16-26C32 7.164 24.836 0 16 0z" fill="#3B82F6"/>
+    <circle cx="16" cy="16" r="7" fill="white"/>
+  </svg>`,
+  iconSize: [32, 42],
+  iconAnchor: [16, 42],
+  popupAnchor: [0, -42],
+})
+
 // Default center: Cikarang area (company location)
 const defaultCenter: [number, number] = [-6.3105, 107.1731]
 const defaultZoom = 13
@@ -215,6 +227,7 @@ function placeMarker(lat: number, lng: number) {
   } else {
     marker = L.marker([lat, lng], {
       draggable: true,
+      icon: pinIcon,
     }).addTo(map)
 
     marker.on('dragend', () => {

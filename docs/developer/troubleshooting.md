@@ -116,6 +116,31 @@ Jika ada TS error di file yang tidak terkait perubahan Anda:
 2. Leaflet CSS tidak ter-import → cek import di component
 3. Tile server unreachable → cek koneksi internet
 
+### Marker Icon Rusak di Production Build
+
+**Gejala:** Marker muncul sebagai gambar broken/placeholder "Mark" di production build (Cloudflared/dist).
+
+**Penyebab:** Leaflet default marker menggunakan file PNG external (`marker-icon.png`, `marker-shadow.png`) dari `leaflet/dist/images/`. Saat Vite build, path file ini tidak ter-resolve dengan benar (hash berubah atau path relatif salah).
+
+**Solusi:** Gunakan `L.divIcon()` dengan inline SVG, bukan default marker:
+
+```ts
+const pinIcon = L.divIcon({
+  className: '',
+  html: `<svg width="32" height="42" viewBox="0 0 32 42" fill="none">
+    <path d="M16 0C7.164 0 0 7.164 0 16c0 12 16 26 16 26s16-14 16-26C32 7.164 24.836 0 16 0z" fill="#3B82F6"/>
+    <circle cx="16" cy="16" r="7" fill="white"/>
+  </svg>`,
+  iconSize: [32, 42],
+  iconAnchor: [16, 42],
+})
+
+// Gunakan saat membuat marker:
+L.marker([lat, lng], { icon: pinIcon }).addTo(map)
+```
+
+> **Catatan:** Pattern yang sama sudah digunakan di `TruckLocationMap.vue` untuk marker truk.
+
 ## GPS / Wialon Issues
 
 ### Semua Truck Muncul Offline
