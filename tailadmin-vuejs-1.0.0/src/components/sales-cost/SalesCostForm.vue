@@ -186,7 +186,6 @@
             </p>
           </div>
         </div>
-        </div>
 
         <!-- Jadwal Pengiriman -->
         <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
