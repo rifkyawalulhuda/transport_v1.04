@@ -186,138 +186,212 @@
 
         </div>
 
-        <!-- Jadwal Pengiriman -->
+        <!-- Jadwal Pengiriman — Modern Timeline Design -->
         <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
-          <div class="flex items-center gap-2 mb-4">
-            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Jadwal Pengiriman</p>
-          </div>
-          <div class="space-y-3">
-            <!-- Departure (fixed) -->
-            <div class="rounded-lg border-2 border-brand-200 bg-brand-50/40 p-3 dark:border-brand-500/30 dark:bg-brand-500/5">
-              <p class="mb-2 text-xs font-semibold text-brand-700 dark:text-brand-400">Departure *</p>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Geofence Keberangkatan *</label>
-                  <SearchableSelect
-                    :model-value="getStopGeofenceValue(departureStop)"
-                    :options="geofenceSelectOptions"
-                    value-key="value"
-                    placeholder="Pilih Geofence..."
-                    :disabled="isDisabled"
-                    @update:model-value="(v: string) => onStopGeofenceChange(departureStop, v)"
-                  />
-                </div>
-                <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Waktu Berangkat</label>
-                  <DatePickerInput
-                    v-model="departureStop.estimated_arrival"
-                    placeholder="Pilih tanggal & waktu"
-                    :enable-time="true"
-                    :disabled="isDisabled"
-                  />
-                </div>
+          <!-- Section header -->
+          <div class="mb-5 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+                <svg class="h-4 w-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                </svg>
               </div>
-              <!-- Departure errors (sorted index 0) -->
-              <div v-if="getStopErrors(0).geofence || getStopErrors(0).time || getStopErrors(0).order" class="mt-2 space-y-0.5">
-                <p v-if="getStopErrors(0).geofence" class="text-xs text-error-600">{{ getStopErrors(0).geofence }}</p>
-                <p v-if="getStopErrors(0).time" class="text-xs text-error-600">{{ getStopErrors(0).time }}</p>
-                <p v-if="getStopErrors(0).order" class="text-xs text-error-600">{{ getStopErrors(0).order }}</p>
+              <div>
+                <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">Jadwal Pengiriman</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ deliveryStops.length - 2 + 2 }} titik perjalanan</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timeline container -->
+          <div class="relative pl-10">
+            <!-- Vertical connector line -->
+            <div class="absolute left-4 top-5 bottom-5 w-0.5 bg-gradient-to-b from-brand-400 via-gray-200 to-gray-400 dark:from-brand-500/60 dark:via-gray-700 dark:to-gray-600" />
+
+            <!-- ── DEPARTURE node ─────────────────────── -->
+            <div class="relative mb-4">
+              <!-- Node dot -->
+              <div class="absolute -left-10 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 ring-4 ring-brand-100 dark:ring-brand-500/20">
+                <svg class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+                </svg>
+              </div>
+              <!-- Card -->
+              <div class="rounded-xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900">
+                <div class="mb-3 flex items-center gap-2">
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400">Keberangkatan</span>
+                  <span class="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">Wajib</span>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <span class="mr-1">📍</span>Geofence Keberangkatan
+                    </label>
+                    <SearchableSelect
+                      :model-value="getStopGeofenceValue(departureStop)"
+                      :options="geofenceSelectOptions"
+                      value-key="value"
+                      placeholder="Pilih zona keberangkatan..."
+                      :disabled="isDisabled"
+                      @update:model-value="(v: string) => onStopGeofenceChange(departureStop, v)"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <span class="mr-1">🕐</span>Estimasi Waktu Berangkat
+                    </label>
+                    <DatePickerInput
+                      v-model="departureStop.estimated_arrival"
+                      placeholder="Pilih tanggal & waktu"
+                      :enable-time="true"
+                      :disabled="isDisabled"
+                    />
+                  </div>
+                </div>
+                <div v-if="getStopErrors(0).geofence || getStopErrors(0).time || getStopErrors(0).order" class="mt-2.5 rounded-lg bg-error-50 px-3 py-2 dark:bg-error-500/10">
+                  <p v-if="getStopErrors(0).geofence" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(0).geofence }}</p>
+                  <p v-if="getStopErrors(0).time" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(0).time }}</p>
+                  <p v-if="getStopErrors(0).order" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(0).order }}</p>
+                </div>
               </div>
             </div>
 
-            <!-- Middle stops -->
+            <!-- ── MIDDLE STOPS nodes ──────────────────── -->
             <div
               v-for="(stop, idx) in middleStops"
               :key="idx"
-              class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900"
+              class="relative mb-4"
             >
-              <div class="mb-2 flex items-center justify-between">
-                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Tujuan {{ idx + 1 }}</p>
-                <button
-                  v-if="!isDisabled"
-                  type="button"
-                  class="text-xs text-error-600 hover:text-error-700 dark:text-error-400"
-                  @click="removeDeliveryStop(idx)"
-                >
-                  Hapus
-                </button>
+              <!-- Node dot: numbered -->
+              <div class="absolute -left-10 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-xs font-bold text-gray-500 ring-4 ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-900">
+                {{ idx + 1 }}
               </div>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Geofence Tujuan</label>
-                  <SearchableSelect
-                    :model-value="getStopGeofenceValue(stop)"
-                    :options="geofenceSelectOptions"
-                    value-key="value"
-                    placeholder="Pilih Geofence..."
-                    :disabled="isDisabled"
-                    @update:model-value="(v: string) => onStopGeofenceChange(stop, v)"
-                  />
+              <!-- Card -->
+              <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Tujuan {{ idx + 1 }}</span>
+                  </div>
+                  <button
+                    v-if="!isDisabled"
+                    type="button"
+                    :aria-label="`Hapus Tujuan ${idx + 1}`"
+                    class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                    @click="removeDeliveryStop(idx)"
+                  >
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-                <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Tiba *</label>
-                  <DatePickerInput
-                    v-model="stop.estimated_arrival"
-                    placeholder="Pilih tanggal & waktu"
-                    :enable-time="true"
-                    :disabled="isDisabled"
-                  />
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <span class="mr-1">📍</span>Geofence Tujuan
+                    </label>
+                    <SearchableSelect
+                      :model-value="getStopGeofenceValue(stop)"
+                      :options="geofenceSelectOptions"
+                      value-key="value"
+                      placeholder="Pilih zona tujuan..."
+                      :disabled="isDisabled"
+                      @update:model-value="(v: string) => onStopGeofenceChange(stop, v)"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <span class="mr-1">🕐</span>Estimasi Waktu Tiba
+                    </label>
+                    <DatePickerInput
+                      v-model="stop.estimated_arrival"
+                      placeholder="Pilih tanggal & waktu"
+                      :enable-time="true"
+                      :disabled="isDisabled"
+                    />
+                  </div>
                 </div>
-              </div>
-              <!-- Middle stop errors (sorted index = idx + 1) -->
-              <div v-if="getStopErrors(idx + 1).geofence || getStopErrors(idx + 1).time || getStopErrors(idx + 1).order" class="mt-2 space-y-0.5">
-                <p v-if="getStopErrors(idx + 1).geofence" class="text-xs text-error-600">{{ getStopErrors(idx + 1).geofence }}</p>
-                <p v-if="getStopErrors(idx + 1).time" class="text-xs text-error-600">{{ getStopErrors(idx + 1).time }}</p>
-                <p v-if="getStopErrors(idx + 1).order" class="text-xs text-error-600">{{ getStopErrors(idx + 1).order }}</p>
+                <div v-if="getStopErrors(idx + 1).geofence || getStopErrors(idx + 1).time || getStopErrors(idx + 1).order" class="mt-2.5 rounded-lg bg-error-50 px-3 py-2 dark:bg-error-500/10">
+                  <p v-if="getStopErrors(idx + 1).geofence" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(idx + 1).geofence }}</p>
+                  <p v-if="getStopErrors(idx + 1).time" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(idx + 1).time }}</p>
+                  <p v-if="getStopErrors(idx + 1).order" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(idx + 1).order }}</p>
+                </div>
               </div>
             </div>
 
-            <!-- Add stop button -->
-            <button
-              v-if="!isDisabled"
-              type="button"
-              class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-2 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 dark:border-gray-600 dark:text-gray-400"
-              @click="addDeliveryStop"
-            >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Tambah Tujuan
-            </button>
+            <!-- ── ADD STOP node ───────────────────────── -->
+            <div v-if="!isDisabled" class="relative mb-4 flex items-center gap-3">
+              <!-- Node dot: dashed add button -->
+              <button
+                type="button"
+                class="group absolute -left-10 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-white transition hover:border-brand-400 hover:bg-brand-50 dark:border-gray-600 dark:bg-gray-900 dark:hover:border-brand-500 dark:hover:bg-brand-500/10"
+                @click="addDeliveryStop"
+                aria-label="Tambah tujuan pengiriman"
+              >
+                <svg class="h-3.5 w-3.5 text-gray-400 transition group-hover:text-brand-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+              <!-- Add card -->
+              <button
+                type="button"
+                class="group flex w-full items-center gap-2 rounded-xl border border-dashed border-gray-200 px-4 py-3 text-sm text-gray-400 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:border-gray-700 dark:text-gray-500 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/5 dark:hover:text-brand-400"
+                @click="addDeliveryStop"
+              >
+                <svg class="h-4 w-4 transition group-hover:scale-110" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Tambah tujuan pengiriman
+              </button>
+            </div>
 
-            <!-- Finish (fixed) -->
-            <div class="rounded-lg border-2 border-gray-300 bg-gray-100/40 p-3 dark:border-gray-600 dark:bg-gray-800/30">
-              <p class="mb-2 text-xs font-semibold text-gray-600 dark:text-gray-300">Finish (Kembali ke Base) *</p>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Geofence Finish *</label>
-                  <SearchableSelect
-                    :model-value="getStopGeofenceValue(finishStop)"
-                    :options="geofenceSelectOptions"
-                    value-key="value"
-                    placeholder="Pilih Geofence..."
-                    :disabled="isDisabled"
-                    @update:model-value="(v: string) => onStopGeofenceChange(finishStop, v)"
-                  />
-                </div>
-                <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Waktu Selesai</label>
-                  <DatePickerInput
-                    v-model="finishStop.estimated_arrival"
-                    placeholder="Pilih tanggal & waktu"
-                    :enable-time="true"
-                    :disabled="isDisabled"
-                  />
-                </div>
+            <!-- ── FINISH node ─────────────────────────── -->
+            <div class="relative">
+              <!-- Node dot: flag/finish -->
+              <div class="absolute -left-10 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 ring-4 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900">
+                <svg class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
+                </svg>
               </div>
-              <!-- Finish errors (last sorted index = deliveryStops.length - 1) -->
-              <div v-if="getStopErrors(deliveryStops.length - 1).geofence || getStopErrors(deliveryStops.length - 1).time || getStopErrors(deliveryStops.length - 1).order" class="mt-2 space-y-0.5">
-                <p v-if="getStopErrors(deliveryStops.length - 1).geofence" class="text-xs text-error-600">{{ getStopErrors(deliveryStops.length - 1).geofence }}</p>
-                <p v-if="getStopErrors(deliveryStops.length - 1).time" class="text-xs text-error-600">{{ getStopErrors(deliveryStops.length - 1).time }}</p>
-                <p v-if="getStopErrors(deliveryStops.length - 1).order" class="text-xs text-error-600">{{ getStopErrors(deliveryStops.length - 1).order }}</p>
+              <!-- Card -->
+              <div class="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900">
+                <div class="mb-3 flex items-center gap-2">
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Kembali ke Base</span>
+                  <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500 dark:bg-gray-700 dark:text-gray-400">Wajib</span>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <span class="mr-1">🏁</span>Geofence Finish
+                    </label>
+                    <SearchableSelect
+                      :model-value="getStopGeofenceValue(finishStop)"
+                      :options="geofenceSelectOptions"
+                      value-key="value"
+                      placeholder="Pilih zona finish..."
+                      :disabled="isDisabled"
+                      @update:model-value="(v: string) => onStopGeofenceChange(finishStop, v)"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <span class="mr-1">🕐</span>Estimasi Waktu Selesai
+                    </label>
+                    <DatePickerInput
+                      v-model="finishStop.estimated_arrival"
+                      placeholder="Pilih tanggal & waktu"
+                      :enable-time="true"
+                      :disabled="isDisabled"
+                    />
+                  </div>
+                </div>
+                <div v-if="getStopErrors(deliveryStops.length - 1).geofence || getStopErrors(deliveryStops.length - 1).time || getStopErrors(deliveryStops.length - 1).order" class="mt-2.5 rounded-lg bg-error-50 px-3 py-2 dark:bg-error-500/10">
+                  <p v-if="getStopErrors(deliveryStops.length - 1).geofence" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(deliveryStops.length - 1).geofence }}</p>
+                  <p v-if="getStopErrors(deliveryStops.length - 1).time" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(deliveryStops.length - 1).time }}</p>
+                  <p v-if="getStopErrors(deliveryStops.length - 1).order" class="text-xs text-error-600 dark:text-error-400">{{ getStopErrors(deliveryStops.length - 1).order }}</p>
+                </div>
               </div>
             </div>
+
           </div>
         </div>
 

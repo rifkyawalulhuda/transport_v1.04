@@ -107,69 +107,144 @@
               </div>
             </div>
 
-            <!-- Jadwal & Realisasi Pengiriman -->
+            <!-- Jadwal & Realisasi Pengiriman — Modern Timeline Design -->
             <div v-if="deliveryStopsWithHistory.length > 0" class="mt-4">
-              <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Jadwal &amp; Realisasi Pengiriman
-              </p>
-              <div class="space-y-2">
+              <!-- Section header -->
+              <div class="mb-4 flex items-center gap-2">
+                <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+                  <svg class="h-4 w-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">Jadwal &amp; Realisasi Pengiriman</p>
+                  <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ deliveryStopsWithHistory.length }} titik perjalanan</p>
+                </div>
+              </div>
+
+              <!-- Timeline -->
+              <div class="relative pl-10">
+                <!-- Connector line -->
+                <div class="absolute left-4 top-5 bottom-5 w-0.5 bg-gradient-to-b from-brand-400 via-gray-200 to-gray-400 dark:from-brand-500/60 dark:via-gray-700 dark:to-gray-600" />
+
                 <div
-                  v-for="stop in deliveryStopsWithHistory"
+                  v-for="(stop, index) in deliveryStopsWithHistory"
                   :key="stop.id"
-                  class="flex items-center justify-between rounded-lg border p-3"
-                  :class="stop.hit
-                    ? 'border-success-200 bg-success-50/40 dark:border-success-500/20 dark:bg-success-500/5'
-                    : stop.overdue
-                      ? 'border-warning-200 bg-warning-50/40 dark:border-warning-500/20 dark:bg-warning-500/5'
-                      : stop.is_departure
-                        ? 'border-brand-200 bg-brand-50/40 dark:border-brand-500/20 dark:bg-brand-500/5'
-                        : stop.is_finish
-                          ? 'border-gray-300 bg-gray-100/40 dark:border-gray-600 dark:bg-gray-800/20'
-                          : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                  class="relative mb-4 last:mb-0"
                 >
-                  <div class="flex-1">
-                    <div class="flex items-center gap-1.5 mb-0.5">
-                      <span class="text-[11px] font-semibold uppercase tracking-wide"
-                        :class="stop.is_departure ? 'text-brand-600 dark:text-brand-400' : stop.is_finish ? 'text-gray-500 dark:text-gray-400' : 'text-gray-500 dark:text-gray-400'">
-                        <span v-if="stop.is_departure">Departure</span>
-                        <span v-else-if="stop.is_finish">Finish</span>
-                        <span v-else>Tujuan {{ stop.stop_order }}</span>
-                      </span>
-                    </div>
-                    <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                      {{ stop.stop_name || '-' }}
-                    </p>
-                    <div v-if="stop.wialon_zone_name" class="mt-0.5 flex items-center gap-1">
-                      <svg class="h-3 w-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      </svg>
-                      <span class="text-xs text-gray-500 dark:text-gray-400">{{ stop.wialon_zone_name }}</span>
-                    </div>
-                    <p v-if="stop.estimated_arrival" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Est: <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatDateTime(stop.estimated_arrival) }}</span>
-                    </p>
-                    <p v-else class="mt-1 text-xs italic text-gray-400 dark:text-gray-500">
-                      Tidak ada estimasi waktu
-                    </p>
-                    <p v-if="stop.actual_arrival" class="mt-0.5 text-xs text-success-600 dark:text-success-400 font-medium">
-                      Tiba: {{ formatDateTime(stop.actual_arrival) }}
-                    </p>
+                  <!-- Node dot -->
+                  <div
+                    class="absolute -left-10 top-2 z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ring-4"
+                    :class="stop.hit
+                      ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
+                      : stop.overdue
+                        ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                        : stop.is_departure
+                          ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
+                          : stop.is_finish
+                            ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
+                            : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
+                  >
+                    <!-- Departure icon -->
+                    <svg v-if="stop.is_departure" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+                    </svg>
+                    <!-- Finish icon -->
+                    <svg v-else-if="stop.is_finish" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
+                    </svg>
+                    <!-- Hit checkmark -->
+                    <svg v-else-if="stop.hit" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <!-- Overdue warning -->
+                    <svg v-else-if="stop.overdue" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <!-- Middle stop: numbered -->
+                    <span v-else class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ index }}</span>
                   </div>
-                  <div class="ml-3 flex-shrink-0">
-                    <span v-if="stop.hit" class="inline-flex items-center rounded-full bg-success-100 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400">
-                      Sudah Tiba
-                    </span>
-                    <span v-else-if="stop.overdue" class="inline-flex items-center rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
-                      Terlambat
-                    </span>
-                    <span v-else class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                      Menunggu
-                    </span>
+
+                  <!-- Card -->
+                  <div
+                    class="rounded-xl border p-4 transition-all"
+                    :class="stop.hit
+                      ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
+                      : stop.overdue
+                        ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                        : stop.is_departure
+                          ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
+                          : stop.is_finish
+                            ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
+                            : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <!-- Label row -->
+                        <div class="mb-1 flex flex-wrap items-center gap-2">
+                          <span
+                            class="text-[10px] font-bold uppercase tracking-widest"
+                            :class="stop.is_departure
+                              ? 'text-brand-600 dark:text-brand-400'
+                              : stop.is_finish
+                                ? 'text-gray-500 dark:text-gray-400'
+                                : 'text-gray-400 dark:text-gray-500'"
+                          >
+                            <span v-if="stop.is_departure">Keberangkatan</span>
+                            <span v-else-if="stop.is_finish">Kembali ke Base</span>
+                            <span v-else>Tujuan {{ index }}</span>
+                          </span>
+                        </div>
+
+                        <!-- Zone name -->
+                        <div v-if="stop.wialon_zone_name" class="mb-1.5 flex items-center gap-1.5">
+                          <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
+                          </svg>
+                          <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ stop.wialon_zone_name }}</span>
+                        </div>
+                        <p v-else class="mb-1.5 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ stop.stop_name || '-' }}</p>
+
+                        <!-- Times -->
+                        <div class="space-y-0.5">
+                          <div v-if="stop.estimated_arrival" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span>Est: <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatDateTime(stop.estimated_arrival) }}</span></span>
+                          </div>
+                          <div v-if="stop.actual_arrival" class="flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
+                            <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                            </svg>
+                            <span class="font-medium">Tiba: {{ formatDateTime(stop.actual_arrival) }}</span>
+                          </div>
+                          <p v-if="!stop.estimated_arrival && !stop.actual_arrival" class="text-xs italic text-gray-400 dark:text-gray-500">Tidak ada estimasi waktu</p>
+                        </div>
+                      </div>
+
+                      <!-- Status badge -->
+                      <div class="flex-shrink-0">
+                        <span v-if="stop.hit" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                          Sudah Tiba
+                        </span>
+                        <span v-else-if="stop.overdue" class="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2.5 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                          Terlambat
+                        </span>
+                        <span v-else class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                          Menunggu
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+
           </div>
 
           <!-- Biaya -->
