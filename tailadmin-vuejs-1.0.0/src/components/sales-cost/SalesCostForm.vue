@@ -186,6 +186,26 @@
             </p>
           </div>
         </div>
+
+        <!-- Estimasi Tiba Per Stop (muncul jika rute punya steps) -->
+        <div v-if="stepSchedules.length > 0" class="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
+          <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Estimasi Tiba Per Stop <span class="font-normal normal-case text-gray-400">(opsional)</span>
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div v-for="(step, index) in stepSchedules" :key="step.id_area_route_step">
+              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Stop {{ index + 1 }} — {{ step.step_name_snapshot }}
+              </label>
+              <DatePickerInput
+                v-model="step.estimated_arrival"
+                placeholder="Pilih tanggal & waktu (opsional)"
+                :enable-time="true"
+                :disabled="isDisabled"
+              />
+            </div>
+          </div>
+        </div>
         </div>
 
         <!-- Main Fields: No DN, Pickup, Drop Removed -->
@@ -734,6 +754,13 @@ type DnItem = {
   remarks: string
 }
 
+interface StepScheduleItem {
+  id_area_route_step: number
+  step_order_snapshot: number
+  step_name_snapshot: string
+  estimated_arrival: string
+}
+
 type Props = {
   mode?: 'create' | 'edit'
   initialData?: Partial<SalesCostFormData>
@@ -772,6 +799,7 @@ const toast = useToast()
 const checkingTruckStatus = ref(false)
 const truckStatus = ref<{ type: 'repair' | 'transaksi'; message: string } | null>(null)
 let truckStatusRequestId = 0
+const stepSchedules = ref<StepScheduleItem[]>([])
 
 const markAddressUsed = async (item?: { _id?: string }) => {
   if (!item?._id) {
@@ -1103,6 +1131,7 @@ const resetForm = () => {
       remarks: '',
     },
   ]
+  stepSchedules.value = []
 }
 
 const applyInitialData = (data: Partial<SalesCostFormData>) => {
@@ -1198,6 +1227,16 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
     form.lift_on,
     form.lift_of,
   ]
+  // Populate step schedules from existing data
+  if (data.step_schedules && Array.isArray(data.step_schedules)) {
+    stepSchedules.value = (data.step_schedules as StepScheduleItem[]).map((s: StepScheduleItem) => ({
+      id_area_route_step: Number(s.id_area_route_step),
+      step_order_snapshot: Number(s.step_order_snapshot),
+      step_name_snapshot: s.step_name_snapshot || '',
+      estimated_arrival: normalizeDateTime(s.estimated_arrival) || ''
+    }))
+  }
+
   // Cek jika ada nilai yang tidak kosong/0 untuk menampilkan opsi
   showOptionalCosts.value = false
 }
@@ -1232,6 +1271,14 @@ const buildPayload = () => ({
   ops_cost: parseIndonesianNumber(form.ops_cost || '0'),
   id_print: form.id_print,
   dnItems: dnList.value,
+  step_schedules: stepSchedules.value
+    .filter(s => s.estimated_arrival && s.estimated_arrival.trim() !== '')
+    .map(s => ({
+      id_area_route_step: s.id_area_route_step,
+      step_order_snapshot: s.step_order_snapshot,
+      step_name_snapshot: s.step_name_snapshot,
+      estimated_arrival: s.estimated_arrival
+    })),
 })
 
 const toggleOptionalCosts = () => {
@@ -1401,6 +1448,37 @@ watch(
       return
     }
     void updateTruckStatus()
+  },
+)
+
+// When route changes, rebuild stepSchedules preserving existing estimated_arrival values
+const rebuildStepSchedules = (steps: Array<{ id_area_route_step: number; step_order: number; step_name: string }>) => {
+  const existing = new Map(stepSchedules.value.map(s => [s.id_area_route_step, s.estimated_arrival]))
+  stepSchedules.value = steps.map(step => ({
+    id_area_route_step: step.id_area_route_step,
+    step_order_snapshot: step.step_order,
+    step_name_snapshot: step.step_name,
+    estimated_arrival: existing.get(step.id_area_route_step) || ''
+  }))
+}
+
+watch(
+  () => form.id_area,
+  async (newId) => {
+    if (!newId) {
+      stepSchedules.value = []
+      return
+    }
+    try {
+      const steps = await salesCostService.fetchAreaRouteSteps(newId)
+      if (Array.isArray(steps) && steps.length > 0) {
+        rebuildStepSchedules(steps)
+      } else {
+        stepSchedules.value = []
+      }
+    } catch {
+      stepSchedules.value = []
+    }
   },
 )
 

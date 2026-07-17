@@ -106,6 +106,51 @@
                 <p class="mt-1 text-sm font-bold text-brand-700 dark:text-brand-300">{{ shippingDurationLabel }}</p>
               </div>
             </div>
+
+            <!-- Per-Step Schedule -->
+            <div v-if="stepSchedulesWithHistory.length > 0" class="mt-4">
+              <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Estimasi &amp; Realisasi Per Stop
+              </p>
+              <div class="space-y-2">
+                <div
+                  v-for="step in stepSchedulesWithHistory"
+                  :key="step.id_area_route_step"
+                  class="flex items-center justify-between rounded-lg border p-3"
+                  :class="step.hit
+                    ? 'border-success-200 bg-success-50/40 dark:border-success-500/20 dark:bg-success-500/5'
+                    : step.overdue
+                      ? 'border-warning-200 bg-warning-50/40 dark:border-warning-500/20 dark:bg-warning-500/5'
+                      : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                >
+                  <div class="flex-1">
+                    <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                      Stop {{ step.step_order_snapshot }} · {{ step.step_name_snapshot }}
+                    </p>
+                    <p class="mt-0.5 text-sm font-medium text-gray-800 dark:text-gray-100">
+                      Est: {{ formatDateTime(step.estimated_arrival) }}
+                    </p>
+                    <p v-if="step.actual_arrival" class="mt-0.5 text-xs text-success-600 dark:text-success-400">
+                      Tiba: {{ formatDateTime(step.actual_arrival) }}
+                    </p>
+                  </div>
+                  <div class="ml-3 flex-shrink-0">
+                    <span
+                      v-if="step.hit"
+                      class="inline-flex items-center rounded-full bg-success-100 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400"
+                    >Sudah Tiba</span>
+                    <span
+                      v-else-if="step.overdue"
+                      class="inline-flex items-center rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/20 dark:text-warning-400"
+                    >Terlambat</span>
+                    <span
+                      v-else
+                      class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                    >Menunggu</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Biaya -->
@@ -384,6 +429,13 @@ type DetailData = {
   route_steps?: RouteStepItem[]
   route_history?: RouteHistoryItem[]
   finish_step?: PlannedStepItem | null
+  step_schedules?: Array<{
+    id: number
+    id_area_route_step: number
+    step_order_snapshot: number
+    step_name_snapshot: string
+    estimated_arrival: string
+  }>
 }
 
 type RouteStepItem = {
@@ -627,6 +679,35 @@ const routeHistoryByStepKey = computed(() => {
     mapped.set(history.step_key, history)
   })
   return mapped
+})
+
+const stepSchedulesWithHistory = computed(() => {
+  if (!detail.value?.step_schedules?.length) return []
+
+  const historyStepIds = new Set(
+    (detail.value.route_history || [])
+      .filter(h => h.id_area_route_step)
+      .map(h => Number(h.id_area_route_step))
+  )
+
+  const historyByStep = new Map(
+    (detail.value.route_history || [])
+      .filter(h => h.id_area_route_step && h.gps_time)
+      .map(h => [Number(h.id_area_route_step), h.gps_time])
+  )
+
+  const now = new Date()
+
+  return detail.value.step_schedules.map(s => {
+    const hit = historyStepIds.has(s.id_area_route_step)
+    const overdue = !hit && new Date(s.estimated_arrival) < now
+    return {
+      ...s,
+      hit,
+      overdue,
+      actual_arrival: hit ? historyByStep.get(s.id_area_route_step) : null
+    }
+  })
 })
 
 const totalPages = computed(() => Math.ceil(dnItems.value.length / itemsPerPage))

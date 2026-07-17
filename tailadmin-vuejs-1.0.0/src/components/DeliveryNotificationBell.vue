@@ -99,6 +99,22 @@
                 </span>
               </span>
 
+              <!-- Step / arrival type label -->
+              <div class="flex items-center gap-1.5 mb-1">
+                <span
+                  v-if="item.step_name"
+                  class="inline-flex items-center rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-medium text-warning-700 dark:bg-warning-500/20 dark:text-warning-300"
+                >
+                  Stop: {{ item.step_name }}
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
+                >
+                  Final Arrival
+                </span>
+              </div>
+
               <!-- Message (truncated) -->
               <span class="block text-theme-xs text-gray-600 dark:text-gray-300 truncate max-w-[260px]">
                 {{ item.message }}

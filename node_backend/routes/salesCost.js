@@ -1353,6 +1353,14 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
+    const [stepScheduleRows] = await db.query(
+      `SELECT id, id_area_route_step, step_order_snapshot, step_name_snapshot, estimated_arrival
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost = ?
+       ORDER BY step_order_snapshot ASC`,
+      [id]
+    );
+
     res.json({
       ...detail,
         route_steps: plannedSteps,
@@ -1370,6 +1378,13 @@ router.get("/:id", async (req, res) => {
             : null,
           wialon_zone_name: finishGeofenceName
         },
+      step_schedules: stepScheduleRows.map(r => ({
+        id: Number(r.id),
+        id_area_route_step: Number(r.id_area_route_step),
+        step_order_snapshot: Number(r.step_order_snapshot),
+        step_name_snapshot: r.step_name_snapshot || '',
+        estimated_arrival: r.estimated_arrival
+      })),
       route_history: historyRows.map((row) => ({
         id_sales_cost_route_history: Number(row.id_sales_cost_route_history),
         id_sales_cost: Number(row.id_sales_cost),
@@ -1540,6 +1555,29 @@ router.post("/", authenticateToken, async (req, res) => {
         idPrint
       ]
     );
+
+    // Save per-step schedules if provided
+    const stepSchedules = Array.isArray(body.step_schedules) ? body.step_schedules : [];
+    for (const schedule of stepSchedules) {
+      if (!schedule.id_area_route_step || !schedule.estimated_arrival) continue;
+      if (!isValidIsoDateTime(String(schedule.estimated_arrival))) continue;
+      await db.query(
+        `INSERT INTO sales_cost_step_schedule
+          (id_sales_cost, id_area_route_step, step_order_snapshot, step_name_snapshot, estimated_arrival)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           estimated_arrival = VALUES(estimated_arrival),
+           step_order_snapshot = VALUES(step_order_snapshot),
+           step_name_snapshot = VALUES(step_name_snapshot)`,
+        [
+          result.insertId,
+          Number(schedule.id_area_route_step),
+          Number(schedule.step_order_snapshot) || 0,
+          String(schedule.step_name_snapshot || ''),
+          schedule.estimated_arrival
+        ]
+      );
+    }
 
     const [rows] = await db.query(
       "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.departure_datetime, sales_cost.arrival_datetime, sales_cost.finish_order_datetime, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
@@ -1720,6 +1758,43 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Sales cost not found" });
+    }
+
+    // Upsert per-step schedules
+    const stepSchedulesPut = Array.isArray(body.step_schedules) ? body.step_schedules : [];
+    // Delete existing schedules not in the new list
+    const keepIds = stepSchedulesPut
+      .filter(s => s.id_area_route_step)
+      .map(s => Number(s.id_area_route_step));
+    if (keepIds.length > 0) {
+      const placeholders = keepIds.map(() => '?').join(',');
+      await db.query(
+        `DELETE FROM sales_cost_step_schedule WHERE id_sales_cost = ? AND id_area_route_step NOT IN (${placeholders})`,
+        [id, ...keepIds]
+      );
+    } else {
+      await db.query('DELETE FROM sales_cost_step_schedule WHERE id_sales_cost = ?', [id]);
+    }
+    // Upsert each schedule
+    for (const schedule of stepSchedulesPut) {
+      if (!schedule.id_area_route_step || !schedule.estimated_arrival) continue;
+      if (!isValidIsoDateTime(String(schedule.estimated_arrival))) continue;
+      await db.query(
+        `INSERT INTO sales_cost_step_schedule
+          (id_sales_cost, id_area_route_step, step_order_snapshot, step_name_snapshot, estimated_arrival)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           estimated_arrival = VALUES(estimated_arrival),
+           step_order_snapshot = VALUES(step_order_snapshot),
+           step_name_snapshot = VALUES(step_name_snapshot)`,
+        [
+          Number(id),
+          Number(schedule.id_area_route_step),
+          Number(schedule.step_order_snapshot) || 0,
+          String(schedule.step_name_snapshot || ''),
+          schedule.estimated_arrival
+        ]
+      );
     }
 
     logAuditEvent("sales_cost_update", {

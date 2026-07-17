@@ -38,6 +38,10 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/areas`)
     return handleJson(res)
   },
+  async fetchAreaRouteSteps(id) {
+    const res = await authFetch(`${API_BASE}/areas/${id}/route-steps`)
+    return handleJson(res)
+  },
   async createSalesCost(payload) {
     const res = await authFetch(`${API_BASE}/sales-costs`, {
       method: 'POST',

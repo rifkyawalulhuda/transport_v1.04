@@ -149,6 +149,7 @@ const checkArrivalDelays = async () => {
         AND NOT EXISTS (
           SELECT 1 FROM delivery_notifications dn
           WHERE dn.id_sales_cost = sc.id_sales_cost
+            AND dn.id_area_route_step IS NULL
             AND dn.notification_type = 'arrival_overdue'
             AND dn.is_dismissed = 0
         )
@@ -159,14 +160,59 @@ const checkArrivalDelays = async () => {
       const message = `Truk ${row.no_police} seharusnya sudah tiba di rute ${row.nama_area} pada ${arrivalStr}. Truk belum trigger Geofence Area tujuan. Harap verifikasi posisi truk.`;
       await db.query(
         `INSERT INTO delivery_notifications
-          (id_sales_cost, notification_type, truck_plate, route_name, scheduled_arrival, message)
-         VALUES (?, 'arrival_overdue', ?, ?, ?, ?)`,
+          (id_sales_cost, id_area_route_step, step_name, notification_type, truck_plate, route_name, scheduled_arrival, message)
+         VALUES (?, NULL, NULL, 'arrival_overdue', ?, ?, ?, ?)`,
         [row.id_sales_cost, row.no_police, row.nama_area, row.arrival_datetime, message]
       );
     }
 
     if (overdueRows.length > 0) {
       console.log(`[geofence-tracking] created ${overdueRows.length} arrival overdue notification(s)`);
+    }
+
+    // Query 2: Per-step overdue check
+    const [stepOverdueRows] = await db.query(`
+      SELECT
+        scss.id_sales_cost,
+        scss.id_area_route_step,
+        scss.step_name_snapshot,
+        scss.estimated_arrival,
+        t.no_police,
+        a.nama_area
+      FROM sales_cost_step_schedule scss
+      INNER JOIN sales_cost sc ON scss.id_sales_cost = sc.id_sales_cost
+      INNER JOIN truck t ON sc.id_truck = t.id_truck
+      INNER JOIN area a ON sc.id_area = a.id_area
+      WHERE scss.estimated_arrival < NOW()
+        AND sc.finish_order_datetime IS NULL
+        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_cost_route_history scrh
+          WHERE scrh.id_sales_cost = scss.id_sales_cost
+            AND scrh.id_area_route_step = scss.id_area_route_step
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM delivery_notifications dn
+          WHERE dn.id_sales_cost = scss.id_sales_cost
+            AND dn.id_area_route_step = scss.id_area_route_step
+            AND dn.is_dismissed = 0
+        )
+    `);
+
+    for (const row of stepOverdueRows) {
+      const arrivalStr = toMySqlDateTime(row.estimated_arrival);
+      const message = `Truk ${row.no_police} seharusnya sudah tiba di ${row.step_name_snapshot} pada ${arrivalStr}. Truk belum trigger Geofence Area tersebut. Harap verifikasi posisi truk.`;
+      await db.query(
+        `INSERT INTO delivery_notifications
+          (id_sales_cost, id_area_route_step, step_name, notification_type, truck_plate, route_name, scheduled_arrival, message)
+         VALUES (?, ?, ?, 'arrival_overdue', ?, ?, ?, ?)`,
+        [row.id_sales_cost, row.id_area_route_step, row.step_name_snapshot,
+         row.no_police, row.nama_area, row.estimated_arrival, message]
+      );
+    }
+
+    if (stepOverdueRows.length > 0) {
+      console.log(`[geofence-tracking] created ${stepOverdueRows.length} per-step arrival overdue notification(s)`);
     }
   } catch (error) {
     console.warn('[geofence-tracking] checkArrivalDelays failed', error);
