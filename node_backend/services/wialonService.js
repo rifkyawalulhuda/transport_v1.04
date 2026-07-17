@@ -1433,9 +1433,9 @@ const fetchOperationalContext = async () => {
       sc.id_sales_cost,
       sc.id_truck,
       sc.id_driver,
-      sc.delivery_order,
-      sc.arrival_order,
-      sc.finish_order,
+      sc.departure_datetime,
+      sc.arrival_datetime,
+      sc.finish_order_datetime,
       sc.trip,
       sc.jenis_trip,
       sc.no_po,
@@ -1448,15 +1448,15 @@ const fetchOperationalContext = async () => {
     LEFT JOIN area a ON sc.id_area = a.id_area
     WHERE sc.id_truck IS NOT NULL
       AND (
-        (sc.finish_order IS NOT NULL AND CAST(sc.finish_order AS CHAR) <> '0000-00-00' AND sc.finish_order > ?)
+        (sc.finish_order_datetime IS NOT NULL AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00' AND sc.finish_order_datetime > ?)
         OR
         (
-          (sc.finish_order IS NULL OR CAST(sc.finish_order AS CHAR) = '0000-00-00')
+          (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
           AND
-          (sc.arrival_order IS NULL OR CAST(sc.arrival_order AS CHAR) = '0000-00-00' OR sc.arrival_order >= ?)
+          (sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)
         )
       )
-    ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+    ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
   `;
 
   const lastSql = `
@@ -1464,21 +1464,21 @@ const fetchOperationalContext = async () => {
       sc.id_sales_cost,
       sc.id_truck,
       sc.id_driver,
-      sc.delivery_order,
-      sc.arrival_order,
-      sc.finish_order,
+      sc.departure_datetime,
+      sc.arrival_datetime,
+      sc.finish_order_datetime,
       d.nama_driver,
       a.nama_area
     FROM sales_cost sc
     INNER JOIN (
-      SELECT id_truck, MAX(delivery_order) AS max_delivery
+      SELECT id_truck, MAX(departure_datetime) AS max_delivery
       FROM sales_cost
       WHERE id_truck IS NOT NULL
       GROUP BY id_truck
-    ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.delivery_order
+    ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.departure_datetime
     LEFT JOIN driver d ON sc.id_driver = d.id_driver
     LEFT JOIN area a ON sc.id_area = a.id_area
-    ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+    ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
   `;
 
   const [[repairRows], [trxRows], [lastRows]] = await Promise.all([
@@ -1530,9 +1530,9 @@ const buildOperationalDetails = (truck, operationalContext) => {
   const lastTransaction = last
     ? {
         id_sales_cost: last.id_sales_cost ?? null,
-        delivery_order: toDateString(last.delivery_order),
-        arrival_order: toDateString(last.arrival_order),
-        finish_order: toDateString(last.finish_order),
+        departure_datetime: toDateString(last.departure_datetime),
+        arrival_datetime: toDateString(last.arrival_datetime),
+        finish_order_datetime: toDateString(last.finish_order_datetime),
         driver_name: last.nama_driver || null,
         route: last.nama_area || null
       }
@@ -1566,9 +1566,9 @@ const buildOperationalDetails = (truck, operationalContext) => {
       transaksi: {
         id_sales_cost: transaksi.id_sales_cost ?? null,
         no_spk: transaksi.id_sales_cost ?? null,
-        delivery_order: toDateString(transaksi.delivery_order),
-        arrival_order: toDateString(transaksi.arrival_order),
-        finish_order: toDateString(transaksi.finish_order),
+        departure_datetime: toDateString(transaksi.departure_datetime),
+        arrival_datetime: toDateString(transaksi.arrival_datetime),
+        finish_order_datetime: toDateString(transaksi.finish_order_datetime),
         trip: transaksi.trip || null,
         jenis_trip: transaksi.jenis_trip || null,
         no_po: transaksi.no_po || null,
