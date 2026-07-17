@@ -2017,7 +2017,7 @@ const fetchZonePolygons = async (resourceId, sid) => {
     rows.forEach((zone) => {
       const zoneId = normalizePositiveIntString(zone?.id ?? zone?.i ?? zone?.zone_id);
       const zoneName = String(zone?.n ?? zone?.nm ?? zone?.name ?? "").trim();
-      // Points may be in zone.p or zone.points — each point has x (lon) and y (lat)
+      // Points may be in zone.p or zone.points ï¿½ each point has x (lon) and y (lat)
       const rawPoints = Array.isArray(zone?.p) ? zone.p
         : Array.isArray(zone?.points) ? zone.points
         : [];
@@ -2044,7 +2044,7 @@ const fetchZonePolygons = async (resourceId, sid) => {
 /**
  * Load raw GPS messages for a unit in a time range.
  * timeFrom, timeTo: Unix timestamps (seconds)
- * Returns array of {t, lat, lon} — one entry per GPS message
+ * Returns array of {t, lat, lon} ï¿½ one entry per GPS message
  */
 const fetchRawMessagesForUnit = async ({ sid, unitId, timeFrom, timeTo }) => {
   const safeUnitId = normalizePositiveIntString(unitId);
@@ -2112,5 +2112,10 @@ module.exports = {
   fetchWialonGeofences,
   fetchUnitsInZonesByResource,
   getUnitPositionMap,
-  clearSession
+  clearSession,
+  fetchRawMessagesForUnit,
+  fetchZonePolygons,
+  pointInPolygon,
+  loginIsolatedSession,
+  logoutIsolatedSession
 };

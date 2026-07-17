@@ -128,20 +128,31 @@
                           : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
                 >
                   <div class="flex-1">
-                    <p class="text-[11px] text-gray-400 dark:text-gray-500">
-                      <span v-if="stop.is_departure">Departure</span>
-                      <span v-else-if="stop.is_finish">Finish</span>
-                      <span v-else>Stop {{ stop.stop_order }}</span>
-                      · {{ stop.stop_name }}
-                      <span v-if="stop.wialon_zone_name" class="ml-1 text-gray-300 dark:text-gray-600">— {{ stop.wialon_zone_name }}</span>
+                    <div class="flex items-center gap-1.5 mb-0.5">
+                      <span class="text-[11px] font-semibold uppercase tracking-wide"
+                        :class="stop.is_departure ? 'text-brand-600 dark:text-brand-400' : stop.is_finish ? 'text-gray-500 dark:text-gray-400' : 'text-gray-500 dark:text-gray-400'">
+                        <span v-if="stop.is_departure">Departure</span>
+                        <span v-else-if="stop.is_finish">Finish</span>
+                        <span v-else>Tujuan {{ stop.stop_order }}</span>
+                      </span>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      {{ stop.stop_name || '-' }}
                     </p>
-                    <p v-if="stop.estimated_arrival" class="mt-0.5 text-sm font-medium text-gray-800 dark:text-gray-100">
-                      Est: {{ formatDateTime(stop.estimated_arrival) }}
+                    <div v-if="stop.wialon_zone_name" class="mt-0.5 flex items-center gap-1">
+                      <svg class="h-3 w-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                      </svg>
+                      <span class="text-xs text-gray-500 dark:text-gray-400">{{ stop.wialon_zone_name }}</span>
+                    </div>
+                    <p v-if="stop.estimated_arrival" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Est: <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatDateTime(stop.estimated_arrival) }}</span>
                     </p>
-                    <p v-else class="mt-0.5 text-xs italic text-gray-400 dark:text-gray-500">
+                    <p v-else class="mt-1 text-xs italic text-gray-400 dark:text-gray-500">
                       Tidak ada estimasi waktu
                     </p>
-                    <p v-if="stop.actual_arrival" class="mt-0.5 text-xs text-success-600 dark:text-success-400">
+                    <p v-if="stop.actual_arrival" class="mt-0.5 text-xs text-success-600 dark:text-success-400 font-medium">
                       Tiba: {{ formatDateTime(stop.actual_arrival) }}
                     </p>
                   </div>

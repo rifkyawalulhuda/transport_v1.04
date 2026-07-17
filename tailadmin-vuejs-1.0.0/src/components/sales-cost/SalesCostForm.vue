@@ -141,7 +141,6 @@
             <DatePickerInput
               v-model="form.departure_datetime"
               placeholder="Pilih tanggal & waktu"
-              required
               :enable-time="true"
               :disabled="isDisabled"
             />
@@ -156,7 +155,6 @@
             <DatePickerInput
               v-model="form.arrival_datetime"
               placeholder="Pilih tanggal & waktu"
-              required
               :enable-time="true"
               :disabled="isDisabled"
             />
@@ -174,7 +172,6 @@
             <DatePickerInput
               v-model="form.finish_order_datetime"
               placeholder="Pilih tanggal & waktu"
-              :required="props.mode === 'create'"
               :enable-time="true"
               :disabled="isDisabled"
             />
@@ -187,11 +184,14 @@
           </div>
         </div>
 
+        </div>
+
         <!-- Jadwal Pengiriman -->
-        <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
-          <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Jadwal Pengiriman
-          </p>
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Jadwal Pengiriman</p>
+          </div>
           <div class="space-y-3">
             <!-- Departure (fixed) -->
             <div class="rounded-lg border-2 border-brand-200 bg-brand-50/40 p-3 dark:border-brand-500/30 dark:bg-brand-500/5">
@@ -202,6 +202,7 @@
                   <SearchableSelect
                     :model-value="getStopGeofenceValue(departureStop)"
                     :options="geofenceSelectOptions"
+                    value-key="value"
                     placeholder="Pilih Geofence..."
                     :disabled="isDisabled"
                     @update:model-value="(v: string) => onStopGeofenceChange(departureStop, v)"
@@ -216,6 +217,12 @@
                     :disabled="isDisabled"
                   />
                 </div>
+              </div>
+              <!-- Departure errors (sorted index 0) -->
+              <div v-if="getStopErrors(0).geofence || getStopErrors(0).time || getStopErrors(0).order" class="mt-2 space-y-0.5">
+                <p v-if="getStopErrors(0).geofence" class="text-xs text-error-600">{{ getStopErrors(0).geofence }}</p>
+                <p v-if="getStopErrors(0).time" class="text-xs text-error-600">{{ getStopErrors(0).time }}</p>
+                <p v-if="getStopErrors(0).order" class="text-xs text-error-600">{{ getStopErrors(0).order }}</p>
               </div>
             </div>
 
@@ -242,13 +249,14 @@
                   <SearchableSelect
                     :model-value="getStopGeofenceValue(stop)"
                     :options="geofenceSelectOptions"
+                    value-key="value"
                     placeholder="Pilih Geofence..."
                     :disabled="isDisabled"
                     @update:model-value="(v: string) => onStopGeofenceChange(stop, v)"
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Tiba (opsional)</label>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Tiba *</label>
                   <DatePickerInput
                     v-model="stop.estimated_arrival"
                     placeholder="Pilih tanggal & waktu"
@@ -256,6 +264,12 @@
                     :disabled="isDisabled"
                   />
                 </div>
+              </div>
+              <!-- Middle stop errors (sorted index = idx + 1) -->
+              <div v-if="getStopErrors(idx + 1).geofence || getStopErrors(idx + 1).time || getStopErrors(idx + 1).order" class="mt-2 space-y-0.5">
+                <p v-if="getStopErrors(idx + 1).geofence" class="text-xs text-error-600">{{ getStopErrors(idx + 1).geofence }}</p>
+                <p v-if="getStopErrors(idx + 1).time" class="text-xs text-error-600">{{ getStopErrors(idx + 1).time }}</p>
+                <p v-if="getStopErrors(idx + 1).order" class="text-xs text-error-600">{{ getStopErrors(idx + 1).order }}</p>
               </div>
             </div>
 
@@ -281,6 +295,7 @@
                   <SearchableSelect
                     :model-value="getStopGeofenceValue(finishStop)"
                     :options="geofenceSelectOptions"
+                    value-key="value"
                     placeholder="Pilih Geofence..."
                     :disabled="isDisabled"
                     @update:model-value="(v: string) => onStopGeofenceChange(finishStop, v)"
@@ -296,9 +311,14 @@
                   />
                 </div>
               </div>
+              <!-- Finish errors (last sorted index = deliveryStops.length - 1) -->
+              <div v-if="getStopErrors(deliveryStops.length - 1).geofence || getStopErrors(deliveryStops.length - 1).time || getStopErrors(deliveryStops.length - 1).order" class="mt-2 space-y-0.5">
+                <p v-if="getStopErrors(deliveryStops.length - 1).geofence" class="text-xs text-error-600">{{ getStopErrors(deliveryStops.length - 1).geofence }}</p>
+                <p v-if="getStopErrors(deliveryStops.length - 1).time" class="text-xs text-error-600">{{ getStopErrors(deliveryStops.length - 1).time }}</p>
+                <p v-if="getStopErrors(deliveryStops.length - 1).order" class="text-xs text-error-600">{{ getStopErrors(deliveryStops.length - 1).order }}</p>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <!-- Main Fields: No DN, Pickup, Drop Removed -->
@@ -953,6 +973,40 @@ const departureStop = computed(() => deliveryStops.value.find(s => s.is_departur
 const finishStop = computed(() => deliveryStops.value.find(s => s.is_finish === 1)!)
 const middleStops = computed(() => deliveryStops.value.filter(s => s.is_departure === 0 && s.is_finish === 0))
 
+// Returns errors for a stop based on its sorted index (0=departure, 1..N=middle, last=finish)
+const getStopErrors = (sortedIndex: number) => {
+  return {
+    geofence: errors[`stop_geofence_${sortedIndex}`] || '',
+    time: errors[`stop_time_${sortedIndex}`] || '',
+    order: errors[`stop_order_${sortedIndex}`] || '',
+  }
+}
+
+// Realtime date order validation — only checks ordering, not required fields
+const updateStopOrderErrors = () => {
+  const sortedStops = [...deliveryStops.value].sort((a, b) => a.stop_order - b.stop_order)
+  for (let i = 1; i < sortedStops.length; i++) {
+    const stop = sortedStops[i]
+    const prev = sortedStops[i - 1]
+    const key = `stop_order_${i}`
+    if (stop.estimated_arrival && prev.estimated_arrival &&
+        stop.estimated_arrival < prev.estimated_arrival) {
+      const label = stop.is_finish ? 'Finish' : `Tujuan ${i}`
+      const prevLabel = prev.is_departure ? 'Departure' : `Tujuan ${i - 1}`
+      errors[key] = `Waktu ${label} tidak boleh kurang dari ${prevLabel}.`
+    } else {
+      delete errors[key]
+    }
+  }
+}
+
+// Trigger realtime date order check whenever any stop's estimated_arrival changes
+watch(
+  () => deliveryStops.value.map(s => s.estimated_arrival),
+  () => { updateStopOrderErrors() },
+  { deep: true }
+)
+
 const addDeliveryStop = () => {
   const existingMiddle = middleStops.value
   const nextOrder = existingMiddle.length > 0
@@ -1262,6 +1316,36 @@ const validateForm = () => {
   if (!form.ops_cost) {
     errors.ops_cost = 'Operasional Cost wajib diisi.'
   }
+
+  // Validasi Jadwal Pengiriman
+  const sortedStops = [...deliveryStops.value].sort((a, b) => a.stop_order - b.stop_order)
+  for (let i = 0; i < sortedStops.length; i++) {
+    const stop = sortedStops[i]
+    const label = stop.is_departure ? 'Departure'
+      : stop.is_finish ? 'Finish'
+      : `Tujuan ${i}` // i = index in sorted array (0=departure, 1..N=middle, last=finish)
+
+    // Wajib pilih geofence
+    if (!stop.wialon_zone_id) {
+      errors[`stop_geofence_${i}`] = `Geofence ${label} wajib dipilih.`
+    }
+
+    // Wajib isi estimasi waktu
+    if (!stop.estimated_arrival) {
+      errors[`stop_time_${i}`] = `Estimasi waktu ${label} wajib diisi.`
+    }
+
+    // Validasi urutan tanggal: tidak boleh kurang dari stop sebelumnya
+    if (i > 0 && stop.estimated_arrival && sortedStops[i - 1].estimated_arrival) {
+      if (stop.estimated_arrival < sortedStops[i - 1].estimated_arrival) {
+        const prevLabel = sortedStops[i - 1].is_departure ? 'Departure'
+          : sortedStops[i - 1].is_finish ? 'Finish'
+          : `Tujuan ${i - 1}`
+        errors[`stop_order_${i}`] = `Waktu ${label} tidak boleh kurang dari ${prevLabel}.`
+      }
+    }
+  }
+
   return Object.keys(errors).length === 0
 }
 

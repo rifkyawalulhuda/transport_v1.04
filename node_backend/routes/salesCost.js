@@ -1574,7 +1574,7 @@ router.post("/", authenticateToken, async (req, res) => {
           (id_sales_cost, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          insertedId,
+          result.insertId,
           Number(stop.stop_order),
           String(stop.stop_name || ''),
           stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,

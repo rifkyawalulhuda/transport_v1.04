@@ -137,3 +137,8 @@
 {"timestamp":"17/07/2026 17:41:38","event":"sales_cost_update","id_sales_cost":"43623","id_admin":2,"nik_admin":"CLC003","level":"admin"}
 {"timestamp":"17/07/2026 17:42:21","event":"sales_cost_update","id_sales_cost":"43623","id_admin":2,"nik_admin":"CLC003","level":"admin"}
 {"timestamp":"17/07/2026 17:47:12","event":"sales_cost_update","id_sales_cost":"43623","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"17/07/2026 21:35:38","event":"sales_cost_update","id_sales_cost":"43627","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"17/07/2026 21:35:55","event":"sales_cost_update","id_sales_cost":"43627","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"17/07/2026 21:36:09","event":"sales_cost_update","id_sales_cost":"43627","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"17/07/2026 22:02:12","event":"sales_cost_update","id_sales_cost":"43629","id_admin":2,"nik_admin":"CLC003","level":"admin"}
+{"timestamp":"17/07/2026 22:36:16","event":"sales_cost_update","id_sales_cost":"43630","id_admin":2,"nik_admin":"CLC003","level":"admin"}
