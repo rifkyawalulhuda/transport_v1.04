@@ -297,6 +297,12 @@
                         <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {{ step.wialon_zone_name || '-' }}
                         </div>
+                        <div
+                          v-if="routeHistoryByStepKey.has(step.step_key)"
+                          class="mt-1 text-xs font-medium text-brand-600 dark:text-brand-400"
+                        >
+                          {{ formatDateTime(routeHistoryByStepKey.get(step.step_key)?.gps_time) }}
+                        </div>
                       </div>
                       <span
                         class="rounded-full px-2.5 py-1 text-[11px] font-medium"
