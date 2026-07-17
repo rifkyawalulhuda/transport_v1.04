@@ -126,8 +126,8 @@
         </div>
         </div>
 
-        <!-- Section: Tanggal Transaksi -->
-        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+        <!-- Section: Tanggal Transaksi (hidden - values synced from Jadwal Pengiriman) -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800" style="display:none">
           <div class="flex items-center gap-2 mb-4">
             <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Tanggal Transaksi</p>
@@ -1238,17 +1238,17 @@ const validateForm = () => {
     errors.id_area = 'Rute wajib dipilih.'
   }
   if (!form.departure_datetime) {
-    errors.departure_datetime = 'Departure wajib diisi.'
-  } else if (!isValidIsoDateTime(form.departure_datetime)) {
+    // No validation - synced from Jadwal Pengiriman (departureStop.estimated_arrival)
+  } else if (form.departure_datetime && !isValidIsoDateTime(form.departure_datetime)) {
     errors.departure_datetime = 'Format Departure harus YYYY-MM-DD HH:MM.'
   }
   if (!form.arrival_datetime) {
-    errors.arrival_datetime = 'Arrival wajib diisi.'
-  } else if (!isValidIsoDateTime(form.arrival_datetime)) {
+    // No validation - synced from Jadwal Pengiriman (last middle stop)
+  } else if (form.arrival_datetime && !isValidIsoDateTime(form.arrival_datetime)) {
     errors.arrival_datetime = 'Format Arrival harus YYYY-MM-DD HH:MM.'
   }
   if (props.mode === 'create' && !form.finish_order_datetime) {
-    errors.finish_order_datetime = 'Finish Order wajib diisi.'
+    // No validation - synced from Jadwal Pengiriman (finishStop.estimated_arrival)
   } else if (form.finish_order_datetime && !isValidIsoDateTime(form.finish_order_datetime)) {
     errors.finish_order_datetime = 'Format Finish Order harus YYYY-MM-DD HH:MM.'
   }
@@ -1443,16 +1443,28 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
   showOptionalCosts.value = false
 }
 
-const buildPayload = () => ({
+const buildPayload = () => {
+  // Sync datetime fields from deliveryStops (Opsi B: hidden Tanggal Transaksi)
+  const depStop = deliveryStops.value.find(s => s.is_departure === 1)
+  const finStop = deliveryStops.value.find(s => s.is_finish === 1)
+  const lastMiddle = [...deliveryStops.value]
+    .filter(s => s.is_departure === 0 && s.is_finish === 0 && s.estimated_arrival)
+    .sort((a, b) => b.stop_order - a.stop_order)[0]
+
+  const synced_departure = depStop?.estimated_arrival || form.departure_datetime || null
+  const synced_arrival = lastMiddle?.estimated_arrival || form.arrival_datetime || null
+  const synced_finish = finStop?.estimated_arrival || form.finish_order_datetime || null
+
+  return {
   tgl_order: form.tgl_order,
   id_truck: form.id_truck ? Number(form.id_truck) : null,
   id_driver: form.id_driver ? Number(form.id_driver) : null,
   id_area: form.id_area ? Number(form.id_area) : null,
   id_customer: form.id_customer ? Number(form.id_customer) : null,
   nik_admin: form.nik_admin,
-  departure_datetime: form.departure_datetime,
-  arrival_datetime: form.arrival_datetime,
-  finish_order_datetime: form.finish_order_datetime,
+  departure_datetime: synced_departure,
+  arrival_datetime: synced_arrival,
+  finish_order_datetime: synced_finish,
   bills: form.bills,
   lift_on: parseIndonesianNumber(form.lift_on || '0'),
   lift_of: parseIndonesianNumber(form.lift_of || '0'),
@@ -1484,7 +1496,8 @@ const buildPayload = () => ({
     is_finish: s.is_finish,
     estimated_arrival: s.estimated_arrival || null
   })),
-})
+  }
+}
 
 const toggleOptionalCosts = () => {
   showOptionalCosts.value = !showOptionalCosts.value
