@@ -117,6 +117,7 @@ const startServer = async () => {
       detectAndRunStartupBackfill().finally(() => {
         startGeofenceTracking();
       });
+    });
   } catch (error) {
     console.error("Failed to start backend server", error);
     process.exitCode = 1;
