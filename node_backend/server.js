@@ -29,7 +29,7 @@ const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 const bbsRouter = require("./routes/bbs");
 const deliveryNotificationsRouter = require("./routes/deliveryNotifications");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
-const { startGeofenceTracking } = require("./services/geofenceTrackingService");
+const { startGeofenceTracking, detectAndRunStartupBackfill } = require("./services/geofenceTrackingService");
 
 const app = express();
 
@@ -114,8 +114,9 @@ const startServer = async () => {
 
     app.listen(PORT, HOST, () => {
       console.log(`Node backend listening on ${HOST}:${PORT}`);
-      startGeofenceTracking();
-    });
+      detectAndRunStartupBackfill().finally(() => {
+        startGeofenceTracking();
+      });
   } catch (error) {
     console.error("Failed to start backend server", error);
     process.exitCode = 1;

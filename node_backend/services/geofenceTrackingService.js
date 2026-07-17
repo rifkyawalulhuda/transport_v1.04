@@ -544,9 +544,195 @@ const stopGeofenceTracking = () => {
   started = false;
 };
 
+
+// ============================================================
+// HISTORICAL BACKFILL
+// ============================================================
+
+const {
+  fetchRawMessagesForUnit,
+  fetchZonePolygons,
+  pointInPolygon,
+  loginIsolatedSession,
+  logoutIsolatedSession
+} = require("./wialonService");
+
+const BACKFILL_MAX_GAP_MS = 7 * 24 * 60 * 60 * 1000;
+const BACKFILL_MIN_GAP_MS = 5 * 60 * 1000;
+
+const runBackfill = async (fromTs, toTs) => {
+  const summary = { processed: 0, inserted: 0, skipped: 0, errors: 0 };
+  const startedAt = Date.now();
+  console.log(`[geofence-backfill] starting from ${new Date(fromTs * 1000).toISOString()} to ${new Date(toTs * 1000).toISOString()}`);
+
+  const [salesCosts] = await db.query(`
+    SELECT sc.id_sales_cost, sc.id_area, sc.id_truck,
+           sc.departure_datetime, sc.finish_order_datetime,
+           t.wialon_unit_id,
+           a.finish_geofence_resource_id, a.finish_geofence_zone_id, a.finish_geofence_zone_name
+    FROM sales_cost sc
+    INNER JOIN truck t ON sc.id_truck = t.id_truck
+    INNER JOIN area a ON sc.id_area = a.id_area
+    WHERE sc.id_truck IS NOT NULL
+      AND t.wialon_unit_id IS NOT NULL AND t.wialon_unit_id <> ''
+      AND t.is_active = 1
+      AND sc.departure_datetime IS NOT NULL
+      AND UNIX_TIMESTAMP(sc.departure_datetime) <= ?
+      AND (sc.finish_order_datetime IS NULL OR UNIX_TIMESTAMP(sc.finish_order_datetime) >= ?)
+    ORDER BY sc.id_sales_cost ASC
+  `, [toTs, fromTs]);
+
+  if (salesCosts.length === 0) {
+    console.log('[geofence-backfill] no active sales costs in window');
+    return summary;
+  }
+  console.log(`[geofence-backfill] ${salesCosts.length} sales cost(s) to process`);
+
+  const areaIds = [...new Set(salesCosts.map(sc => Number(sc.id_area)))];
+  const routeStepsMap = await fetchAreaRouteStepsMap(areaIds);
+
+  const salesCostIds = salesCosts.map(sc => Number(sc.id_sales_cost));
+  const placeholders = salesCostIds.map(() => '?').join(',');
+  const [existingRows] = await db.query(
+    `SELECT id_sales_cost, step_key FROM sales_cost_route_history WHERE id_sales_cost IN (${placeholders})`,
+    salesCostIds
+  );
+  const existingKeys = new Set(existingRows.map(r => `${r.id_sales_cost}:${r.step_key}`));
+
+  const zonePolygonCache = new Map();
+  const getZonePolygon = async (resourceId, zoneId, sid) => {
+    const cKey = String(resourceId);
+    if (!zonePolygonCache.has(cKey)) {
+      zonePolygonCache.set(cKey, await fetchZonePolygons(resourceId, sid));
+    }
+    return zonePolygonCache.get(cKey)?.get(String(zoneId)) || null;
+  };
+
+  let sid = null;
+  try {
+    sid = await loginIsolatedSession();
+  } catch (err) {
+    console.warn('[geofence-backfill] cannot create Wialon session:', err.message);
+    return summary;
+  }
+
+  try {
+    for (const sc of salesCosts) {
+      try {
+        summary.processed += 1;
+        const unitId = String(sc.wialon_unit_id || '').trim();
+        if (!unitId) { summary.skipped += 1; continue; }
+
+        const steps = routeStepsMap.get(Number(sc.id_area)) || [];
+        if (steps.length === 0) { summary.skipped += 1; continue; }
+
+        const scFrom = Math.max(fromTs, Math.floor(new Date(sc.departure_datetime).getTime() / 1000));
+        const scTo = sc.finish_order_datetime
+          ? Math.min(toTs, Math.floor(new Date(sc.finish_order_datetime).getTime() / 1000))
+          : toTs;
+        if (scFrom >= scTo) { summary.skipped += 1; continue; }
+
+        const messages = await fetchRawMessagesForUnit({ sid, unitId, timeFrom: scFrom, timeTo: scTo });
+        if (messages.length === 0) { summary.skipped += 1; continue; }
+
+        for (const step of steps) {
+          const stepKey = `route:${step.id_area_route_step}`;
+          if (existingKeys.has(`${sc.id_sales_cost}:${stepKey}`)) continue;
+          const resId = normalizePositiveIntString(step.wialon_resource_id);
+          const zId = normalizePositiveIntString(step.wialon_zone_id);
+          if (!resId || !zId) continue;
+          const zoneData = await getZonePolygon(resId, zId, sid);
+          if (!zoneData || zoneData.points.length < 3) continue;
+          const hit = messages.find(m => pointInPolygon({ x: m.lon, y: m.lat }, zoneData.points));
+          if (!hit) continue;
+          const gpsTime = toMySqlDateTime(new Date(hit.t * 1000));
+          await db.query(`
+            INSERT IGNORE INTO sales_cost_route_history
+              (id_sales_cost, id_area, id_area_route_step, step_key, system_step_code,
+               id_truck, step_order_snapshot, step_name_snapshot,
+               wialon_resource_id, wialon_zone_id, wialon_zone_name, gps_time, recorded_at, lat, lon)
+            VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+          `, [sc.id_sales_cost, sc.id_area, step.id_area_route_step, stepKey,
+             sc.id_truck, step.step_order, step.step_name,
+             step.wialon_resource_id, step.wialon_zone_id, step.wialon_zone_name,
+             gpsTime, hit.lat, hit.lon]);
+          existingKeys.add(`${sc.id_sales_cost}:${stepKey}`);
+          summary.inserted += 1;
+        }
+
+        const finishKey = DEFAULT_FINISH_STEP_KEY;
+        if (!existingKeys.has(`${sc.id_sales_cost}:${finishKey}`)) {
+          const fResId = normalizePositiveIntString(sc.finish_geofence_resource_id);
+          const fZId = normalizePositiveIntString(sc.finish_geofence_zone_id);
+          if (fResId && fZId) {
+            const fZone = await getZonePolygon(fResId, fZId, sid);
+            if (fZone && fZone.points.length >= 3) {
+              const hit = messages.find(m => pointInPolygon({ x: m.lon, y: m.lat }, fZone.points));
+              if (hit) {
+                const gpsTime = toMySqlDateTime(new Date(hit.t * 1000));
+                await db.query(`
+                  INSERT IGNORE INTO sales_cost_route_history
+                    (id_sales_cost, id_area, id_area_route_step, step_key, system_step_code,
+                     id_truck, step_order_snapshot, step_name_snapshot,
+                     wialon_resource_id, wialon_zone_id, wialon_zone_name, gps_time, recorded_at, lat, lon)
+                  VALUES (?, ?, NULL, ?, ?, ?, ?, 'Finish Order', ?, ?, ?, ?, NOW(), ?, ?)
+                `, [sc.id_sales_cost, sc.id_area, finishKey, DEFAULT_FINISH_STEP_CODE,
+                   sc.id_truck, steps.length + 1,
+                   sc.finish_geofence_resource_id, sc.finish_geofence_zone_id, sc.finish_geofence_zone_name,
+                   gpsTime, hit.lat, hit.lon]);
+                existingKeys.add(`${sc.id_sales_cost}:${finishKey}`);
+                summary.inserted += 1;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[geofence-backfill] SC ${sc.id_sales_cost} error:`, err.message);
+        summary.errors += 1;
+      }
+    }
+  } finally {
+    if (sid) await logoutIsolatedSession(sid);
+  }
+
+  const dur = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(`[geofence-backfill] done in ${dur}s — processed:${summary.processed} inserted:${summary.inserted} skipped:${summary.skipped} errors:${summary.errors}`);
+  return summary;
+};
+
+const detectAndRunStartupBackfill = async () => {
+  try {
+    const [rows] = await db.query('SELECT MAX(recorded_at) AS last_recorded FROM sales_cost_route_history');
+    const lastRecorded = rows[0]?.last_recorded;
+    const nowMs = Date.now();
+    const nowTs = Math.floor(nowMs / 1000);
+    let fromTs;
+    if (!lastRecorded) {
+      fromTs = Math.floor((nowMs - BACKFILL_MAX_GAP_MS) / 1000);
+      console.log('[geofence-backfill] no history found, backfilling last 7 days');
+    } else {
+      const lastMs = new Date(lastRecorded).getTime();
+      const gapMs = nowMs - lastMs;
+      if (gapMs < BACKFILL_MIN_GAP_MS) {
+        console.log(`[geofence-backfill] gap ${Math.round(gapMs / 1000)}s too small, skipping`);
+        return;
+      }
+      fromTs = gapMs > BACKFILL_MAX_GAP_MS
+        ? Math.floor((nowMs - BACKFILL_MAX_GAP_MS) / 1000)
+        : Math.floor(lastMs / 1000);
+      console.log(`[geofence-backfill] gap ${Math.round(gapMs / 60000)}min detected, running startup backfill`);
+    }
+    await runBackfill(fromTs, nowTs);
+  } catch (err) {
+    console.warn('[geofence-backfill] startup backfill failed:', err.message);
+  }
+};
+
 module.exports = {
   startGeofenceTracking,
   stopGeofenceTracking,
   syncGeofenceRouteHistory,
-  checkArrivalDelays
+  checkArrivalDelays,
+  runBackfill,
+  detectAndRunStartupBackfill
 };

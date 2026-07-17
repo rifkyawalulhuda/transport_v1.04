@@ -1969,6 +1969,140 @@ const autoMapTruckWialonUnits = async ({ overwrite = false } = {}) => {
   };
 };
 
+
+// ============================================================
+// HISTORICAL BACKFILL UTILITIES
+// ============================================================
+
+/**
+ * Ray-casting point-in-polygon algorithm.
+ * polygon: array of {x, y} (lon, lat) points
+ * point: {x: lon, y: lat}
+ */
+const pointInPolygon = (point, polygon) => {
+  if (!Array.isArray(polygon) || polygon.length < 3) return false;
+  const x = point.x;
+  const y = point.y;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x;
+    const yi = polygon[i].y;
+    const xj = polygon[j].x;
+    const yj = polygon[j].y;
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+/**
+ * Fetch zone polygon data for a specific resource.
+ * Returns Map<zoneId(string), {name, points: [{x,y}]}>
+ */
+const fetchZonePolygons = async (resourceId, sid) => {
+  const safeResourceId = normalizePositiveIntString(resourceId);
+  if (!safeResourceId) return new Map();
+
+  try {
+    const payload = await requestWialon(
+      "resource/get_zone_data",
+      { itemId: Number(safeResourceId), flags: 4 }, // flags:4 = include zone points
+      sid
+    );
+
+    const rows = normalizeZoneDataRows(payload);
+    const result = new Map();
+
+    rows.forEach((zone) => {
+      const zoneId = normalizePositiveIntString(zone?.id ?? zone?.i ?? zone?.zone_id);
+      const zoneName = String(zone?.n ?? zone?.nm ?? zone?.name ?? "").trim();
+      // Points may be in zone.p or zone.points — each point has x (lon) and y (lat)
+      const rawPoints = Array.isArray(zone?.p) ? zone.p
+        : Array.isArray(zone?.points) ? zone.points
+        : [];
+      if (!zoneId || rawPoints.length < 3) return;
+
+      const points = rawPoints
+        .map((pt) => ({
+          x: Number(pt?.x ?? pt?.lon ?? 0),
+          y: Number(pt?.y ?? pt?.lat ?? 0)
+        }))
+        .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+      if (points.length >= 3) {
+        result.set(zoneId, { name: zoneName, points });
+      }
+    });
+
+    return result;
+  } catch {
+    return new Map();
+  }
+};
+
+/**
+ * Load raw GPS messages for a unit in a time range.
+ * timeFrom, timeTo: Unix timestamps (seconds)
+ * Returns array of {t, lat, lon} — one entry per GPS message
+ */
+const fetchRawMessagesForUnit = async ({ sid, unitId, timeFrom, timeTo }) => {
+  const safeUnitId = normalizePositiveIntString(unitId);
+  if (!safeUnitId) return [];
+
+  try {
+    // Cleanup any previous loaded messages for this session slot
+    try { await requestWialon("messages/unload", {}, sid); } catch { /* ignore */ }
+
+    // Load messages for the interval
+    const loadResult = await requestWialon(
+      "messages/load_interval",
+      {
+        itemId: Number(safeUnitId),
+        timeFrom,
+        timeTo,
+        flags: 0x0000,   // all messages with position data
+        flagsMask: 0xFF00,
+        loadCount: 0xffffffff
+      },
+      sid
+    );
+
+    const messageCount = Number(loadResult?.count ?? loadResult ?? 0);
+    if (!messageCount) return [];
+
+    // Retrieve loaded messages
+    const messagesPayload = await requestWialon(
+      "messages/get_messages",
+      { indexFrom: 0, indexTo: messageCount - 1 },
+      sid
+    );
+
+    const messages = Array.isArray(messagesPayload)
+      ? messagesPayload
+      : Array.isArray(messagesPayload?.messages)
+        ? messagesPayload.messages
+        : [];
+
+    const result = [];
+    messages.forEach((msg) => {
+      const pos = msg?.pos ?? msg?.p;
+      if (!pos) return;
+      const lat = Number(pos.y ?? pos.lat);
+      const lon = Number(pos.x ?? pos.lon);
+      const ts = Number(msg.t ?? msg.time);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(ts) && lat !== 0 && lon !== 0) {
+        result.push({ t: ts, lat, lon });
+      }
+    });
+
+    return result;
+  } catch {
+    return [];
+  } finally {
+    try { await requestWialon("messages/unload", {}, sid); } catch { /* ignore */ }
+  }
+};
 module.exports = {
   getTruckLocations,
   getTruckMonthlyDistance,

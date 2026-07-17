@@ -221,4 +221,54 @@ router.get("/geofences", async (_req, res) => {
   }
 });
 
+
+router.post("/backfill", async (req, res) => {
+  try {
+    const { from, to } = req.body || {};
+
+    const nowTs = Math.floor(Date.now() / 1000);
+    const maxBackfillTs = nowTs - 7 * 24 * 60 * 60; // 7 days ago
+
+    let fromTs;
+    let toTs;
+
+    if (from) {
+      const fromDate = new Date(from);
+      if (Number.isNaN(fromDate.getTime())) {
+        return res.status(400).json({ message: "Format 'from' tidak valid. Gunakan ISO 8601, contoh: 2026-07-10T00:00:00" });
+      }
+      fromTs = Math.floor(fromDate.getTime() / 1000);
+      if (fromTs < maxBackfillTs) {
+        return res.status(400).json({ message: "Backfill maksimal 7 hari ke belakang." });
+      }
+    } else {
+      fromTs = maxBackfillTs;
+    }
+
+    if (to) {
+      const toDate = new Date(to);
+      if (Number.isNaN(toDate.getTime())) {
+        return res.status(400).json({ message: "Format 'to' tidak valid. Gunakan ISO 8601, contoh: 2026-07-17T23:59:59" });
+      }
+      toTs = Math.floor(toDate.getTime() / 1000);
+    } else {
+      toTs = nowTs;
+    }
+
+    if (fromTs >= toTs) {
+      return res.status(400).json({ message: "'from' harus lebih awal dari 'to'." });
+    }
+
+    const summary = await runBackfill(fromTs, toTs);
+    res.json({
+      message: "Backfill selesai.",
+      from: new Date(fromTs * 1000).toISOString(),
+      to: new Date(toTs * 1000).toISOString(),
+      ...summary
+    });
+  } catch (error) {
+    console.error("Wialon backfill error:", error);
+    res.status(500).json({ message: "Gagal menjalankan backfill geofence." });
+  }
+});
 module.exports = router;
