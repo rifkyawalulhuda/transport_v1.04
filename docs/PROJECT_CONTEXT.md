@@ -579,3 +579,92 @@ npm run build-only
 - Sections: Info Utama, Timeline, Detail Kerusakan, Biaya Perbaikan.
 - Status badge redesign: compact with dot indicator (Selesai/Proses).
 - Applied same UI/UX pattern as Detail Sales Cost and Detail Subcontractor.
+
+---
+
+## Major Feature Additions (Juli 2026)
+
+### Delivery Timeline DATETIME Migration
+
+- Renamed `sales_cost` columns: `delivery_order` → `departure_datetime`, `arrival_order` → `arrival_datetime`, `finish_order` → `finish_order_datetime` (type `DATE` → `DATETIME`).
+- All backend routes, export/import, geofence tracking, monitoring, and frontend views updated to use new field names.
+- `DatePickerInput.vue` updated with `enableTime` prop — uses `type="datetime-local"` (then later upgraded to Flatpickr).
+- `SalesCostForm.vue` section "Tanggal Transaksi" hidden from UI (Opsi B) — values auto-synced from "Jadwal Pengiriman" stops in `buildPayload()`.
+- `mysql2` pool configured with `timezone: 'local'` and `dateStrings: true` to prevent UTC conversion issues.
+
+### Monitoring Kendaraan — Status "Dalam Perjalanan"
+
+- New `on_trip` status added: truck is "Dalam Perjalanan" if `departure_datetime` is set, `finish_order_datetime` is NULL, and no `system:finish_order` in `sales_cost_route_history`.
+- `monitoringKendaraan.js` adds `onTripSql` query and returns `on_trip` array + `summary.on_trip` in response.
+- `MonitoringKendaraan.vue` adds new "Kendaraan Dalam Perjalanan" section above Transaksi, with amber badge and "⚠ Terlambat" indicator if overdue.
+
+### Delivery Notifications (Arrival Overdue Alerts)
+
+- New table `delivery_notifications` for arrival overdue notifications.
+- `geofenceTrackingService.js` — `checkArrivalDelays()` runs every 60 seconds, creates notifications when `arrival_datetime` has passed but truck hasn't triggered finish geofence.
+- New backend route `routes/deliveryNotifications.js` — GET, PUT read, PUT read-all, DELETE endpoints.
+- `DeliveryNotificationBell.vue` component — polls every 30 seconds, shows unread badge in AppHeader, dropdown with stop-level context badges.
+- Notifications support per-stop context: `id_sc_stop`, `step_name` columns distinguish stop-level vs final arrival notifications.
+
+### Delivery Stops — Direct Geofence Selection (Pendekatan C)
+
+- `sales_cost_step_schedule` table restructured: replaced `id_area_route_step` FK with direct geofence fields (`stop_order`, `stop_name`, `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`, `is_departure`, `is_finish`).
+- Area `route_steps` (from `area_route_step`) are no longer used for geofence tracking — only for Surat Jalan printing.
+- New endpoint `GET /api/areas/:id/route-steps` added to `area.js` (before `/:id` to avoid param conflict).
+- `SalesCostForm.vue` — "Jadwal Pengiriman" section replaces old "Estimasi Tiba Per Stop": vertical timeline card with Departure (fixed), dynamic middle stops (add/remove), Finish (fixed). Each stop has geofence picker (`SearchableSelect` with `value-key="value"`) + Flatpickr datetime.
+- Validation: all stops require geofence + estimated time; date order validated both on submit and realtime via `watch` + `updateStopOrderErrors()`.
+- `geofenceTrackingService.js` — all tracking logic now uses `sales_cost_step_schedule` stops instead of `area_route_step`. Step key format changed from `route:{id_area_route_step}` to `stop:{scss.id}`.
+- `sales_cost_route_history` and `delivery_notifications` gain `id_sc_stop` column for per-stop tracking.
+- `DetailSalesCost.vue` — "Jadwal & Realisasi Pengiriman" uses `delivery_stops` + `id_sc_stop` matching for hit/overdue/actual_arrival.
+
+### Historical Geofence Backfill
+
+- `wialonService.js` — new `fetchRawMessagesForUnit()` (uses `messages/load_interval` + `messages/get_messages`), `fetchZonePolygons()` (polygon data from Wialon), `pointInPolygon()` (ray-casting algorithm). `loginIsolatedSession` and `logoutIsolatedSession` now exported.
+- `geofenceTrackingService.js` — `runBackfill(fromTs, toTs)` processes active sales costs in time window, checks point-in-polygon for each GPS message vs geofence zones, inserts missing `sales_cost_route_history` records.
+- `detectAndRunStartupBackfill()` — auto-detects downtime gap (min 5 min, max 7 days) on server startup, runs backfill before `startGeofenceTracking()`.
+- `routes/wialon.js` — `POST /api/wialon/backfill` endpoint for manual admin trigger with `from`/`to` ISO timestamps.
+- `server.js` — startup sequence: `detectAndRunStartupBackfill().finally(() => startGeofenceTracking())`.
+
+### Flatpickr Datetime Picker
+
+- `DatePickerInput.vue` upgraded: when `enableTime=true`, uses `vue-flatpickr-component` instead of `type="datetime-local"`. Config: 24-hour, Indonesian locale, 5-minute steps, `allowInput: true`. Both `flatpickr` and `vue-flatpickr-component` already installed. CSS imported globally in `main.ts`.
+
+### Timeline Card UI — Jadwal Pengiriman
+
+- `SalesCostForm.vue` Jadwal Pengiriman section redesigned as vertical timeline:
+  - Connector line gradient (brand-400 → gray-400) linking all nodes.
+  - Departure: filled brand-500 circle with play icon, gradient card.
+  - Middle stops: numbered circles, subtle × remove button.
+  - Add stop: dashed circle node + full-width dashed add card.
+  - Finish: flag icon gray-600 circle, gradient gray card.
+  - Error messages in rounded red box per stop.
+- `DetailSalesCost.vue` "Jadwal & Realisasi Pengiriman" matching read-only timeline:
+  - Node icons change per status: ✓ (hit), ⚠ (overdue), ▶ (departure), 🏁 (finish), numbered (middle).
+  - Card background gradient changes per status.
+  - Status badges include icons for better readability.
+
+### Bug Fixes (Juli 2026)
+
+- `wialonService.js` all `delivery_order`/`arrival_order`/`finish_order` column refs renamed to new names.
+- `dashboard.js` and `schedulePengiriman.js` column refs updated.
+- `db.js` pool: `timezone: 'local'`, `dateStrings: true` to fix UTC timezone shift on DATETIME save.
+- `formatDateTime()` in `DetailSalesCost.vue` normalizes timezone suffix (strips `Z`) to prevent gps_time UTC offset display mismatch.
+- `SalesCostForm.vue`: removed `required` attributes from hidden Tanggal Transaksi fields (was blocking form submit via browser HTML5 validation).
+- `DatePickerInput.vue`: added `value-key="value"` to all geofence `SearchableSelect` instances (was preventing geofence selection from working).
+- `sales_cost_step_schedule`: FK and `id_area_route_step` column dropped via manual migration; `estimated_arrival` set to NULL-able.
+- `salesCost.js`: `insertedId` → `result.insertId` fix for delivery stops save.
+- `area.js`: `GET /:id/route-steps` endpoint added before `GET /:id` to prevent param conflict.
+- `SalesCostForm.vue` HTML structure: Jadwal Pengiriman moved outside hidden Tanggal Transaksi div (was causing section to be invisible).
+
+## Key DB Schema Notes (current)
+
+- `sales_cost.departure_datetime` DATETIME NOT NULL (was `delivery_order DATE`)
+- `sales_cost.arrival_datetime` DATETIME NULL (was `arrival_order DATE`)
+- `sales_cost.finish_order_datetime` DATETIME NULL (was `finish_order DATE`)
+- `sales_cost_step_schedule`: `stop_order`, `stop_name`, `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`, `is_departure`, `is_finish`, `estimated_arrival` (no more `id_area_route_step`)
+- `sales_cost_route_history`: has `id_sc_stop INT NULL` for per-stop tracking
+- `delivery_notifications`: `id_sc_stop INT NULL`, `step_name VARCHAR(100) NULL`
+
+## Active Branch
+
+- `add-module-bbs` — contains all Juli 2026 features. 26+ commits ahead of `origin/add-module-bbs`. Not yet pushed to GitHub.
