@@ -28,3 +28,30 @@ Itu akan menjalankan semua pending migrations via dbmate. Kalau mau cek status d
 
 cd node_backend
 npm run migrate:status
+
+
+# Di server produksi, setelah copy folder
+cd node_backend
+
+# Cek dulu tanpa apply (aman, tidak ubah apapun)
+node migrate-production.js --dry-run
+
+# Jalankan migration sesungguhnya
+node migrate-production.js
+
+
+Stop semua proses:
+pm2 stop all
+
+Stop proses spesifik:
+pm2 stop transport-backend
+pm2 stop transport-frontend
+
+Delete (stop + hapus dari list):
+pm2 delete all
+
+Restart semua:
+pm2 restart all
+
+Lihat status:
+pm2 status
