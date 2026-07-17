@@ -254,10 +254,10 @@
             <div class="grid gap-4 sm:grid-cols-2">
               <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
-                  >Delivery Order</label
+                  >Departure</label
                 >
                 <input
-                  v-model="form.delivery_order"
+                  v-model="form.departure_datetime"
                   type="date"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   required
@@ -268,7 +268,7 @@
                   >Arrival</label
                 >
                 <input
-                  v-model="form.arrival_order"
+                  v-model="form.arrival_datetime"
                   type="date"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                   required
@@ -401,10 +401,10 @@
                   </th>
                   <th
                     class="group cursor-pointer px-5 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('delivery_order')"
+                    @click="toggleSort('departure_datetime')"
                   >
                     <div class="flex items-center gap-1">
-                      Tanggal Kirim
+                      Departure
                       <span class="flex flex-col">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -418,7 +418,7 @@
                           stroke-linejoin="round"
                           class="transition-colors"
                           :class="
-                            sortColumn === 'delivery_order' && sortOrder === 'asc'
+                            sortColumn === 'departure_datetime' && sortOrder === 'asc'
                               ? 'text-brand-500'
                               : 'text-gray-300 group-hover:text-gray-400'
                           "
@@ -437,7 +437,7 @@
                           stroke-linejoin="round"
                           class="-mt-1 transition-colors"
                           :class="
-                            sortColumn === 'delivery_order' && sortOrder === 'desc'
+                            sortColumn === 'departure_datetime' && sortOrder === 'desc'
                               ? 'text-brand-500'
                               : 'text-gray-300 group-hover:text-gray-400'
                           "
@@ -663,8 +663,8 @@
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                       {{ item.id_sales_cost }}
                     </td>
-                    <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
-                      {{ formatDate(item.delivery_order) }}
+                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
+                      {{ formatDateTime(item.departure_datetime) }}
                     </td>
                     <td class="px-5 py-3 text-sm text-gray-700 sm:px-6 dark:text-gray-200">
                       {{ item.nama_customer }}
@@ -856,10 +856,10 @@
                             <div>
                               <label
                                 class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
-                                >Delivery Order</label
+                                >Departure</label
                               >
                               <input
-                                v-model="form.delivery_order"
+                                v-model="form.departure_datetime"
                                 type="date"
                                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                 required
@@ -871,7 +871,7 @@
                                 >Arrival</label
                               >
                               <input
-                                v-model="form.arrival_order"
+                                v-model="form.arrival_datetime"
                                 type="date"
                                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                 required
@@ -1197,7 +1197,7 @@ import { useToast } from '@/composables/useToast'
 
 type SalesCostItem = {
   id_sales_cost: number
-  delivery_order: string
+  departure_datetime: string
   nama_customer: string
   nama_area?: string | null
   nama_driver?: string | null
@@ -1215,8 +1215,8 @@ type SalesCostDetail = {
   id_driver: number | null
   id_customer: number | null
   id_area: number | null
-  delivery_order: string | null
-  arrival_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
   price: number | null
   ops_cost: number | null
   additional_cost: number | null
@@ -1240,8 +1240,8 @@ type FormState = {
   id_driver: string
   id_customer: string
   id_area: string
-  delivery_order: string
-  arrival_order: string
+  departure_datetime: string
+  arrival_datetime: string
   price: string
   ops_cost: string
   additional_cost: string
@@ -1542,8 +1542,8 @@ const form = reactive<FormState>({
   id_driver: '',
   id_customer: '',
   id_area: '',
-  delivery_order: '',
-  arrival_order: '',
+  departure_datetime: '',
+  arrival_datetime: '',
   price: '',
   ops_cost: '',
   additional_cost: '',
@@ -1596,6 +1596,16 @@ const formatDate = (value?: string | null) => {
     month: 'long',
     year: 'numeric',
   }).format(date)
+}
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return '-'
+  return d.toLocaleString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
 }
 
 const formatRupiah = (value: number) => {
@@ -1962,8 +1972,8 @@ const resetForm = () => {
   form.id_driver = ''
   form.id_customer = ''
   form.id_area = ''
-  form.delivery_order = ''
-  form.arrival_order = ''
+  form.departure_datetime = ''
+  form.arrival_datetime = ''
   form.price = ''
   form.ops_cost = ''
   form.additional_cost = ''
@@ -1975,8 +1985,8 @@ const applyDetailToForm = (detail: SalesCostDetail) => {
   form.id_driver = detail.id_driver !== null ? String(detail.id_driver) : ''
   form.id_customer = detail.id_customer !== null ? String(detail.id_customer) : ''
   form.id_area = detail.id_area !== null ? String(detail.id_area) : ''
-  form.delivery_order = toDateInputValue(detail.delivery_order)
-  form.arrival_order = toDateInputValue(detail.arrival_order)
+  form.departure_datetime = toDateInputValue(detail.departure_datetime)
+  form.arrival_datetime = toDateInputValue(detail.arrival_datetime)
   form.price = detail.price !== null ? String(detail.price) : ''
   form.ops_cost = detail.ops_cost !== null ? String(detail.ops_cost) : ''
   form.additional_cost = detail.additional_cost !== null ? String(detail.additional_cost) : ''
@@ -1996,7 +2006,7 @@ const openForm = async (item?: SalesCostItem) => {
 
   formTitle.value = 'Edit Transaksi'
   form.id = item.id_sales_cost
-  form.delivery_order = toDateInputValue(item.delivery_order)
+  form.departure_datetime = toDateInputValue(item.departure_datetime)
   form.price = String(item.price)
   form.ops_cost = String(item.ops_cost)
   showCreateForm.value = false
@@ -2035,12 +2045,12 @@ const submitForm = async () => {
     id_driver: form.id_driver ? Number(form.id_driver) : null,
     id_customer: form.id_customer ? Number(form.id_customer) : null,
     id_area: form.id_area ? Number(form.id_area) : null,
-    delivery_order: form.delivery_order,
-    arrival_order: form.arrival_order,
+    departure_datetime: form.departure_datetime,
+    arrival_datetime: form.arrival_datetime,
     price: Number(form.price || 0),
     ops_cost: Number(form.ops_cost || 0),
     additional_cost: Number(form.additional_cost || 0),
-    tgl_order: form.delivery_order,
+    tgl_order: form.departure_datetime,
   }
 
   const isUpdate = Boolean(form.id)

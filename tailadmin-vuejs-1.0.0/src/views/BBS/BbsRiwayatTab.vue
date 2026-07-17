@@ -1,7 +1,7 @@
 <template>
   <div>
-    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">Riwayat Laporan</h4>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Semua observasi, checklist, dan insiden yang telah dicatat</p>
+    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">{{ t.hisTitle }}</h4>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.hisSub }}</p>
 
     <div class="flex gap-1.5 mb-4">
       <button
@@ -23,7 +23,7 @@
         <input
           v-model="filter.search"
           type="text"
-          placeholder="Cari teks..."
+          placeholder="Cari..."
           class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
           @input="onSearchInput"
         />
@@ -44,15 +44,15 @@
           class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
           @change="applyFilters"
         >
-          <option value="">Semua Status</option>
-          <option value="aman">Aman</option>
-          <option value="perlu_perhatian">Perlu Perhatian</option>
-          <option value="passed">Lulus</option>
-          <option value="needs_fix">Perlu Perbaikan</option>
+          <option value="">{{ t.hisAllStatus }}</option>
+          <option value="aman">{{ t.hisStatusAman }}</option>
+          <option value="perlu_perhatian">{{ t.hisStatusPerlu }}</option>
+          <option value="passed">{{ t.hisStatusLulus }}</option>
+          <option value="needs_fix">{{ t.hisStatusNeedsFix }}</option>
           <option value="Near-Miss">Near-Miss</option>
-          <option value="Insiden Ringan">Insiden Ringan</option>
-          <option value="Insiden Sedang">Insiden Sedang</option>
-          <option value="Insiden Berat">Insiden Berat</option>
+          <option value="Insiden Ringan">{{ t.incRingan }}</option>
+          <option value="Insiden Sedang">{{ t.incSedang }}</option>
+          <option value="Insiden Berat">{{ t.incBerat }}</option>
         </select>
       </div>
       <div class="sm:col-span-2 xl:col-span-2 flex items-end gap-2">
@@ -81,7 +81,7 @@
           <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showExportModal = false"></div>
           <div class="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
             <div class="flex items-center justify-between mb-5">
-              <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Export Riwayat BBS</h3>
+              <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">{{ t.exportTitle }}</h3>
               <button
                 type="button"
                 class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/10 dark:hover:text-gray-200 transition-colors"
@@ -91,36 +91,36 @@
               </button>
             </div>
 
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Pilih rentang data yang akan di-export ke Excel</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.exportModalSub }}</p>
 
             <div class="space-y-3 mb-5">
               <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer transition-colors hover:border-brand-300 dark:border-gray-700 dark:hover:border-brand-500/50" :class="exportRange === 'month' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 dark:border-brand-500' : ''">
                 <input v-model="exportRange" type="radio" value="month" class="h-4 w-4 text-brand-500 border-gray-300 focus:ring-brand-500" />
                 <div class="flex-1">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Per Bulan</span>
-                  <p class="text-xs text-gray-400 mt-0.5">Export data satu bulan tertentu</p>
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t.exportByMonth }}</span>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ t.exportMonthSub }}</p>
                 </div>
               </label>
 
               <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer transition-colors hover:border-brand-300 dark:border-gray-700 dark:hover:border-brand-500/50" :class="exportRange === 'year' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 dark:border-brand-500' : ''">
                 <input v-model="exportRange" type="radio" value="year" class="h-4 w-4 text-brand-500 border-gray-300 focus:ring-brand-500" />
                 <div class="flex-1">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Per Tahun</span>
-                  <p class="text-xs text-gray-400 mt-0.5">Export data satu tahun penuh</p>
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t.exportByYear }}</span>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ t.exportYearSub }}</p>
                 </div>
               </label>
 
               <label class="flex items-center gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer transition-colors hover:border-brand-300 dark:border-gray-700 dark:hover:border-brand-500/50" :class="exportRange === 'all' ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 dark:border-brand-500' : ''">
                 <input v-model="exportRange" type="radio" value="all" class="h-4 w-4 text-brand-500 border-gray-300 focus:ring-brand-500" />
                 <div class="flex-1">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Semua Data</span>
-                  <p class="text-xs text-gray-400 mt-0.5">Export seluruh riwayat BBS</p>
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t.exportAll }}</span>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ t.exportAllSub }}</p>
                 </div>
               </label>
             </div>
 
             <div v-if="exportRange === 'month'" class="mb-5">
-              <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">Pilih Bulan</label>
+              <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.exportSelectMonth }}</label>
               <input
                 ref="exportMonthInput"
                 v-model="exportMonth"
@@ -131,7 +131,7 @@
             </div>
 
             <div v-if="exportRange === 'year'" class="mb-5">
-              <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">Pilih Tahun</label>
+              <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.exportSelectYear }}</label>
               <select
                 v-model="exportYear"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
@@ -146,7 +146,7 @@
                 class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5 transition-colors"
                 @click="showExportModal = false"
               >
-                Batal
+                {{ t.exportCancel }}
               </button>
               <button
                 type="button"
@@ -155,7 +155,7 @@
                 @click="doExport"
               >
                 <svg v-if="exporting" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                {{ exporting ? 'Mengunduh...' : 'Download Excel' }}
+                {{ exporting ? t.btnSaving : t.exportBtn }}
               </button>
             </div>
           </div>
@@ -163,8 +163,8 @@
       </Transition>
     </Teleport>
 
-    <div v-if="loading" class="py-8 text-center text-sm text-gray-500">Memuat riwayat...</div>
-    <div v-else-if="rows.length === 0" class="py-8 text-center text-sm text-gray-500">Belum ada data</div>
+    <div v-if="loading" class="py-8 text-center text-sm text-gray-500">{{ t.loading }}</div>
+    <div v-else-if="rows.length === 0" class="py-8 text-center text-sm text-gray-500">{{ t.hisNoData }}</div>
     <template v-else>
       <div class="space-y-0 divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-200 dark:border-gray-800">
         <div
@@ -190,14 +190,14 @@
               'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium flex-shrink-0',
               badgeClass(row)
             ]"
-          >{{ row.status }}</span>
+          >{{ statusMap[row.status] || row.status }}</span>
         </div>
       </div>
 
       <!-- Pagination -->
       <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <span>Tampilkan</span>
+          <span>{{ t.hisShow }}</span>
           <select
             v-model.number="perPage"
             class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
@@ -208,7 +208,7 @@
             <option :value="50">50</option>
             <option :value="100">100</option>
           </select>
-          <span>dari {{ rows.length }} data</span>
+          <span>{{ t.hisOf }} {{ rows.length }} {{ t.hisData }}</span>
         </div>
 
         <nav v-if="totalPages > 1" class="flex items-center gap-1">
@@ -259,6 +259,9 @@ import AlertTriangleIcon from '@/icons/AlertTriangleIcon.vue'
 import { bbsService, type BbsHistoryRow } from '@/services/bbsService'
 import { API_BASE } from '@/config/api'
 import { authFetch } from '@/services/auth'
+import { useBbsLang } from '@/composables/useBbsLang'
+
+const { t, statusMap } = useBbsLang()
 
 const props = defineProps<{ refreshTrigger: number }>()
 const emit = defineEmits<{ (e: 'select', row: BbsHistoryRow): void }>()
@@ -311,12 +314,12 @@ const visiblePages = computed(() => {
   return pages
 })
 
-const historyTabs = [
-  { key: 'semua', label: 'Semua' },
-  { key: 'observasi', label: 'Observasi' },
-  { key: 'checklist', label: 'Checklist' },
-  { key: 'insiden', label: 'Insiden' },
-]
+const historyTabs = computed(() => [
+  { key: 'semua', label: t.value.hisAll },
+  { key: 'observasi', label: t.value.hisObs },
+  { key: 'checklist', label: t.value.hisChk },
+  { key: 'insiden', label: t.value.hisInc },
+])
 
 function iconComp(row: BbsHistoryRow) {
   if (row.type === 'observation') return EyeIcon

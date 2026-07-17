@@ -15,6 +15,8 @@ Panduan khusus untuk administrator sistem TMS. Admin memiliki akses penuh ke sem
 - Monitoring armada dan GPS
 - Import/export data bulk
 - Aktivasi/deaktivasi truck dan driver
+- Akses penuh ke modul BBS (semua tab + edit + hapus)
+- Membuat akun Patcher untuk petugas BBS lapangan
 
 ## Master Data
 

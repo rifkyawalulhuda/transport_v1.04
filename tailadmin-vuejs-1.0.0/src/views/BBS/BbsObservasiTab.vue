@@ -1,12 +1,12 @@
 <template>
   <div>
-    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">Form Observasi Perilaku</h4>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Catat dan nilai perilaku pengemudi di lapangan</p>
+    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">{{ t.obsTitle }}</h4>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.obsSub }}</p>
 
     <div class="space-y-4">
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="relative z-[1200] grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Observer</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblObserver }}</label>
           <input
             type="text"
             :value="authUser?.nama_admin || ''"
@@ -16,51 +16,52 @@
           />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">ID Pengemudi</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblDriver }}</label>
           <SearchableSelect
             v-model="form.driver_id"
             :options="drivers"
             value-key="id_driver"
             label-key="nama_driver"
             :search-keys="['nama_driver', 'id_driver']"
-            placeholder="-Pilih-"
-            search-placeholder="Cari nama driver"
+            :placeholder="t.placeholderSelectDriver"
+            :search-placeholder="t.placeholderSearchDriver"
           />
         </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tanggal</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblDate }}</label>
           <DatePickerInput
             v-model="form.date"
-            placeholder="Pilih tanggal"
+            :placeholder="t.placeholderDate"
           />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Lokasi</label>
-          <input
-            v-model="form.location"
-            type="text"
-            placeholder="Rute / titik pengamatan"
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblVehicleType }}</label>
+          <select
+            v-model="form.vehicle_type"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-          />
+          >
+            <option value="">{{ t.placeholderSelect }}</option>
+            <option v-for="v in vehicleOptions" :key="v" :value="v">{{ v }}</option>
+          </select>
         </div>
       </div>
 
-      <div>
-        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Jenis Kendaraan</label>
-        <select
-          v-model="form.vehicle_type"
-          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-        >
-          <option value="">-- Pilih --</option>
-          <option v-for="v in vehicleOptions" :key="v" :value="v">{{ v }}</option>
-        </select>
-      </div>
+      <!-- Location Map Picker -->
+      <BbsLocationPicker
+        v-model="form.location"
+        v-model:latitude="form.latitude"
+        v-model:longitude="form.longitude"
+        :label="t.lblLocation"
+        :search-placeholder="lang === 'id' ? 'Cari alamat atau ketik lokasi...' : 'Search address or type location...'"
+        :my-location-label="lang === 'id' ? 'Lokasi Saya' : 'My Location'"
+        :hint-text="lang === 'id' ? 'Klik pada peta atau cari alamat untuk menandai lokasi pengamatan' : 'Click on the map or search to mark the observation location'"
+      />
 
       <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-        <h5 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Penilaian Perilaku</h5>
+        <h5 class="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">{{ t.obsRatingTitle }}</h5>
         <div class="divide-y divide-gray-100 dark:divide-gray-800">
           <div
             v-for="item in observationItems"
@@ -89,21 +90,21 @@
 
       <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
         <div class="mb-4">
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Umpan Balik / Catatan</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblFeedback }}</label>
           <textarea
             v-model="form.feedback"
             rows="3"
-            placeholder="Tuliskan catatan observasi..."
+            :placeholder="t.placeholderFeedback"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 resize-y"
           ></textarea>
         </div>
         <div class="mb-4">
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Tindak Lanjut</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblFollowUp }}</label>
           <select
             v-model="form.follow_up"
             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
           >
-            <option value="">-- Pilih --</option>
+            <option value="">{{ t.placeholderSelect }}</option>
             <option v-for="f in followUpOptions" :key="f" :value="f">{{ f }}</option>
           </select>
         </div>
@@ -113,7 +114,7 @@
           class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           @click="submit"
         >
-          {{ submitting ? 'Menyimpan...' : 'Simpan Observasi' }}
+          {{ submitting ? t.btnSaving : t.btnSaveObs }}
         </button>
       </div>
     </div>
@@ -121,70 +122,89 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, computed } from 'vue'
 import { useAuthUser } from '@/services/auth'
 import { useToast } from '@/composables/useToast'
+import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsDriverOption } from '@/services/bbsService'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
+import BbsLocationPicker from './BbsLocationPicker.vue'
 
 const emit = defineEmits<{ (e: 'saved', type: string): void }>()
 
+const { t, lang } = useBbsLang()
 const authUser = useAuthUser()
 const toast = useToast()
 const submitting = ref(false)
 const drivers = ref<BbsDriverOption[]>([])
 
-const vehicleOptions = ['Truk Besar', 'Truk Sedang', 'Minibus', 'Pick-up', 'Sepeda Motor']
-const followUpOptions = ['Apresiasi langsung', 'Coaching on the spot', 'Pelaporan ke supervisor', 'Rencana pelatihan']
+const vehicleOptions = computed(() => [
+  t.value.vehTrukBesar,
+  t.value.vehTrukSedang,
+  t.value.vehMinibus,
+  t.value.vehPickup,
+  t.value.vehMotor,
+])
 
-const ratingOptions = [
-  { value: 'aman', label: 'Aman', activeClass: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
-  { value: 'berisiko', label: 'Berisiko', activeClass: 'border-warning-500 bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400' },
-  { value: 'berbahaya', label: 'Bahaya', activeClass: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
-]
+const followUpOptions = computed(() => [
+  t.value.fuApresiasi,
+  t.value.fuCoaching,
+  t.value.fuLaporan,
+  t.value.fuPelatihan,
+])
 
-const observationItems = [
-  { id: 'o1', label: 'Memakai sabuk pengaman', category: 'APD' },
-  { id: 'o2', label: 'Kecepatan sesuai batas', category: 'Kecepatan' },
-  { id: 'o3', label: 'Menjaga jarak aman', category: 'Jarak' },
-  { id: 'o4', label: 'Tidak menggunakan HP saat berkendara', category: 'Distraksi' },
-  { id: 'o5', label: 'Mematuhi rambu lalu lintas', category: 'Kepatuhan' },
-  { id: 'o6', label: 'Kondisi fisik & mental baik', category: 'Kondisi' },
-  { id: 'o7', label: 'Teknik pengereman benar', category: 'Teknik' },
-  { id: 'o8', label: 'Tidak merokok saat berkendara', category: 'Disiplin' },
-]
+const ratingOptions = computed(() => [
+  { value: 'aman', label: t.value.ratingAman, activeClass: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
+  { value: 'berisiko', label: t.value.ratingBerisiko, activeClass: 'border-warning-500 bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-orange-400' },
+  { value: 'berbahaya', label: t.value.ratingBerbahaya, activeClass: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
+])
+
+const observationItems = computed(() => [
+  { id: 'o1', label: t.value.o1, category: t.value.catO1 },
+  { id: 'o2', label: t.value.o2, category: t.value.catO2 },
+  { id: 'o3', label: t.value.o3, category: t.value.catO3 },
+  { id: 'o4', label: t.value.o4, category: t.value.catO4 },
+  { id: 'o5', label: t.value.o5, category: t.value.catO5 },
+  { id: 'o6', label: t.value.o6, category: t.value.catO6 },
+  { id: 'o7', label: t.value.o7, category: t.value.catO7 },
+  { id: 'o8', label: t.value.o8, category: t.value.catO8 },
+])
 
 const form = reactive({
   driver_id: '',
   date: new Date().toISOString().slice(0, 10),
   location: '',
+  latitude: null as number | null,
+  longitude: null as number | null,
   vehicle_type: '',
   feedback: '',
   follow_up: '',
 })
 
 const scores = reactive<Record<string, string>>(
-  Object.fromEntries(observationItems.map((item) => [item.id, '']))
+  Object.fromEntries(['o1','o2','o3','o4','o5','o6','o7','o8'].map((id) => [id, '']))
 )
 
 function resetForm() {
   form.driver_id = ''
   form.date = new Date().toISOString().slice(0, 10)
   form.location = ''
+  form.latitude = null
+  form.longitude = null
   form.vehicle_type = ''
   form.feedback = ''
   form.follow_up = ''
-  observationItems.forEach((item) => { scores[item.id] = '' })
+  ;['o1','o2','o3','o4','o5','o6','o7','o8'].forEach((id) => { scores[id] = '' })
 }
 
 async function submit() {
   if (!form.driver_id.trim()) {
-    toast.error('ID Pengemudi wajib diisi')
+    toast.error(t.value.toastDriverRequired)
     return
   }
   if (!form.date) {
-    toast.error('Tanggal wajib diisi')
+    toast.error(t.value.toastDateRequired)
     return
   }
 
@@ -194,16 +214,18 @@ async function submit() {
       driver_id: form.driver_id.trim(),
       date: form.date,
       location: form.location || undefined,
+      latitude: form.latitude,
+      longitude: form.longitude,
       vehicle_type: form.vehicle_type || undefined,
       scores: { ...scores },
       feedback: form.feedback || undefined,
       follow_up: form.follow_up || undefined,
     })
-    toast.success('Observasi berhasil disimpan')
+    toast.success(t.value.toastObsSaved)
     resetForm()
     emit('saved', 'observasi')
   } catch (err: any) {
-    toast.error(err?.message || 'Gagal menyimpan observasi')
+    toast.error(err?.message || t.value.toastError)
   } finally {
     submitting.value = false
   }

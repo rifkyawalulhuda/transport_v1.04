@@ -18,3 +18,13 @@ restart tunnel :
 cd root project
 
 cloudflared tunnel --config <.cloudflared> ubah dengan source config disimpan\config.yml run
+
+Migrasi Database :
+
+cd node_backend
+npm run migrate
+
+Itu akan menjalankan semua pending migrations via dbmate. Kalau mau cek status dulu sebelum migrate:
+
+cd node_backend
+npm run migrate:status

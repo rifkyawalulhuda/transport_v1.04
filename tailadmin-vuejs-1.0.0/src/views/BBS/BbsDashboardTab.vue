@@ -12,47 +12,47 @@
           @click="dashMonthInput?.showPicker?.()"
         />
       </div>
-      <p class="text-xs text-gray-400 dark:text-gray-500">Data ditampilkan berdasarkan bulan yang dipilih</p>
+      <p class="text-xs text-gray-400 dark:text-gray-500">{{ t.dashMonthHint }}</p>
     </div>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-5">
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03] text-center">
-        <p class="text-xs text-gray-500 dark:text-gray-400">Safe Behavior Rate</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t.metricSafeRate }}</p>
         <p class="mt-1.5 text-2xl font-semibold text-success-600">{{ dashboard?.summary.safe_behavior_rate ?? '-' }}%</p>
         <p class="mt-0.5 text-xs text-gray-400">
           <template v-if="dashboard?.summary.prev_safe_rate != null">
             {{ dashboard.summary.safe_behavior_rate > dashboard.summary.prev_safe_rate ? '▲' : '▼' }}
             {{ Math.abs(dashboard.summary.safe_behavior_rate - dashboard.summary.prev_safe_rate) }}%
           </template>
-          vs bulan lalu
+          {{ t.vsLastMonth }}
         </p>
       </div>
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03] text-center">
-        <p class="text-xs text-gray-500 dark:text-gray-400">Observasi Bulan Ini</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t.metricObsMonth }}</p>
         <p class="mt-1.5 text-2xl font-semibold text-gray-800 dark:text-white/90">{{ dashboard?.summary.observations_this_month ?? '-' }}</p>
-        <p class="mt-0.5 text-xs text-gray-400">Target: {{ dashboard?.summary.observation_target ?? 60 }}</p>
+        <p class="mt-0.5 text-xs text-gray-400">{{ t.target }}: {{ dashboard?.summary.observation_target ?? 60 }}</p>
       </div>
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03] text-center">
-        <p class="text-xs text-gray-500 dark:text-gray-400">Near-Miss Dilaporkan</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t.metricNearMiss }}</p>
         <p class="mt-1.5 text-2xl font-semibold text-warning-600">{{ dashboard?.summary.near_miss_count ?? '-' }}</p>
         <p class="mt-0.5 text-xs text-gray-400">
           {{ dashboard?.summary.near_miss_count > (dashboard?.summary.prev_near_miss ?? 0) ? '▲' : '▼' }}
-          vs bulan lalu
+          {{ t.vsLastMonth }}
         </p>
       </div>
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03] text-center">
-        <p class="text-xs text-gray-500 dark:text-gray-400">Hari Tanpa Insiden</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t.metricIncidentFree }}</p>
         <p class="mt-1.5 text-2xl font-semibold text-blue-light-500">{{ dashboard?.summary.incident_free_days ?? '-' }}</p>
-        <p class="mt-0.5 text-xs text-gray-400">Streak aktif</p>
+        <p class="mt-0.5 text-xs text-gray-400">{{ t.streakActive }}</p>
       </div>
     </div>
 
-    <div v-if="loading" class="text-sm text-gray-500 py-8 text-center">Memuat data dashboard...</div>
+    <div v-if="loading" class="text-sm text-gray-500 py-8 text-center">{{ t.loading }}</div>
     <div v-else-if="error" class="text-sm text-error-500 py-8 text-center">{{ error }}</div>
     <template v-else-if="dashboard">
       <div class="grid grid-cols-1 gap-5 xl:grid-cols-2 mb-5">
         <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">Tren Safe Behavior (6 bulan)</h4>
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.chartTrend }}</h4>
           <div class="relative h-56">
             <canvas ref="trendCanvas"></canvas>
           </div>
@@ -63,13 +63,13 @@
             </span>
             <span class="flex items-center gap-1.5">
               <span class="inline-block h-0.5 w-3 rounded-sm" style="border-top:2px dashed #E24B4A"></span>
-              Target 85%
+              {{ t.targetLine }}
             </span>
           </div>
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">Kategori Perilaku Berisiko</h4>
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.chartRiskCat }}</h4>
           <div class="relative h-48">
             <canvas ref="riskCanvas"></canvas>
           </div>
@@ -77,14 +77,14 @@
       </div>
 
       <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-        <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">Top Risiko Perilaku</h4>
+        <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.topRisks }}</h4>
         <div class="space-y-3">
           <div
             v-for="risk in dashboard.top_risks"
             :key="risk.label"
             class="flex items-center gap-3"
           >
-            <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ risk.label }}</span>
+            <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ riskLabelMap[risk.label] || risk.label }}</span>
             <span
               :class="[
                 'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
@@ -109,6 +109,9 @@
 import { onMounted, ref, watch, nextTick } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { bbsService, type BbsDashboardResponse } from '@/services/bbsService'
+import { useBbsLang } from '@/composables/useBbsLang'
+
+const { t, riskLabelMap, lang } = useBbsLang()
 
 Chart.register(...registerables)
 
@@ -192,7 +195,7 @@ function renderCharts() {
     riskChart = new Chart(riskCanvas.value, {
       type: 'bar',
       data: {
-        labels: dashboard.value.risks.labels,
+        labels: dashboard.value.risks.labels.map((l: string) => riskLabelMap.value[l] || l),
         datasets: [
           {
             data: dashboard.value.risks.data,
@@ -217,5 +220,10 @@ function renderCharts() {
 
 onMounted(() => {
   fetchDashboard()
+})
+
+// Re-render charts when language changes (to update axis labels)
+watch(lang, () => {
+  if (dashboard.value) renderCharts()
 })
 </script>

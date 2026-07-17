@@ -69,6 +69,7 @@ Modul BBS dapat diakses oleh beberapa role dengan tingkat akses berbeda.
 | `src/views/BBS/BbsRiwayatTab.vue` | Filter search/bulan/status (default bulan = current month) + pagination (15/30/50/100 per page) + Export modal |
 | `src/views/BBS/BbsDetailDrawer.vue` | Drawer slide-in kanan: detail view (card grouping) + edit mode + hapus; role `user` view-only |
 | `src/services/bbsService.ts` | API wrapper typed |
+| `src/composables/useBbsLang.ts` | Multi-language composable (ID/EN) — global state + translation dictionary |
 | `src/router/index.ts` | Route `/bbs` + guard role |
 | `src/config/navigation.js` | Menu BBS di sidebar utama + filter per role |
 | `src/icons/EyeIcon.vue` | Icon mata (observasi) |
@@ -335,3 +336,135 @@ Akses `http://localhost:5173/bbs` dengan role `patcher` atau `admin`.
 1. Buka Master Admin → Tambah Admin → pilih Level: **Patcher**
 2. Login dengan NIK patcher tersebut
 3. Harus redirect ke `/bbs` dan hanya lihat menu BBS + Profile
+
+## Multi-Language Support (ID/EN) — Session 2026-06-19
+
+### Overview
+
+Modul BBS mendukung pemilihan bahasa Indonesia dan English. Toggle bahasa berupa tombol dengan icon globe di pojok kanan atas header BBS.
+
+### Arsitektur
+
+- **Composable**: `src/composables/useBbsLang.ts`
+  - Global reactive state (`ref<'id' | 'en'>`)
+  - Dictionary objek `translations.id` dan `translations.en` dengan ~120+ key
+  - `riskLabelMap` — mapping label risiko dari backend (Indonesian) ke bahasa aktif
+  - `statusMap` — mapping status dari backend (Aman/Lulus/Perlu Perbaikan/dll) ke bahasa aktif
+  - Exported: `t`, `lang`, `riskLabelMap`, `statusMap`, `toggleLang`, `setLang`
+- **Tidak menggunakan library i18n eksternal** — murni composable Vue 3
+
+### Cakupan Terjemahan
+
+| Area | Detail |
+|------|--------|
+| Header & Tab | Judul modul, subtitle, 5 tab navigasi |
+| Dashboard | 4 metric cards, 2 chart titles, top risk labels, chart category labels, target line label |
+| Observasi Form | 6 form labels, 8 observation items + categories, 3 rating buttons, placeholders, submit button |
+| Checklist Form | Form labels, 3 sub-tab titles, 16 checklist items, OK/NOK/N/A buttons, score label |
+| Insiden Form | 8 form labels, 4 incident types, 8 factor buttons, placeholders, submit button |
+| Riwayat | Title, filter tabs, status dropdown (8 options), pagination text, export modal (title + 3 range options + labels) |
+| Detail Drawer | All field labels (Observer, Driver, Location, Vehicle, Plate), status badges, edit form labels, action buttons (Edit/Delete/Save/Cancel), confirm dialog |
+| Toast Messages | Success/error messages for all CRUD operations and validations |
+
+### Behaviour
+
+- Default bahasa: **Indonesia**
+- Klik tombol "EN" → switch ke English, tombol berubah jadi "ID"
+- State bahasa shared global — semua tab & drawer langsung berubah tanpa reload
+- Chart.js re-render otomatis saat bahasa berubah (watcher pada `lang`)
+- Data yang disimpan ke DB tetap dalam format asli (key `aman`/`berisiko`/`safe`/`unsafe` tidak terpengaruh bahasa UI)
+- Label dari backend (risk names, status values) di-translate client-side via mapping dictionary
+
+### Files Modified
+
+| File | Perubahan |
+|------|-----------|
+| `src/composables/useBbsLang.ts` | **NEW** — composable bahasa BBS |
+| `src/views/BBS/BbsTransportasi.vue` | +toggle button, tab labels via `t` |
+| `src/views/BBS/BbsDashboardTab.vue` | Semua text via `t`, chart labels via `riskLabelMap`, lang watcher |
+| `src/views/BBS/BbsObservasiTab.vue` | Form labels, items, ratings, toasts via `t` |
+| `src/views/BBS/BbsChecklistTab.vue` | Form labels, sub-tabs, items, toasts via `t` |
+| `src/views/BBS/BbsInsidenTab.vue` | Form labels, types, factors, toasts via `t` |
+| `src/views/BBS/BbsRiwayatTab.vue` | Filters, pagination, export modal, status badge via `t` + `statusMap` |
+| `src/views/BBS/BbsDetailDrawer.vue` | All view/edit labels, status badges, checklist items, action buttons via `t` |
+
+## Location Map Picker — Session 2026-06-20
+
+### Overview
+
+Halaman Observasi dan Insiden sekarang menggunakan **Map Picker** interaktif (Leaflet + OpenStreetMap) untuk kolom Lokasi, menggantikan input teks biasa.
+
+### Komponen
+
+- **File baru**: `src/views/BBS/BbsLocationPicker.vue` — reusable map picker component
+- Digunakan di: `BbsObservasiTab.vue` dan `BbsInsidenTab.vue`
+
+### Fitur Map Picker
+
+| Fitur | Detail |
+|-------|--------|
+| Klik Map | Pin marker + reverse geocode → alamat |
+| Search Autocomplete | Debounce 350ms, Nominatim, max 5 suggestions, keyboard ↑↓ + Enter |
+| Lokasi Saya | `navigator.geolocation` → pin + geocode |
+| Drag Pin | Marker draggable → re-geocode on drag end |
+| Expand/Collapse | Tombol "Perbesar/Perkecil" (240px ↔ 460px) |
+| Double Fallback | Geoapify (backend cache) → Nominatim → koordinat (last resort) |
+| Loading State | Spinner "Mengambil alamat lokasi..." selama geocode |
+| Default Center | Cikarang (-6.3105, 107.1731) zoom 13 |
+
+### Database Changes
+
+| Tabel | Perubahan |
+|-------|-----------|
+| `bbs_observations` | +`latitude DECIMAL(10,7)`, +`longitude DECIMAL(10,7)`, `location` → VARCHAR(500) |
+| `bbs_incidents` | +`latitude DECIMAL(10,7)`, +`longitude DECIMAL(10,7)`, `location` → VARCHAR(500) |
+
+### Migrations
+
+| File | Deskripsi |
+|------|-----------|
+| `20260619120000_add_coordinates_to_bbs_incidents.sql` | +lat/lng ke incidents |
+| `20260619130000_extend_bbs_incidents_location.sql` | location VARCHAR(500) |
+| `20260619140000_add_coordinates_to_bbs_observations.sql` | +lat/lng + location VARCHAR(500) ke observations |
+
+### Backend Changes
+
+| Endpoint | Perubahan |
+|----------|-----------|
+| `POST /api/bbs/observations` | Accept & store `latitude`, `longitude` |
+| `PUT /api/bbs/observations/:id` | Accept & store `latitude`, `longitude` |
+| `POST /api/bbs/incidents` | Accept & store `latitude`, `longitude` |
+| `PUT /api/bbs/incidents/:id` | Accept & store `latitude`, `longitude` |
+| `GET /api/bbs/observations/:id` | Returns lat/lng (SELECT *) |
+| `GET /api/bbs/incidents/:id` | Returns lat/lng (SELECT *) |
+
+### Frontend Changes
+
+| File | Perubahan |
+|------|-----------|
+| `src/views/BBS/BbsLocationPicker.vue` | **NEW** — map picker component |
+| `src/views/BBS/BbsObservasiTab.vue` | Input lokasi → BbsLocationPicker, +lat/lng form, +lang import |
+| `src/views/BBS/BbsInsidenTab.vue` | Input lokasi → BbsLocationPicker, +lat/lng form |
+| `src/views/BBS/BbsDetailDrawer.vue` | Incident lokasi di-resolve via reverse geocode, fix computed .value bug |
+| `src/services/bbsService.ts` | +`latitude?`, `longitude?` di BbsObservationInput & BbsIncidentInput |
+| `src/components/SearchableSelect.vue` | Dropdown z-index → z-[1100] (fix stacking conflict) |
+
+### Z-Index Hierarchy (BBS Forms)
+
+```
+z-[1200]  — Driver grid row (dropdown muncul di atas semua)
+z-[1100]  — SearchableSelect dropdown, Map suggestion dropdown
+z-[1000]  — Map search bar wrapper
+z-auto    — Leaflet map internal (up to ~400)
+z-[500]   — Map expand/collapse button
+```
+
+### Bug Fixes
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Edit button tidak merespon (Observasi) | `observationItems` diubah ke computed, tapi `startEditing()` akses tanpa `.value` | `observationItems.value.forEach(...)` |
+| Dropdown driver tertutup map | Stacking context: driver grid z-1000 = map z-1000, sibling paint order | Driver grid → z-[1200] |
+| Suggestions tertutup map | Dropdown z-30 < Leaflet internal z-index | Dropdown → z-[1100], parent → z-[1000] |
+| Location too long error | `location VARCHAR(100)` tidak cukup untuk alamat geocode | Extend ke VARCHAR(500) |
+| Koordinat mentah di preview | Reverse geocode fallback langsung emit koordinat | Double fallback Geoapify → Nominatim, loading state |

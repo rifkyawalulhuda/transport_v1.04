@@ -181,7 +181,7 @@ router.get("/dashboard", async (req, res) => {
 router.post("/observations", async (req, res) => {
   try {
     const user = req.user || {};
-    const { driver_id, date, location, vehicle_type, scores, feedback, follow_up } =
+    const { driver_id, date, location, latitude, longitude, vehicle_type, scores, feedback, follow_up } =
       req.body || {};
 
     if (!driver_id || !date || !scores) {
@@ -189,16 +189,20 @@ router.post("/observations", async (req, res) => {
     }
 
     const scoresJson = JSON.stringify(scores);
+    const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+    const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
 
     const [result] = await db.query(
-      `INSERT INTO bbs_observations (id_admin, observer_name, driver_id, date, location, vehicle_type, scores, feedback, follow_up)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO bbs_observations (id_admin, observer_name, driver_id, date, location, latitude, longitude, vehicle_type, scores, feedback, follow_up)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user.id_admin,
         user.nama_admin || "",
         String(driver_id).trim(),
         fmtDate(date),
         location || null,
+        lat,
+        lng,
         vehicle_type || null,
         scoresJson,
         feedback || null,
@@ -272,6 +276,8 @@ router.post("/incidents", async (req, res) => {
       date,
       type,
       location,
+      latitude,
+      longitude,
       plate_number,
       chronology,
       factors,
@@ -284,16 +290,20 @@ router.post("/incidents", async (req, res) => {
     }
 
     const factorsJson = Array.isArray(factors) ? JSON.stringify(factors) : null;
+    const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+    const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
 
     const [result] = await db.query(
-      `INSERT INTO bbs_incidents (id_admin, reporter_name, date, type, location, plate_number, chronology, factors, casualties, recommendations)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO bbs_incidents (id_admin, reporter_name, date, type, location, latitude, longitude, plate_number, chronology, factors, casualties, recommendations)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user.id_admin,
         String(reporter_name).trim(),
         fmtDate(date),
         type,
         String(location).trim(),
+        lat,
+        lng,
         plate_number ? String(plate_number).trim().toUpperCase() : null,
         chronology || null,
         factorsJson,
@@ -501,14 +511,16 @@ router.get("/observations/:id", async (req, res) => {
 router.put("/observations/:id", async (req, res) => {
   try {
     const body = req.body || {};
-    const { driver_id, date, location, vehicle_type, scores, feedback, follow_up } = body;
+    const { driver_id, date, location, latitude, longitude, vehicle_type, scores, feedback, follow_up } = body;
     if (!driver_id || !date || !scores) {
       return res.status(400).json({ message: "Driver ID, tanggal, dan skor wajib diisi" });
     }
     const scoresJson = JSON.stringify(scores);
+    const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+    const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
     const [result] = await db.query(
-      `UPDATE bbs_observations SET driver_id=?, date=?, location=?, vehicle_type=?, scores=?, feedback=?, follow_up=? WHERE id_observation=?`,
-      [String(driver_id).trim(), fmtDate(date), location || null, vehicle_type || null, scoresJson, feedback || null, follow_up || null, req.params.id]
+      `UPDATE bbs_observations SET driver_id=?, date=?, location=?, latitude=?, longitude=?, vehicle_type=?, scores=?, feedback=?, follow_up=? WHERE id_observation=?`,
+      [String(driver_id).trim(), fmtDate(date), location || null, lat, lng, vehicle_type || null, scoresJson, feedback || null, follow_up || null, req.params.id]
     );
     if (!result.affectedRows) return res.status(404).json({ message: "Observasi tidak ditemukan" });
     res.json({ id: Number(req.params.id), driver_id, date });
@@ -590,14 +602,16 @@ router.get("/incidents/:id", async (req, res) => {
 router.put("/incidents/:id", async (req, res) => {
   try {
     const body = req.body || {};
-    const { reporter_name, date, type, location, plate_number, chronology, factors, casualties, recommendations } = body;
+    const { reporter_name, date, type, location, latitude, longitude, plate_number, chronology, factors, casualties, recommendations } = body;
     if (!reporter_name || !type || !location || !date) {
       return res.status(400).json({ message: "Nama pelapor, jenis laporan, lokasi, dan tanggal wajib diisi" });
     }
     const factorsJson = Array.isArray(factors) ? JSON.stringify(factors) : null;
+    const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+    const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
     const [result] = await db.query(
-      `UPDATE bbs_incidents SET reporter_name=?, date=?, type=?, location=?, plate_number=?, chronology=?, factors=?, casualties=?, recommendations=? WHERE id_incident=?`,
-      [String(reporter_name).trim(), fmtDate(date), type, String(location).trim(), plate_number || null, chronology || null, factorsJson, casualties || null, recommendations || null, req.params.id]
+      `UPDATE bbs_incidents SET reporter_name=?, date=?, type=?, location=?, latitude=?, longitude=?, plate_number=?, chronology=?, factors=?, casualties=?, recommendations=? WHERE id_incident=?`,
+      [String(reporter_name).trim(), fmtDate(date), type, String(location).trim(), lat, lng, plate_number || null, chronology || null, factorsJson, casualties || null, recommendations || null, req.params.id]
     );
     if (!result.affectedRows) return res.status(404).json({ message: "Insiden tidak ditemukan" });
     res.json({ id: Number(req.params.id), reporter_name, date, type });

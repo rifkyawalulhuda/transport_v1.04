@@ -379,21 +379,21 @@
                     </div>
                     <div>
                       <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">
-                        Delivery Order
+                        Departure
                       </p>
                       <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                        {{ formatDate(selectedTruck.transaksi.delivery_order) }}
+                        {{ formatDate(selectedTruck.transaksi.departure_datetime) }}
                       </p>
                     </div>
                     <div>
                       <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">
-                        Finish Order
+                        Arrival
                       </p>
                       <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
                         {{
                           formatDate(
-                            selectedTruck.transaksi.finish_order ||
-                              selectedTruck.transaksi.arrival_order,
+                            selectedTruck.transaksi.finish_order_datetime ||
+                              selectedTruck.transaksi.arrival_datetime,
                           )
                         }}
                       </p>
@@ -470,9 +470,9 @@
                       </p>
                     </div>
                     <div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">Delivery Order</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Departure</p>
                       <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">
-                        {{ formatDate(selectedTruck.last_transaction.delivery_order) }}
+                        {{ formatDate(selectedTruck.last_transaction.departure_datetime) }}
                       </p>
                     </div>
                   </div>
@@ -659,9 +659,9 @@ type TruckGps = {
 type TruckTransaction = {
   id_sales_cost: number | null
   no_spk: number | null
-  delivery_order: string | null
-  arrival_order: string | null
-  finish_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
+  finish_order_datetime: string | null
   trip: string | null
   jenis_trip: string | null
   no_po: string | null
@@ -684,9 +684,9 @@ type TruckRepair = {
 
 type TruckLastTransaction = {
   id_sales_cost: number | null
-  delivery_order: string | null
-  arrival_order: string | null
-  finish_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
+  finish_order_datetime: string | null
   driver_name: string | null
   route: string | null
 }

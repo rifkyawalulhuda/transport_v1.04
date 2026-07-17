@@ -15,10 +15,22 @@
               <path d="M9 17h6" />
             </svg>
           </div>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">BBS — Departemen Transportasi</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Behavior-Based Safety System</p>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-white/90">{{ t.appTitle }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t.appSub }}</p>
           </div>
+          <button
+            type="button"
+            class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5 transition-colors"
+            @click="toggleLang"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+              <path d="M2 12h20"/>
+            </svg>
+            {{ t.langToggleLabel }}
+          </button>
         </div>
 
         <nav class="flex flex-wrap gap-1.5 border-b border-gray-100 pb-4 dark:border-gray-800">
@@ -35,7 +47,7 @@
             @click="activeTab = tab.key"
           >
             <component :is="tab.icon" class="h-4 w-4" />
-            {{ tab.label }}
+            {{ tab.labelKey ? t[tab.labelKey] : tab.label }}
           </button>
         </nav>
 
@@ -69,7 +81,11 @@ import BbsInsidenTab from './BbsInsidenTab.vue'
 import BbsRiwayatTab from './BbsRiwayatTab.vue'
 import BbsDetailDrawer from './BbsDetailDrawer.vue'
 import { useAuthUser } from '@/services/auth'
+import { useBbsLang } from '@/composables/useBbsLang'
 import type { BbsHistoryRow } from '@/services/bbsService'
+import type { BbsTranslationKey } from '@/composables/useBbsLang'
+
+const { t, toggleLang } = useBbsLang()
 
 const authUser = useAuthUser()
 const userLevel = computed(() => authUser.value?.level || '')
@@ -77,12 +93,12 @@ const isViewOnly = computed(() => userLevel.value === 'user')
 
 const pageTitle = 'BBS Transportasi'
 
-const allTabs = [
-  { key: 'dashboard', label: 'Dashboard', icon: BarChartIcon },
-  { key: 'observasi', label: 'Observasi', icon: EyeIcon },
-  { key: 'checklist', label: 'Checklist', icon: ChecklistIcon },
-  { key: 'insiden', label: 'Insiden', icon: AlertTriangleIcon },
-  { key: 'riwayat', label: 'Riwayat', icon: ListIcon },
+const allTabs: { key: string; labelKey: BbsTranslationKey; label: string; icon: any }[] = [
+  { key: 'dashboard', labelKey: 'tabDashboard', label: 'Dashboard', icon: BarChartIcon },
+  { key: 'observasi', labelKey: 'tabObservasi', label: 'Observasi', icon: EyeIcon },
+  { key: 'checklist', labelKey: 'tabChecklist', label: 'Checklist', icon: ChecklistIcon },
+  { key: 'insiden', labelKey: 'tabInsiden', label: 'Insiden', icon: AlertTriangleIcon },
+  { key: 'riwayat', labelKey: 'tabRiwayat', label: 'Riwayat', icon: ListIcon },
 ]
 
 const tabs = computed(() => {

@@ -488,3 +488,94 @@ npm run build-only
 - Consider adding an explicit loading skeleton for address lookup in the detail panel.
 - Consider moving legacy runtime schema sync fully into migrations only, after migration workflow is used consistently across environments.
 - Consider adding dedicated data seeding flow separate from baseline schema migration if a fresh environment also needs starter master data.
+
+## Updates (2026-06-19)
+
+### BBS Module — Multi-Language Support (ID/EN)
+
+- Added language toggle (Indonesia / English) to the entire BBS module.
+- Toggle button located at top-right of the BBS header with globe icon, shows "EN" or "ID" depending on current state.
+- Language state is global/shared across all BBS components via `src/composables/useBbsLang.ts`.
+- All UI text in BBS is now reactive to language selection:
+  - Tab labels (Dashboard, Observasi/Observation, Checklist, Insiden/Incident, Riwayat/History)
+  - Form labels, placeholders, validation messages, toast messages
+  - Observation items (8 parameters) + categories
+  - Checklist items (16 items across 3 sub-tabs) + OK/NOK/N/A buttons
+  - Incident form fields, factor buttons, type options
+  - Dashboard metrics, chart titles, risk labels
+  - History page: status badges, filter dropdowns, pagination text, export modal
+  - Detail Drawer: all field labels, status badges, edit form, delete confirmation
+- Backend data labels (risk names, status values) are mapped client-side via `riskLabelMap` and `statusMap` in the composable.
+- Chart.js charts re-render on language change via `watch(lang, ...)`.
+- No external i18n library added — lightweight composable-only approach.
+- New file: `src/composables/useBbsLang.ts`
+
+### Toast Notification Redesign (Global)
+
+- Moved from **top-right** to **bottom-right** to avoid being hidden behind header.
+- Redesigned with icon per variant (✓ success, ✕ error, ⚠ warning, ℹ info) + contextual title ("Berhasil", "Gagal", etc.).
+- Animation: slide-in from right with spring curve (300ms enter, 200ms exit).
+- Component: `src/components/common/ToastHost.vue` — applies globally to all modules.
+
+### Export Excel Modal (Sales Cost, Subcontractor, Repair)
+
+- All three transaction pages now use a **modal popup** for Export Excel (same pattern as BBS Riwayat).
+- Modal offers 3 options: Per Bulan, Per Tahun, Semua Data.
+- Date reference per page: Sales Cost → Tanggal DO, Subcontractor → Tanggal Pengerjaan, Repair → Tanggal Kerusakan.
+- Month picker uses `showPicker()` for full-area clickable input.
+- Year dropdown shows last 6 years.
+- Existing Excel format output is unchanged — only the UI trigger mechanism was updated.
+- Files changed: `SalesCost.vue`, `Subcontractor.vue`, `RepairList.vue`.
+
+### Detail Sales Cost Page Redesign
+
+- Removed all `<input readonly>` patterns.
+- Replaced with structured card sections: Info Utama (grid card), Kendaraan & Container, Timeline Pengiriman (mini-cards), Rincian Biaya (summary row with conditional green/red Gross Profit).
+- Added **Print button** that opens `/sales-cost/:id/print` in a new tab.
+- UX rules applied: `field-grouping`, `visual-hierarchy`, `whitespace-balance`, `color-semantic`.
+- File changed: `DetailSalesCost.vue`.
+
+### Production Build & Cloudflared Tunnel
+
+- Backend `server.js` now serves frontend production build from `../tailadmin-vuejs-1.0.0/dist/` with SPA fallback.
+- Cloudflared tunnel config updated to route `sankyu-transport.fun` → `localhost:3000` (production build, not Vite dev server).
+- Vite dev server (`port 5173`) can still run concurrently for local development.
+- Config file: `.cloudflared/config.yml`, documentation: `.cloudflared/README.md`.
+
+### Sidebar Navigation
+
+- BBS Transportasi added to **main sidebar** (below Transaksi group) with `ShieldCheckIcon`.
+- Navigation filtering updated per role (patcher sees only BBS + Profile, user sees BBS visible, etc.).
+- File changed: `src/config/navigation.js`, new icon: `src/icons/ShieldCheckIcon.vue`.
+
+### BBS Location Map Picker (Observasi & Insiden)
+
+- Replaced plain text input for "Lokasi" with interactive **Leaflet map picker** in both BBS Observasi and Insiden forms.
+- New reusable component: `src/views/BBS/BbsLocationPicker.vue`
+- Features:
+  - Click on map → place pin → reverse geocode → display address
+  - Search autocomplete with debounce (Nominatim, 5 suggestions, keyboard navigation)
+  - "Lokasi Saya" button (browser geolocation)
+  - Draggable marker → re-geocode on drag end
+  - Expand/collapse map size (240px ↔ 460px) via button
+  - Double fallback geocode: backend Geoapify → Nominatim → coordinates
+  - Loading spinner during address resolution
+- Database changes:
+  - `bbs_observations`: added `latitude DECIMAL(10,7)`, `longitude DECIMAL(10,7)`, extended `location` to `VARCHAR(500)`
+  - `bbs_incidents`: added `latitude DECIMAL(10,7)`, `longitude DECIMAL(10,7)`, extended `location` to `VARCHAR(500)`
+- Backend: POST/PUT endpoints for observations and incidents now accept and store `latitude`/`longitude`
+- Detail Drawer: incident location resolved via reverse geocode when coordinates are stored
+- Z-index management: search bar `z-[1000]`, suggestions `z-[1100]`, SearchableSelect dropdown `z-[1100]`, driver grid row `z-[1200]` to prevent stacking conflicts with Leaflet map
+
+### Detail Subcontractor Page Redesign
+
+- Replaced all `<input readonly>` with structured card sections (same pattern as Detail Sales Cost).
+- Sections: Info Utama, Kendaraan, Timeline Pengiriman, Rincian Biaya (with Gross Profit color indicator).
+- Applied: `field-grouping`, `visual-hierarchy`, `whitespace-balance`, `color-semantic`, `read-only-distinction`.
+
+### Detail Repair Page Redesign
+
+- Replaced all `<input readonly>` with structured card sections.
+- Sections: Info Utama, Timeline, Detail Kerusakan, Biaya Perbaikan.
+- Status badge redesign: compact with dot indicator (Selesai/Proses).
+- Applied same UI/UX pattern as Detail Sales Cost and Detail Subcontractor.

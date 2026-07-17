@@ -1,31 +1,31 @@
 <template>
   <div>
-    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">Checklist Keselamatan Kendaraan</h4>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Pemeriksaan pra-perjalanan wajib dilakukan setiap hari</p>
+    <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">{{ t.chkTitle }}</h4>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.chkSub }}</p>
 
     <div class="space-y-4">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">ID Pengemudi</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblChkDriver }}</label>
           <SearchableSelect
             v-model="form.driver_id"
             :options="drivers"
             value-key="id_driver"
             label-key="nama_driver"
             :search-keys="['nama_driver', 'id_driver']"
-            placeholder="-Pilih-"
-            search-placeholder="Cari nama driver"
+            :placeholder="t.placeholderSelectDriver"
+            :search-placeholder="t.placeholderSearchDriver"
           />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Plat Kendaraan</label>
+          <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">{{ t.lblChkPlat }}</label>
           <div class="relative" ref="truckDropdownRoot">
             <button
               type="button"
               class="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition hover:bg-gray-50 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
               @click="toggleTruckDrop"
             >
-              <span class="truncate">{{ selectedTruckLabel || '-Pilih-' }}</span>
+              <span class="truncate">{{ selectedTruckLabel || t.placeholderSelectDriver }}</span>
               <svg class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
             </button>
             <div v-if="truckDropOpen" class="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
@@ -112,7 +112,7 @@
 
       <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-sm text-gray-600 dark:text-gray-400">Skor Checklist</span>
+          <span class="text-sm text-gray-600 dark:text-gray-400">{{ t.chkScoreLabel }}</span>
           <span class="text-base font-semibold text-gray-800 dark:text-white/90">
             {{ safeCount }} / {{ answeredCount }}
           </span>
@@ -132,7 +132,7 @@
           class="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           @click="submit"
         >
-          {{ submitting ? 'Menyimpan...' : 'Simpan Checklist' }}
+          {{ submitting ? t.btnSaving : t.btnSaveChk }}
         </button>
       </div>
     </div>
@@ -142,11 +142,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useToast } from '@/composables/useToast'
+import { useBbsLang } from '@/composables/useBbsLang'
 import { bbsService, type BbsDriverOption, type BbsTruckOption } from '@/services/bbsService'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 
 const emit = defineEmits<{ (e: 'saved', type: string): void }>()
 
+const { t } = useBbsLang()
 const toast = useToast()
 const submitting = ref(false)
 const drivers = ref<BbsDriverOption[]>([])
@@ -164,21 +166,21 @@ const truckSearchRef = ref<HTMLInputElement | null>(null)
 const truckDropdownRoot = ref<HTMLElement | null>(null)
 
 const selectedTruckLabel = computed(() => {
-  const t = trucks.value.find((tr) => tr.id_truck === truckId.value)
-  return t ? `${t.no_police} - ${t.jenis_kendaraan}` : ''
+  const tr = trucks.value.find((trk) => trk.id_truck === truckId.value)
+  return tr ? `${tr.no_police} - ${tr.jenis_kendaraan}` : ''
 })
 
 const filteredTruckOptions = computed(() => {
   const q = truckSearch.value.trim().toLowerCase()
   if (!q) return trucks.value
   return trucks.value.filter(
-    (t) => t.no_police.toLowerCase().includes(q) || t.jenis_kendaraan.toLowerCase().includes(q)
+    (trk) => trk.no_police.toLowerCase().includes(q) || trk.jenis_kendaraan.toLowerCase().includes(q)
   )
 })
 
 function handleTruckSelect(truck: BbsTruckOption) {
   if (checkedPlates.value.includes(truck.no_police)) {
-    toast.error(`Checklist untuk ${truck.no_police} sudah dilakukan hari ini`)
+    toast.error(t.value.toastPlatAlready)
     return
   }
   truckId.value = truck.id_truck
@@ -201,44 +203,44 @@ function handleTruckClickOutside(event: MouseEvent) {
   }
 }
 
-const chkTabs = [
-  { key: 'mesin' as const, label: 'Mesin & Bahan Bakar' },
-  { key: 'keselamatan' as const, label: 'Keselamatan' },
-  { key: 'eksterior' as const, label: 'Eksterior' },
-]
+const chkTabs = computed(() => [
+  { key: 'mesin' as const, label: t.value.tabMesin },
+  { key: 'keselamatan' as const, label: t.value.tabKeselamatan },
+  { key: 'eksterior' as const, label: t.value.tabEksterior },
+])
 
-const chkOptions = [
-  { value: 'safe', label: '✓ OK', activeClass: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
-  { value: 'unsafe', label: '✗ NOK', activeClass: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
-  { value: 'na', label: 'N/A', activeClass: 'border-gray-300 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
-]
+const chkOptions = computed(() => [
+  { value: 'safe', label: `✓ ${t.value.chkSafe}`, activeClass: 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400' },
+  { value: 'unsafe', label: `✗ ${t.value.chkUnsafe}`, activeClass: 'border-error-500 bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400' },
+  { value: 'na', label: t.value.chkNa, activeClass: 'border-gray-300 bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
+])
 
-const chkData: Record<string, { id: string; label: string }[]> = {
+const chkData = computed<Record<string, { id: string; label: string }[]>>(() => ({
   mesin: [
-    { id: 'm1', label: 'Level oli mesin cukup' },
-    { id: 'm2', label: 'Level air radiator cukup' },
-    { id: 'm3', label: 'Bahan bakar cukup untuk rute' },
-    { id: 'm4', label: 'Tidak ada kebocoran oli/cairan' },
-    { id: 'm5', label: 'Belt / fan belt dalam kondisi baik' },
+    { id: 'm1', label: t.value.m1 },
+    { id: 'm2', label: t.value.m2 },
+    { id: 'm3', label: t.value.m3 },
+    { id: 'm4', label: t.value.m4 },
+    { id: 'm5', label: t.value.m5 },
   ],
   keselamatan: [
-    { id: 's1', label: 'Rem utama berfungsi normal' },
-    { id: 's2', label: 'Rem tangan berfungsi' },
-    { id: 's3', label: 'Semua lampu berfungsi (depan, belakang, sein)' },
-    { id: 's4', label: 'APAR tersedia & tidak kadaluarsa' },
-    { id: 's5', label: 'Sabuk pengaman berfungsi' },
-    { id: 's6', label: 'Klakson berfungsi' },
+    { id: 's1', label: t.value.s1 },
+    { id: 's2', label: t.value.s2 },
+    { id: 's3', label: t.value.s3 },
+    { id: 's4', label: t.value.s4 },
+    { id: 's5', label: t.value.s5 },
+    { id: 's6', label: t.value.s6 },
   ],
   eksterior: [
-    { id: 'e1', label: 'Kaca depan bersih & tidak retak' },
-    { id: 'e2', label: 'Wiper berfungsi' },
-    { id: 'e3', label: 'Tekanan ban sesuai standar' },
-    { id: 'e4', label: 'Kondisi ban tidak aus berlebihan' },
-    { id: 'e5', label: 'Spion lengkap & dapat diatur' },
+    { id: 'e1', label: t.value.e1 },
+    { id: 'e2', label: t.value.e2 },
+    { id: 'e3', label: t.value.e3 },
+    { id: 'e4', label: t.value.e4 },
+    { id: 'e5', label: t.value.e5 },
   ],
-}
+}))
 
-const allItemIds = Object.values(chkData).flat().map((i) => i.id)
+const allItemIds = ['m1','m2','m3','m4','m5','s1','s2','s3','s4','s5','s6','e1','e2','e3','e4','e5']
 
 const checkItems = reactive<Record<string, string>>(
   Object.fromEntries(allItemIds.map((id) => [id, '']))
@@ -246,7 +248,7 @@ const checkItems = reactive<Record<string, string>>(
 
 const tabComplete = computed(() => {
   const result: Record<string, boolean> = {}
-  for (const [key, items] of Object.entries(chkData)) {
+  for (const [key, items] of Object.entries(chkData.value)) {
     result[key] = items.every((item) => checkItems[item.id] !== '')
   }
   return result
@@ -257,7 +259,7 @@ const form = reactive({
   date: todayStr(),
 })
 
-const currentTabItems = computed(() => chkData[activeChkTab.value])
+const currentTabItems = computed(() => chkData.value[activeChkTab.value])
 
 const allValues = computed(() => allItemIds.map((id) => checkItems[id]))
 
@@ -298,19 +300,19 @@ async function submit() {
   submitAttempted.value = true
 
   if (!form.driver_id) {
-    toast.error('ID Pengemudi wajib diisi')
+    toast.error(t.value.toastDriverRequired)
     return
   }
   if (!truckId.value) {
-    toast.error('Plat Kendaraan wajib diisi')
+    toast.error(t.value.toastPlatRequired)
     return
   }
 
-  const selectedTruck = trucks.value.find((t) => t.id_truck === truckId.value)
+  const selectedTruck = trucks.value.find((trk) => trk.id_truck === truckId.value)
   const plateNumber = selectedTruck?.no_police || ''
 
   if (checkedPlates.value.includes(plateNumber)) {
-    toast.error(`Checklist untuk ${plateNumber} sudah dilakukan hari ini`)
+    toast.error(t.value.toastPlatAlready)
     return
   }
 
@@ -318,13 +320,13 @@ async function submit() {
   if (unselected.length > 0) {
     const firstEmpty = unselected[0]
     // Switch tab to where first empty item lives
-    for (const [tabKey, items] of Object.entries(chkData)) {
+    for (const [tabKey, items] of Object.entries(chkData.value)) {
       if (items.some((i) => i.id === firstEmpty)) {
         activeChkTab.value = tabKey as 'mesin' | 'keselamatan' | 'eksterior'
         break
       }
     }
-    toast.error(`Semua item wajib diisi. ${unselected.length} item belum dipilih`)
+    toast.error(t.value.toastAllItemsRequired)
     return
   }
 
@@ -336,12 +338,12 @@ async function submit() {
       date: form.date || todayStr(),
       items: { ...checkItems },
     })
-    toast.success(`Checklist disimpan — ${scorePct.value}% OK`)
+    toast.success(t.value.toastChkSaved)
     checkedPlates.value.push(plateNumber)
     resetForm()
     emit('saved', 'checklist')
   } catch (err: any) {
-    toast.error(err?.message || 'Gagal menyimpan checklist')
+    toast.error(err?.message || t.value.toastError)
   } finally {
     submitting.value = false
   }

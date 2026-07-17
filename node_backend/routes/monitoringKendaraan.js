@@ -31,6 +31,13 @@ const toDateString = (value) => {
   return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`;
 };
 
+const toDateTimeString = (value) => {
+  if (!value || isZeroDate(value)) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
 
 const parsePositiveInt = (value) => {
@@ -77,7 +84,7 @@ const matchesSearch = (item, search) => {
     item.type_truck,
     item.jenis_kendaraan,
     item.driver_name,
-    item.transaksi?.no_spk,
+    item.transaksi?.departure_datetime,
     item.transaksi?.route,
     item.repair?.no_spk_perbaikan,
     item.repair?.jenis_kerusakan,
@@ -140,19 +147,19 @@ router.get("/", async (req, res) => {
 
     const trxConditions = [
       `(
-        (sc.finish_order IS NOT NULL AND CAST(sc.finish_order AS CHAR) <> '0000-00-00' AND sc.finish_order > ?)
+        (sc.finish_order_datetime IS NOT NULL AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00' AND sc.finish_order_datetime > ?)
         OR
         (
-          (sc.finish_order IS NULL OR CAST(sc.finish_order AS CHAR) = '0000-00-00')
+          (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
           AND
-          (sc.arrival_order IS NULL OR CAST(sc.arrival_order AS CHAR) = '0000-00-00' OR sc.arrival_order >= ?)
+          (sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)
         )
       )`
     ];
     const trxParams = [todayString, todayString];
     if (month && year) {
-      trxConditions.push("MONTH(sc.delivery_order) = ?");
-      trxConditions.push("YEAR(sc.delivery_order) = ?");
+      trxConditions.push("MONTH(sc.departure_datetime) = ?");
+      trxConditions.push("YEAR(sc.departure_datetime) = ?");
       trxParams.push(month, year);
     }
 
@@ -161,9 +168,9 @@ router.get("/", async (req, res) => {
         sc.id_sales_cost,
         sc.id_truck,
         sc.id_driver,
-        sc.delivery_order,
-        sc.arrival_order,
-        sc.finish_order,
+        sc.departure_datetime,
+        sc.arrival_datetime,
+        sc.finish_order_datetime,
         sc.trip,
         sc.jenis_trip,
         sc.no_po,
@@ -181,30 +188,68 @@ router.get("/", async (req, res) => {
       LEFT JOIN driver d ON sc.id_driver = d.id_driver
       LEFT JOIN area a ON sc.id_area = a.id_area
       WHERE ${trxConditions.join(" AND ")}
-      ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+      ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
     `;
 
     const [trxRows] = await db.query(trxSql, trxParams);
+
+    // Query trucks currently on-trip: departed but not yet triggered finish geofence
+    const onTripSql = `
+      SELECT
+        sc.id_sales_cost,
+        sc.id_truck,
+        sc.id_driver,
+        sc.departure_datetime,
+        sc.arrival_datetime,
+        sc.finish_order_datetime,
+        sc.trip,
+        sc.jenis_trip,
+        sc.no_po,
+        sc.no_aju,
+        sc.no_container,
+        t.no_police,
+        t.merk_mobil,
+        t.model,
+        t.type_truck,
+        t.jenis_kendaraan,
+        d.nama_driver,
+        a.nama_area,
+        CASE WHEN sc.arrival_datetime IS NOT NULL AND sc.arrival_datetime < NOW() THEN 1 ELSE 0 END AS is_overdue
+      FROM sales_cost sc
+      LEFT JOIN truck t ON sc.id_truck = t.id_truck
+      LEFT JOIN driver d ON sc.id_driver = d.id_driver
+      LEFT JOIN area a ON sc.id_area = a.id_area
+      WHERE t.is_active = 1
+        AND sc.departure_datetime IS NOT NULL
+        AND sc.finish_order_datetime IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_cost_route_history scrh
+          WHERE scrh.id_sales_cost = sc.id_sales_cost
+            AND scrh.step_key = 'system:finish_order'
+        )
+      ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
+    `;
+    const [onTripRows] = await db.query(onTripSql);
 
     const lastSql = `
       SELECT
         sc.id_sales_cost,
         sc.id_truck,
         sc.id_driver,
-        sc.delivery_order,
-        sc.arrival_order,
-        sc.finish_order,
+        sc.departure_datetime,
+        sc.arrival_datetime,
+        sc.finish_order_datetime,
         d.nama_driver,
         a.nama_area
       FROM sales_cost sc
       INNER JOIN (
-        SELECT id_truck, MAX(delivery_order) AS max_delivery
+        SELECT id_truck, MAX(departure_datetime) AS max_delivery
         FROM sales_cost
         GROUP BY id_truck
-      ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.delivery_order
+      ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.departure_datetime
       LEFT JOIN driver d ON sc.id_driver = d.id_driver
       LEFT JOIN area a ON sc.id_area = a.id_area
-      ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+      ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
     `;
 
     const [lastRows] = await db.query(lastSql);
@@ -242,6 +287,15 @@ router.get("/", async (req, res) => {
       transaksiByTruck.set(key, row);
     });
 
+    const onTripByTruck = new Map();
+    onTripRows.forEach((row) => {
+      const key = String(row.id_truck || "");
+      if (!key || onTripByTruck.has(key)) {
+        return;
+      }
+      onTripByTruck.set(key, row);
+    });
+
     const lastByTruck = new Map();
     lastRows.forEach((row) => {
       const key = String(row.id_truck || "");
@@ -252,6 +306,7 @@ router.get("/", async (req, res) => {
     });
 
     const repairList = [];
+    const onTripList = [];
     const transaksiList = [];
     const idleList = [];
 
@@ -280,13 +335,34 @@ router.get("/", async (req, res) => {
           last_transaction: last
             ? {
                 id_sales_cost: last.id_sales_cost,
-                delivery_order: toDateString(last.delivery_order),
-                arrival_order: toDateString(last.arrival_order),
-                finish_order: toDateString(last.finish_order),
+                departure_datetime: toDateTimeString(last.departure_datetime),
+                arrival_datetime: toDateTimeString(last.arrival_datetime),
+                finish_order_datetime: toDateTimeString(last.finish_order_datetime),
                 driver_name: last.nama_driver || null,
                 route: last.nama_area || null
               }
             : null
+        });
+        return;
+      }
+
+      if (onTripByTruck.has(key)) {
+        const onTripTrx = onTripByTruck.get(key);
+        onTripList.push({
+          ...base,
+          status: 'on_trip',
+          driver_name: onTripTrx.nama_driver || null,
+          is_overdue: Boolean(onTripTrx.is_overdue),
+          transaksi: {
+            id_sales_cost: onTripTrx.id_sales_cost,
+            departure_datetime: toDateTimeString(onTripTrx.departure_datetime),
+            arrival_datetime: toDateTimeString(onTripTrx.arrival_datetime),
+            finish_order_datetime: toDateTimeString(onTripTrx.finish_order_datetime),
+            route: onTripTrx.nama_area || null,
+            trip: onTripTrx.trip || null,
+            jenis_trip: onTripTrx.jenis_trip || null,
+            no_po: onTripTrx.no_po || null,
+          }
         });
         return;
       }
@@ -300,9 +376,9 @@ router.get("/", async (req, res) => {
           transaksi: {
             id_sales_cost: trx.id_sales_cost,
             no_spk: trx.id_sales_cost,
-            delivery_order: toDateString(trx.delivery_order),
-            arrival_order: toDateString(trx.arrival_order),
-            finish_order: toDateString(trx.finish_order),
+            departure_datetime: toDateTimeString(trx.departure_datetime),
+            arrival_datetime: toDateTimeString(trx.arrival_datetime),
+            finish_order_datetime: toDateTimeString(trx.finish_order_datetime),
             trip: trx.trip || null,
             jenis_trip: trx.jenis_trip || null,
             no_po: trx.no_po || null,
@@ -313,9 +389,9 @@ router.get("/", async (req, res) => {
           last_transaction: last
             ? {
                 id_sales_cost: last.id_sales_cost,
-                delivery_order: toDateString(last.delivery_order),
-                arrival_order: toDateString(last.arrival_order),
-                finish_order: toDateString(last.finish_order),
+                departure_datetime: toDateTimeString(last.departure_datetime),
+                arrival_datetime: toDateTimeString(last.arrival_datetime),
+                finish_order_datetime: toDateTimeString(last.finish_order_datetime),
                 driver_name: last.nama_driver || null,
                 route: last.nama_area || null
               }
@@ -331,9 +407,9 @@ router.get("/", async (req, res) => {
         last_transaction: last
           ? {
               id_sales_cost: last.id_sales_cost,
-              delivery_order: toDateString(last.delivery_order),
-              arrival_order: toDateString(last.arrival_order),
-              finish_order: toDateString(last.finish_order),
+              departure_datetime: toDateTimeString(last.departure_datetime),
+              arrival_datetime: toDateTimeString(last.arrival_datetime),
+              finish_order_datetime: toDateTimeString(last.finish_order_datetime),
               driver_name: last.nama_driver || null,
               route: last.nama_area || null
             }
@@ -342,6 +418,7 @@ router.get("/", async (req, res) => {
     });
 
     const filteredRepair = search ? repairList.filter((item) => matchesSearch(item, search)) : repairList;
+    const filteredOnTrip = search ? onTripList.filter((item) => matchesSearch(item, search)) : onTripList;
     const filteredTransaksi = search
       ? transaksiList.filter((item) => matchesSearch(item, search))
       : transaksiList;
@@ -349,11 +426,13 @@ router.get("/", async (req, res) => {
 
     res.json({
       summary: {
-        total: filteredRepair.length + filteredTransaksi.length + filteredIdle.length,
+        total: filteredRepair.length + filteredOnTrip.length + filteredTransaksi.length + filteredIdle.length,
+        on_trip: filteredOnTrip.length,
         transaksi: filteredTransaksi.length,
         repair: filteredRepair.length,
         idle: filteredIdle.length
       },
+      on_trip: filteredOnTrip.slice(0, limit),
       transaksi: filteredTransaksi.slice(0, limit),
       repair: filteredRepair.slice(0, limit),
       idle: filteredIdle.slice(0, limit),

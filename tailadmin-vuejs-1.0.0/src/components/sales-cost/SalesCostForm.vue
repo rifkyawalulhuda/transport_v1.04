@@ -8,7 +8,7 @@
     </p>
     <p v-if="loading" class="text-sm text-gray-500 dark:text-gray-400">Memuat data transaksi...</p>
 
-    <form class="space-y-4" @submit.prevent="handleSubmit">
+    <form class="space-y-6" @submit.prevent="handleSubmit">
       <div v-if="checkingTruckStatus" class="text-xs text-gray-500 dark:text-gray-400">
         Memeriksa status truck...
       </div>
@@ -23,8 +23,14 @@
       >
         {{ truckStatus.message }}
       </div>
-      <fieldset :disabled="isDisabled" class="space-y-4">
-        <div class="grid gap-4 sm:grid-cols-2">
+      <fieldset :disabled="isDisabled" class="space-y-6">
+        <!-- Section: Kendaraan & Driver -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h10zm0 0h6l3-3V9h-3"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Data Kendaraan & Driver</p>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >No. Police</label
@@ -61,9 +67,9 @@
               {{ errors.id_driver }}
             </p>
           </div>
-        </div>
+          </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-4 sm:grid-cols-2 mt-4">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Customer</label
@@ -118,20 +124,28 @@
             </select>
           </div>
         </div>
+        </div>
+
+        <!-- Section: Tanggal Transaksi -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Tanggal Transaksi</p>
+          </div>
 
         <div class="grid gap-4 md:grid-cols-3">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
-              >Delivery Order</label
+              >Departure</label
             >
             <DatePickerInput
-              v-model="form.delivery_order"
-              placeholder="Pilih tanggal"
+              v-model="form.departure_datetime"
+              placeholder="Pilih tanggal & waktu"
               required
               :disabled="isDisabled"
             />
-            <p v-if="errors.delivery_order" class="mt-1 text-xs text-error-600">
-              {{ errors.delivery_order }}
+            <p v-if="errors.departure_datetime" class="mt-1 text-xs text-error-600">
+              {{ errors.departure_datetime }}
             </p>
           </div>
           <div>
@@ -139,16 +153,16 @@
               >Arrival</label
             >
             <DatePickerInput
-              v-model="form.arrival_order"
-              placeholder="Pilih tanggal"
+              v-model="form.arrival_datetime"
+              placeholder="Pilih tanggal & waktu"
               required
               :disabled="isDisabled"
             />
             <p
-              v-if="dateOrderErrors.arrival_order || errors.arrival_order"
+              v-if="dateOrderErrors.arrival_datetime || errors.arrival_datetime"
               class="mt-1 text-xs text-error-600"
             >
-              {{ dateOrderErrors.arrival_order || errors.arrival_order }}
+              {{ dateOrderErrors.arrival_datetime || errors.arrival_datetime }}
             </p>
           </div>
           <div>
@@ -156,23 +170,28 @@
               >Finish Order</label
             >
             <DatePickerInput
-              v-model="form.finish_order"
-              placeholder="Pilih tanggal"
+              v-model="form.finish_order_datetime"
+              placeholder="Pilih tanggal & waktu"
               :required="props.mode === 'create'"
               :disabled="isDisabled"
             />
             <p
-              v-if="dateOrderErrors.finish_order || errors.finish_order"
+              v-if="dateOrderErrors.finish_order_datetime || errors.finish_order_datetime"
               class="mt-1 text-xs text-error-600"
             >
-              {{ dateOrderErrors.finish_order || errors.finish_order }}
+              {{ dateOrderErrors.finish_order_datetime || errors.finish_order_datetime }}
             </p>
           </div>
         </div>
+        </div>
 
         <!-- Main Fields: No DN, Pickup, Drop Removed -->
-        <!-- Divider -->
-        <div class="my-6 border-t border-gray-200 dark:border-gray-800"></div>
+        <!-- Section: Informasi Pesanan -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Informasi Pesanan</p>
+          </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="sm:col-span-1">
@@ -199,40 +218,75 @@
             />
           </div>
         </div>
-
-        <div class="flex items-center justify-between mb-4 mt-6">
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            DN LIST / RINCIAN DN
-          </h4>
-          <button
-            type="button"
-            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            @click="addDnItem"
-          >
-            + Add DN
-          </button>
         </div>
 
-        <div class="space-y-6">
+        <!-- Section: DN List -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div class="flex items-center gap-2">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">DN List / Rincian DN</p>
+            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ dnList.length }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+              @click="expandAllDn"
+            >
+              Buka Semua
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+              @click="collapseAllDn"
+            >
+              Tutup Semua
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              @click="addDnItem"
+            >
+              + Add DN
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-4">
           <div
             v-for="(item, index) in dnList"
             :key="index"
-            class="rounded-lg border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+            class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden"
           >
-            <div class="mb-4 flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-500 dark:text-gray-400"
-                >Item #{{ index + 1 }}</span
-              >
-              <button
+            <button
+              type="button"
+              class="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              @click="toggleDnItem(index)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <svg
+                  class="h-4 w-4 flex-none text-gray-400 transition-transform duration-200"
+                  :class="dnCollapsed[index] ? '' : 'rotate-90'"
+                  fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">Item #{{ index + 1 }}</span>
+                <span v-if="item.no_dn" class="ml-1 truncate text-xs text-gray-400">— {{ item.no_dn }}</span>
+              </div>
+              <span
                 v-if="dnList.length > 1"
-                type="button"
-                class="text-error-500 hover:text-error-700 text-xs"
-                @click="removeDnItem(index)"
+                class="flex-none text-error-500 hover:text-error-700 text-xs cursor-pointer px-2 py-1"
+                role="button"
+                @click.stop="removeDnItem(index)"
               >
                 Hapus
-              </button>
-            </div>
+              </span>
+            </button>
 
+            <Transition name="dn-collapse">
+              <div v-show="!dnCollapsed[index]" class="px-4 pb-4">
             <div class="space-y-4">
               <!-- No DN -->
               <div>
@@ -354,11 +408,18 @@
                 ></textarea>
               </div>
             </div>
+              </div>
+            </Transition>
           </div>
         </div>
+        </div>
 
-        <!-- Divider -->
-        <div class="my-6 border-t border-gray-200 dark:border-gray-800"></div>
+        <!-- Section: Biaya & Detail -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Biaya & Detail</p>
+          </div>
         <h4 class="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
           BIAYA OPSIONAL & DETAIL
         </h4>
@@ -374,7 +435,7 @@
         </div>
 
         <div v-show="showOptionalCosts" class="space-y-4">
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Lift On</label
@@ -399,10 +460,7 @@
                 @input="formatNumeric('lift_of')"
               />
             </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="lg:col-span-2">
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Container Depot</label
               >
@@ -414,7 +472,7 @@
                 required
               />
             </div>
-            <div class="lg:col-span-1">
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >TAX</label
               >
@@ -426,7 +484,7 @@
                 required
               />
             </div>
-            <div class="lg:col-span-1">
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Admin Charge</label
               >
@@ -439,9 +497,6 @@
                 @input="formatNumeric('admin_charge')"
               />
             </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
                 >Allowance Cost</label
@@ -450,7 +505,7 @@
                 v-model="form.materai"
                 type="text"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                placeholder="Masukan Materai"
+                placeholder="Masukan Allowance Cost"
                 required
                 @input="formatNumeric('materai')"
               />
@@ -539,7 +594,7 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Sales</label
@@ -563,9 +618,6 @@
               @input="formatNumeric('additional_cost')"
             />
           </div>
-        </div>
-
-        <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
               >Operasional Cost</label
@@ -582,6 +634,7 @@
               {{ errors.ops_cost }}
             </p>
           </div>
+        </div>
         </div>
       </fieldset>
 
@@ -643,9 +696,9 @@ type SalesCostFormData = {
   bills: string
   lift_on: string
   lift_of: string
-  delivery_order: string
-  arrival_order: string
-  finish_order: string
+  departure_datetime: string
+  arrival_datetime: string
+  finish_order_datetime: string
   container_depot: string
   no_po: string
   tax: string
@@ -708,9 +761,9 @@ const customers = ref<CustomerOption[]>([])
 const areas = ref<AreaOption[]>([])
 const showOptionalCosts = ref(false)
 const errors = reactive<Record<string, string>>({})
-const dateOrderErrors = reactive<Record<'arrival_order' | 'finish_order', string>>({
-  arrival_order: '',
-  finish_order: '',
+const dateOrderErrors = reactive<Record<'arrival_datetime' | 'finish_order_datetime', string>>({
+  arrival_datetime: '',
+  finish_order_datetime: '',
 })
 const toast = useToast()
 const checkingTruckStatus = ref(false)
@@ -737,9 +790,9 @@ const form = reactive<SalesCostFormData>({
   bills: '',
   lift_on: '0',
   lift_of: '0',
-  delivery_order: '',
-  arrival_order: '',
-  finish_order: '',
+  departure_datetime: '',
+  arrival_datetime: '',
+  finish_order_datetime: '',
   container_depot: '0',
   no_po: '0',
   tax: '0',
@@ -773,6 +826,31 @@ const dnList = ref<DnItem[]>([
   },
 ])
 
+const dnCollapsed = ref<boolean[]>([])
+
+// Default all DN items to collapsed when the list changes (load/edit/initial)
+watch(
+  () => dnList.value.length,
+  (len) => {
+    dnCollapsed.value = Array.from({ length: len }, (_, i) =>
+      dnCollapsed.value[i] === undefined ? true : dnCollapsed.value[i]
+    )
+  },
+  { immediate: true }
+)
+
+const toggleDnItem = (index: number) => {
+  dnCollapsed.value[index] = !dnCollapsed.value[index]
+}
+
+const expandAllDn = () => {
+  dnCollapsed.value = dnList.value.map(() => false)
+}
+
+const collapseAllDn = () => {
+  dnCollapsed.value = dnList.value.map(() => true)
+}
+
 const addDnItem = () => {
   dnList.value.push({
     no_dn: '',
@@ -785,11 +863,15 @@ const addDnItem = () => {
     no_aju: '',
     remarks: '',
   })
+  // New item starts expanded; collapse existing others for focus
+  dnCollapsed.value = dnList.value.map(() => true)
+  dnCollapsed.value[dnList.value.length - 1] = false
 }
 
 const removeDnItem = (index: number) => {
   if (dnList.value.length > 1) {
     dnList.value.splice(index, 1)
+    dnCollapsed.value.splice(index, 1)
   }
 }
 
@@ -836,11 +918,15 @@ const formatNumeric = (field: string) => {
   ;(form as Record<string, string>)[field] = formatIndonesianNumber(parsed)
 }
 
-const normalizeDate = (value?: string | null) => {
+const normalizeDateTime = (value?: string | null): string => {
   if (!value) {
     return ''
   }
-  // Jika value sudah format YYYY-MM-DD, kembalikan langsung
+  // Already YYYY-MM-DD HH:MM or YYYY-MM-DDTHH:MM, slice to 16 chars
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)) {
+    return String(value).slice(0, 16).replace('T', ' ')
+  }
+  // Fallback: date-only string — return as-is (no time to add)
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value
   }
@@ -850,11 +936,20 @@ const normalizeDate = (value?: string | null) => {
     return ''
   }
 
-  // Gunakan local time untuk mendapatkan tanggal yang benar sesuai timezone user
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+function isValidIsoDateTime(value: string): boolean {
+  if (!value) return false
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) return false
+  const d = new Date(value.replace('T', ' '))
+  return !isNaN(d.getTime())
 }
 
 const clearErrors = () => {
@@ -863,19 +958,6 @@ const clearErrors = () => {
   })
 }
 
-const isValidIsoDate = (value: string) => {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) {
-    return false
-  }
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(Date.UTC(year, month - 1, day))
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day
-  )
-}
 
 const ARRIVAL_LT_DELIVERY_MSG =
   'Tanggal Arrival Order tidak boleh kurang dari tanggal Delivery Order.'
@@ -886,33 +968,33 @@ const updateDateOrderErrors = () => {
   let finishOrderMessage = ''
 
   if (
-    form.delivery_order &&
-    form.arrival_order &&
-    isValidIsoDate(form.delivery_order) &&
-    isValidIsoDate(form.arrival_order) &&
-    form.arrival_order < form.delivery_order
+    form.departure_datetime &&
+    form.arrival_datetime &&
+    isValidIsoDateTime(form.departure_datetime) &&
+    isValidIsoDateTime(form.arrival_datetime) &&
+    form.arrival_datetime < form.departure_datetime
   ) {
     arrivalOrderMessage = ARRIVAL_LT_DELIVERY_MSG
   }
 
   if (
-    form.arrival_order &&
-    form.finish_order &&
-    isValidIsoDate(form.arrival_order) &&
-    isValidIsoDate(form.finish_order) &&
-    form.finish_order < form.arrival_order
+    form.arrival_datetime &&
+    form.finish_order_datetime &&
+    isValidIsoDateTime(form.arrival_datetime) &&
+    isValidIsoDateTime(form.finish_order_datetime) &&
+    form.finish_order_datetime < form.arrival_datetime
   ) {
     finishOrderMessage = FINISH_LT_ARRIVAL_MSG
   }
 
-  dateOrderErrors.arrival_order = arrivalOrderMessage
-  dateOrderErrors.finish_order = finishOrderMessage
+  dateOrderErrors.arrival_datetime = arrivalOrderMessage
+  dateOrderErrors.finish_order_datetime = finishOrderMessage
 
-  if (!arrivalOrderMessage && errors.arrival_order === ARRIVAL_LT_DELIVERY_MSG) {
-    delete errors.arrival_order
+  if (!arrivalOrderMessage && errors.arrival_datetime === ARRIVAL_LT_DELIVERY_MSG) {
+    delete errors.arrival_datetime
   }
-  if (!finishOrderMessage && errors.finish_order === FINISH_LT_ARRIVAL_MSG) {
-    delete errors.finish_order
+  if (!finishOrderMessage && errors.finish_order_datetime === FINISH_LT_ARRIVAL_MSG) {
+    delete errors.finish_order_datetime
   }
 }
 
@@ -930,27 +1012,27 @@ const validateForm = () => {
   if (!form.id_area) {
     errors.id_area = 'Rute wajib dipilih.'
   }
-  if (!form.delivery_order) {
-    errors.delivery_order = 'Delivery Order wajib diisi.'
-  } else if (!isValidIsoDate(form.delivery_order)) {
-    errors.delivery_order = 'Delivery Order tidak valid.'
+  if (!form.departure_datetime) {
+    errors.departure_datetime = 'Departure wajib diisi.'
+  } else if (!isValidIsoDateTime(form.departure_datetime)) {
+    errors.departure_datetime = 'Format Departure harus YYYY-MM-DD HH:MM.'
   }
-  if (!form.arrival_order) {
-    errors.arrival_order = 'Arrival wajib diisi.'
-  } else if (!isValidIsoDate(form.arrival_order)) {
-    errors.arrival_order = 'Arrival tidak valid.'
+  if (!form.arrival_datetime) {
+    errors.arrival_datetime = 'Arrival wajib diisi.'
+  } else if (!isValidIsoDateTime(form.arrival_datetime)) {
+    errors.arrival_datetime = 'Format Arrival harus YYYY-MM-DD HH:MM.'
   }
-  if (props.mode === 'create' && !form.finish_order) {
-    errors.finish_order = 'Finish Order wajib diisi.'
-  } else if (form.finish_order && !isValidIsoDate(form.finish_order)) {
-    errors.finish_order = 'Finish Order tidak valid.'
+  if (props.mode === 'create' && !form.finish_order_datetime) {
+    errors.finish_order_datetime = 'Finish Order wajib diisi.'
+  } else if (form.finish_order_datetime && !isValidIsoDateTime(form.finish_order_datetime)) {
+    errors.finish_order_datetime = 'Format Finish Order harus YYYY-MM-DD HH:MM.'
   }
   updateDateOrderErrors()
-  if (!errors.arrival_order && dateOrderErrors.arrival_order) {
-    errors.arrival_order = dateOrderErrors.arrival_order
+  if (!errors.arrival_datetime && dateOrderErrors.arrival_datetime) {
+    errors.arrival_datetime = dateOrderErrors.arrival_datetime
   }
-  if (!errors.finish_order && dateOrderErrors.finish_order) {
-    errors.finish_order = dateOrderErrors.finish_order
+  if (!errors.finish_order_datetime && dateOrderErrors.finish_order_datetime) {
+    errors.finish_order_datetime = dateOrderErrors.finish_order_datetime
   }
   if (!form.ops_cost) {
     errors.ops_cost = 'Operasional Cost wajib diisi.'
@@ -988,9 +1070,9 @@ const resetForm = () => {
   form.bills = ''
   form.lift_on = '0'
   form.lift_of = '0'
-  form.delivery_order = ''
-  form.arrival_order = ''
-  form.finish_order = ''
+  form.departure_datetime = ''
+  form.arrival_datetime = ''
+  form.finish_order_datetime = ''
   form.container_depot = '0'
   form.no_po = '0'
   form.tax = '0'
@@ -1029,9 +1111,9 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
   form.bills = data.bills || ''
   form.lift_on = formatIndonesianNumber(parseIndonesianNumber(String(data.lift_on ?? '0')))
   form.lift_of = formatIndonesianNumber(parseIndonesianNumber(String(data.lift_of ?? '0')))
-  form.delivery_order = normalizeDate(data.delivery_order)
-  form.arrival_order = normalizeDate(data.arrival_order)
-  form.finish_order = normalizeDate(data.finish_order)
+  form.departure_datetime = normalizeDateTime(data.departure_datetime)
+  form.arrival_datetime = normalizeDateTime(data.arrival_datetime)
+  form.finish_order_datetime = normalizeDateTime(data.finish_order_datetime)
   form.container_depot = data.container_depot ?? '0'
   form.no_po = data.no_po ?? '0'
   form.tax = data.tax ?? '0'
@@ -1114,8 +1196,7 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
     form.lift_of,
   ]
   // Cek jika ada nilai yang tidak kosong/0 untuk menampilkan opsi
-  showOptionalCosts.value =
-    props.mode === 'edit' || optionalValues.some((value) => value !== '0' && value !== '')
+  showOptionalCosts.value = false
 }
 
 const buildPayload = () => ({
@@ -1125,9 +1206,9 @@ const buildPayload = () => ({
   id_area: form.id_area ? Number(form.id_area) : null,
   id_customer: form.id_customer ? Number(form.id_customer) : null,
   nik_admin: form.nik_admin,
-  delivery_order: form.delivery_order,
-  arrival_order: form.arrival_order,
-  finish_order: form.finish_order,
+  departure_datetime: form.departure_datetime,
+  arrival_datetime: form.arrival_datetime,
+  finish_order_datetime: form.finish_order_datetime,
   bills: form.bills,
   lift_on: parseIndonesianNumber(form.lift_on || '0'),
   lift_of: parseIndonesianNumber(form.lift_of || '0'),
@@ -1321,7 +1402,7 @@ watch(
 )
 
 watch(
-  () => [form.delivery_order, form.arrival_order, form.finish_order],
+  () => [form.departure_datetime, form.arrival_datetime, form.finish_order_datetime],
   () => {
     updateDateOrderErrors()
   },
@@ -1336,3 +1417,21 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.dn-collapse-enter-active,
+.dn-collapse-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+.dn-collapse-enter-from,
+.dn-collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.dn-collapse-enter-to,
+.dn-collapse-leave-from {
+  opacity: 1;
+  max-height: 1200px;
+}
+</style>

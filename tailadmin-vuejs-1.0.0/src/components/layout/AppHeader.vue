@@ -77,6 +77,7 @@
         <div class="flex items-center gap-2 2xsm:gap-3">
           <ThemeToggler />
           <NotificationMenu v-if="!isCs && !isPatcher" />
+          <DeliveryNotificationBell v-if="!isCs && !isPatcher" />
         </div>
         <UserMenu />
       </div>
@@ -92,6 +93,7 @@ import SearchBar from './header/SearchBar.vue'
 import HeaderLogo from './header/HeaderLogo.vue'
 import NotificationMenu from './header/NotificationMenu.vue'
 import UserMenu from './header/UserMenu.vue'
+import DeliveryNotificationBell from '../DeliveryNotificationBell.vue'
 import { useAuthUser } from '@/services/auth'
 
 const { toggleSidebar, toggleMobileSidebar, isMobileOpen } = useSidebar()

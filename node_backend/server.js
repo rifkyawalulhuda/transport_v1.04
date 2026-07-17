@@ -27,6 +27,7 @@ const { restrictCsAccess, restrictPatcherAccess } = require("./middleware/rbac")
 const addressBookRouter = require("./routes/addressBook");
 const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 const bbsRouter = require("./routes/bbs");
+const deliveryNotificationsRouter = require("./routes/deliveryNotifications");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
 const { startGeofenceTracking } = require("./services/geofenceTrackingService");
 
@@ -73,6 +74,7 @@ app.use("/api/subcontractor", subcontractorRouter);
 app.use("/api/master", masterImportRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/delivery-notifications", deliveryNotificationsRouter);
 app.use("/api/data-trucks", dataTruckRouter);
 app.use("/api/data-chasis", dataChasisRouter);
 app.use("/api/data-supir", dataSupirRouter);
