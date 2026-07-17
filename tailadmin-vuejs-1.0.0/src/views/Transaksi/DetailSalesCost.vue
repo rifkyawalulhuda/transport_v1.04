@@ -755,7 +755,10 @@ const formatDateTime = (value?: string | null) => {
   if (!value) {
     return '-'
   }
-  const date = new Date(value)
+  // Strip timezone suffix (Z or +HH:MM) to treat all datetimes as local server time
+  // This ensures gps_time (stored as UTC in DB but represents WIB server time) displays correctly
+  const normalized = String(value).replace('T', ' ').replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '').slice(0, 16)
+  const date = new Date(normalized)
   if (Number.isNaN(date.getTime())) {
     return value
   }
