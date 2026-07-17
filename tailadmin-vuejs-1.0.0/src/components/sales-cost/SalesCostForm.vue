@@ -142,6 +142,7 @@
               v-model="form.departure_datetime"
               placeholder="Pilih tanggal & waktu"
               required
+              :enable-time="true"
               :disabled="isDisabled"
             />
             <p v-if="errors.departure_datetime" class="mt-1 text-xs text-error-600">
@@ -156,6 +157,7 @@
               v-model="form.arrival_datetime"
               placeholder="Pilih tanggal & waktu"
               required
+              :enable-time="true"
               :disabled="isDisabled"
             />
             <p
@@ -173,6 +175,7 @@
               v-model="form.finish_order_datetime"
               placeholder="Pilih tanggal & waktu"
               :required="props.mode === 'create'"
+              :enable-time="true"
               :disabled="isDisabled"
             />
             <p
