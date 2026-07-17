@@ -187,22 +187,115 @@
           </div>
         </div>
 
-        <!-- Estimasi Tiba Per Stop (muncul jika rute punya steps) -->
-        <div v-if="stepSchedules.length > 0" class="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
+        <!-- Jadwal Pengiriman -->
+        <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-800/30">
           <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Estimasi Tiba Per Stop <span class="font-normal normal-case text-gray-400">(opsional)</span>
+            Jadwal Pengiriman
           </p>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div v-for="(step, index) in stepSchedules" :key="step.id_area_route_step">
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Stop {{ index + 1 }} — {{ step.step_name_snapshot }}
-              </label>
-              <DatePickerInput
-                v-model="step.estimated_arrival"
-                placeholder="Pilih tanggal & waktu (opsional)"
-                :enable-time="true"
-                :disabled="isDisabled"
-              />
+          <div class="space-y-3">
+            <!-- Departure (fixed) -->
+            <div class="rounded-lg border-2 border-brand-200 bg-brand-50/40 p-3 dark:border-brand-500/30 dark:bg-brand-500/5">
+              <p class="mb-2 text-xs font-semibold text-brand-700 dark:text-brand-400">Departure *</p>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Geofence Keberangkatan *</label>
+                  <SearchableSelect
+                    :model-value="getStopGeofenceValue(departureStop)"
+                    :options="geofenceSelectOptions"
+                    placeholder="Pilih Geofence..."
+                    :disabled="isDisabled"
+                    @update:model-value="(v: string) => onStopGeofenceChange(departureStop, v)"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Waktu Berangkat</label>
+                  <DatePickerInput
+                    v-model="departureStop.estimated_arrival"
+                    placeholder="Pilih tanggal & waktu"
+                    :enable-time="true"
+                    :disabled="isDisabled"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Middle stops -->
+            <div
+              v-for="(stop, idx) in middleStops"
+              :key="idx"
+              class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900"
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Tujuan {{ idx + 1 }}</p>
+                <button
+                  v-if="!isDisabled"
+                  type="button"
+                  class="text-xs text-error-600 hover:text-error-700 dark:text-error-400"
+                  @click="removeDeliveryStop(idx)"
+                >
+                  Hapus
+                </button>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Geofence Tujuan</label>
+                  <SearchableSelect
+                    :model-value="getStopGeofenceValue(stop)"
+                    :options="geofenceSelectOptions"
+                    placeholder="Pilih Geofence..."
+                    :disabled="isDisabled"
+                    @update:model-value="(v: string) => onStopGeofenceChange(stop, v)"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Tiba (opsional)</label>
+                  <DatePickerInput
+                    v-model="stop.estimated_arrival"
+                    placeholder="Pilih tanggal & waktu"
+                    :enable-time="true"
+                    :disabled="isDisabled"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Add stop button -->
+            <button
+              v-if="!isDisabled"
+              type="button"
+              class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-2 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 dark:border-gray-600 dark:text-gray-400"
+              @click="addDeliveryStop"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Tambah Tujuan
+            </button>
+
+            <!-- Finish (fixed) -->
+            <div class="rounded-lg border-2 border-gray-300 bg-gray-100/40 p-3 dark:border-gray-600 dark:bg-gray-800/30">
+              <p class="mb-2 text-xs font-semibold text-gray-600 dark:text-gray-300">Finish (Kembali ke Base) *</p>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Geofence Finish *</label>
+                  <SearchableSelect
+                    :model-value="getStopGeofenceValue(finishStop)"
+                    :options="geofenceSelectOptions"
+                    placeholder="Pilih Geofence..."
+                    :disabled="isDisabled"
+                    @update:model-value="(v: string) => onStopGeofenceChange(finishStop, v)"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Estimasi Waktu Selesai</label>
+                  <DatePickerInput
+                    v-model="finishStop.estimated_arrival"
+                    placeholder="Pilih tanggal & waktu"
+                    :enable-time="true"
+                    :disabled="isDisabled"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -687,6 +780,8 @@ import AddressAutocomplete from '@/components/common/AddressAutocomplete.vue'
 import { salesCostService } from '@/services/salesCostService'
 import { addressBookService } from '@/services/addressBookService'
 import { monitoringKendaraanService } from '@/services/monitoringKendaraanService'
+import { authFetch } from '@/services/auth'
+import { API_BASE } from '@/config/api'
 import { useToast } from '@/composables/useToast'
 
 type TruckOption = {
@@ -754,10 +849,15 @@ type DnItem = {
   remarks: string
 }
 
-interface StepScheduleItem {
-  id_area_route_step: number
-  step_order_snapshot: number
-  step_name_snapshot: string
+interface DeliveryStop {
+  id?: number
+  stop_order: number
+  stop_name: string
+  wialon_resource_id: number | null
+  wialon_zone_id: number | null
+  wialon_zone_name: string | null
+  is_departure: 0 | 1
+  is_finish: 0 | 1
   estimated_arrival: string
 }
 
@@ -799,7 +899,101 @@ const toast = useToast()
 const checkingTruckStatus = ref(false)
 const truckStatus = ref<{ type: 'repair' | 'transaksi'; message: string } | null>(null)
 let truckStatusRequestId = 0
-const stepSchedules = ref<StepScheduleItem[]>([])
+
+const geofenceRows = ref<Array<{ resource_id: number; resource_name: string; zone_id: number; zone_name: string }>>([])
+const geofenceLoading = ref(false)
+
+const geofenceSelectOptions = computed(() =>
+  geofenceRows.value.map((row) => ({
+    value: `${row.resource_id}:${row.zone_id}`,
+    label: `${row.zone_name} (${row.resource_name})`,
+    resource_name: row.resource_name,
+    zone_name: row.zone_name,
+  }))
+)
+
+const loadGeofences = async () => {
+  if (geofenceRows.value.length > 0 || geofenceLoading.value) return
+  geofenceLoading.value = true
+  try {
+    const res = await authFetch(`${API_BASE}/wialon/geofences`)
+    const data = await res.json()
+    geofenceRows.value = Array.isArray(data?.rows) ? data.rows : []
+  } catch (error) {
+    console.error('Failed to load geofences', error)
+  } finally {
+    geofenceLoading.value = false
+  }
+}
+
+const deliveryStops = ref<DeliveryStop[]>([
+  {
+    stop_order: 0,
+    stop_name: 'Departure',
+    wialon_resource_id: null,
+    wialon_zone_id: null,
+    wialon_zone_name: null,
+    is_departure: 1,
+    is_finish: 0,
+    estimated_arrival: ''
+  },
+  {
+    stop_order: 99,
+    stop_name: 'Finish',
+    wialon_resource_id: null,
+    wialon_zone_id: null,
+    wialon_zone_name: null,
+    is_departure: 0,
+    is_finish: 1,
+    estimated_arrival: ''
+  }
+])
+
+const departureStop = computed(() => deliveryStops.value.find(s => s.is_departure === 1)!)
+const finishStop = computed(() => deliveryStops.value.find(s => s.is_finish === 1)!)
+const middleStops = computed(() => deliveryStops.value.filter(s => s.is_departure === 0 && s.is_finish === 0))
+
+const addDeliveryStop = () => {
+  const existingMiddle = middleStops.value
+  const nextOrder = existingMiddle.length > 0
+    ? Math.max(...existingMiddle.map(s => s.stop_order)) + 1
+    : 1
+  deliveryStops.value.splice(deliveryStops.value.length - 1, 0, {
+    stop_order: nextOrder,
+    stop_name: `Tujuan ${existingMiddle.length + 1}`,
+    wialon_resource_id: null,
+    wialon_zone_id: null,
+    wialon_zone_name: null,
+    is_departure: 0,
+    is_finish: 0,
+    estimated_arrival: ''
+  })
+}
+
+const removeDeliveryStop = (index: number) => {
+  const stopToRemove = middleStops.value[index]
+  const idx = deliveryStops.value.findIndex(s => s === stopToRemove)
+  if (idx !== -1) deliveryStops.value.splice(idx, 1)
+}
+
+const onStopGeofenceChange = (stop: DeliveryStop, value: string) => {
+  if (!value) {
+    stop.wialon_resource_id = null
+    stop.wialon_zone_id = null
+    stop.wialon_zone_name = null
+    return
+  }
+  const [resourceId, zoneId] = value.split(':')
+  const option = geofenceSelectOptions.value.find(o => o.value === value)
+  stop.wialon_resource_id = resourceId ? Number(resourceId) : null
+  stop.wialon_zone_id = zoneId ? Number(zoneId) : null
+  stop.wialon_zone_name = option?.zone_name || null
+}
+
+const getStopGeofenceValue = (stop: DeliveryStop): string => {
+  if (!stop.wialon_resource_id || !stop.wialon_zone_id) return ''
+  return `${stop.wialon_resource_id}:${stop.wialon_zone_id}`
+}
 
 const markAddressUsed = async (item?: { _id?: string }) => {
   if (!item?._id) {
@@ -1131,7 +1325,10 @@ const resetForm = () => {
       remarks: '',
     },
   ]
-  stepSchedules.value = []
+  deliveryStops.value = [
+    { stop_order: 0, stop_name: 'Departure', wialon_resource_id: null, wialon_zone_id: null, wialon_zone_name: null, is_departure: 1, is_finish: 0, estimated_arrival: '' },
+    { stop_order: 99, stop_name: 'Finish', wialon_resource_id: null, wialon_zone_id: null, wialon_zone_name: null, is_departure: 0, is_finish: 1, estimated_arrival: '' }
+  ]
 }
 
 const applyInitialData = (data: Partial<SalesCostFormData>) => {
@@ -1227,12 +1424,17 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
     form.lift_on,
     form.lift_of,
   ]
-  // Populate step schedules from existing data
-  if (data.step_schedules && Array.isArray(data.step_schedules)) {
-    stepSchedules.value = (data.step_schedules as StepScheduleItem[]).map((s: StepScheduleItem) => ({
-      id_area_route_step: Number(s.id_area_route_step),
-      step_order_snapshot: Number(s.step_order_snapshot),
-      step_name_snapshot: s.step_name_snapshot || '',
+  // Populate delivery stops from existing data
+  if (data.delivery_stops && Array.isArray((data as any).delivery_stops) && (data as any).delivery_stops.length > 0) {
+    deliveryStops.value = (data as any).delivery_stops.map((s: DeliveryStop) => ({
+      id: s.id,
+      stop_order: Number(s.stop_order),
+      stop_name: s.stop_name || '',
+      wialon_resource_id: s.wialon_resource_id ? Number(s.wialon_resource_id) : null,
+      wialon_zone_id: s.wialon_zone_id ? Number(s.wialon_zone_id) : null,
+      wialon_zone_name: s.wialon_zone_name || null,
+      is_departure: s.is_departure as 0 | 1,
+      is_finish: s.is_finish as 0 | 1,
       estimated_arrival: normalizeDateTime(s.estimated_arrival) || ''
     }))
   }
@@ -1271,14 +1473,17 @@ const buildPayload = () => ({
   ops_cost: parseIndonesianNumber(form.ops_cost || '0'),
   id_print: form.id_print,
   dnItems: dnList.value,
-  step_schedules: stepSchedules.value
-    .filter(s => s.estimated_arrival && s.estimated_arrival.trim() !== '')
-    .map(s => ({
-      id_area_route_step: s.id_area_route_step,
-      step_order_snapshot: s.step_order_snapshot,
-      step_name_snapshot: s.step_name_snapshot,
-      estimated_arrival: s.estimated_arrival
-    })),
+  delivery_stops: deliveryStops.value.map(s => ({
+    ...(s.id ? { id: s.id } : {}),
+    stop_order: s.stop_order,
+    stop_name: s.stop_name,
+    wialon_resource_id: s.wialon_resource_id,
+    wialon_zone_id: s.wialon_zone_id,
+    wialon_zone_name: s.wialon_zone_name,
+    is_departure: s.is_departure,
+    is_finish: s.is_finish,
+    estimated_arrival: s.estimated_arrival || null
+  })),
 })
 
 const toggleOptionalCosts = () => {
@@ -1451,38 +1656,6 @@ watch(
   },
 )
 
-// When route changes, rebuild stepSchedules preserving existing estimated_arrival values
-const rebuildStepSchedules = (steps: Array<{ id_area_route_step: number; step_order: number; step_name: string }>) => {
-  const existing = new Map(stepSchedules.value.map(s => [s.id_area_route_step, s.estimated_arrival]))
-  stepSchedules.value = steps.map(step => ({
-    id_area_route_step: step.id_area_route_step,
-    step_order_snapshot: step.step_order,
-    step_name_snapshot: step.step_name,
-    estimated_arrival: existing.get(step.id_area_route_step) || ''
-  }))
-}
-
-watch(
-  () => form.id_area,
-  async (newId) => {
-    if (!newId) {
-      stepSchedules.value = []
-      return
-    }
-    try {
-      const steps = await salesCostService.fetchAreaRouteSteps(newId)
-      if (Array.isArray(steps) && steps.length > 0) {
-        rebuildStepSchedules(steps)
-      } else {
-        stepSchedules.value = []
-      }
-    } catch {
-      stepSchedules.value = []
-    }
-  },
-  { immediate: true }
-)
-
 watch(
   () => [form.departure_datetime, form.arrival_datetime, form.finish_order_datetime],
   () => {
@@ -1493,6 +1666,7 @@ watch(
 
 onMounted(async () => {
   await loadOptions()
+  void loadGeofences()
   if (props.mode === 'create') {
     resetForm()
     applyInitialData({})

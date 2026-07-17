@@ -107,46 +107,54 @@
               </div>
             </div>
 
-            <!-- Per-Step Schedule -->
-            <div v-if="stepSchedulesWithHistory.length > 0" class="mt-4">
+            <!-- Jadwal & Realisasi Pengiriman -->
+            <div v-if="deliveryStopsWithHistory.length > 0" class="mt-4">
               <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Estimasi &amp; Realisasi Per Stop
+                Jadwal &amp; Realisasi Pengiriman
               </p>
               <div class="space-y-2">
                 <div
-                  v-for="step in stepSchedulesWithHistory"
-                  :key="step.id_area_route_step"
+                  v-for="stop in deliveryStopsWithHistory"
+                  :key="stop.id"
                   class="flex items-center justify-between rounded-lg border p-3"
-                  :class="step.hit
+                  :class="stop.hit
                     ? 'border-success-200 bg-success-50/40 dark:border-success-500/20 dark:bg-success-500/5'
-                    : step.overdue
+                    : stop.overdue
                       ? 'border-warning-200 bg-warning-50/40 dark:border-warning-500/20 dark:bg-warning-500/5'
-                      : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                      : stop.is_departure
+                        ? 'border-brand-200 bg-brand-50/40 dark:border-brand-500/20 dark:bg-brand-500/5'
+                        : stop.is_finish
+                          ? 'border-gray-300 bg-gray-100/40 dark:border-gray-600 dark:bg-gray-800/20'
+                          : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
                 >
                   <div class="flex-1">
                     <p class="text-[11px] text-gray-400 dark:text-gray-500">
-                      Stop {{ step.step_order_snapshot }} · {{ step.step_name_snapshot }}
+                      <span v-if="stop.is_departure">Departure</span>
+                      <span v-else-if="stop.is_finish">Finish</span>
+                      <span v-else>Stop {{ stop.stop_order }}</span>
+                      · {{ stop.stop_name }}
+                      <span v-if="stop.wialon_zone_name" class="ml-1 text-gray-300 dark:text-gray-600">— {{ stop.wialon_zone_name }}</span>
                     </p>
-                    <p class="mt-0.5 text-sm font-medium text-gray-800 dark:text-gray-100">
-                      Est: {{ formatDateTime(step.estimated_arrival) }}
+                    <p v-if="stop.estimated_arrival" class="mt-0.5 text-sm font-medium text-gray-800 dark:text-gray-100">
+                      Est: {{ formatDateTime(stop.estimated_arrival) }}
                     </p>
-                    <p v-if="step.actual_arrival" class="mt-0.5 text-xs text-success-600 dark:text-success-400">
-                      Tiba: {{ formatDateTime(step.actual_arrival) }}
+                    <p v-else class="mt-0.5 text-xs italic text-gray-400 dark:text-gray-500">
+                      Tidak ada estimasi waktu
+                    </p>
+                    <p v-if="stop.actual_arrival" class="mt-0.5 text-xs text-success-600 dark:text-success-400">
+                      Tiba: {{ formatDateTime(stop.actual_arrival) }}
                     </p>
                   </div>
                   <div class="ml-3 flex-shrink-0">
-                    <span
-                      v-if="step.hit"
-                      class="inline-flex items-center rounded-full bg-success-100 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400"
-                    >Sudah Tiba</span>
-                    <span
-                      v-else-if="step.overdue"
-                      class="inline-flex items-center rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/20 dark:text-warning-400"
-                    >Terlambat</span>
-                    <span
-                      v-else
-                      class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400"
-                    >Menunggu</span>
+                    <span v-if="stop.hit" class="inline-flex items-center rounded-full bg-success-100 px-2.5 py-0.5 text-xs font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                      Sudah Tiba
+                    </span>
+                    <span v-else-if="stop.overdue" class="inline-flex items-center rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
+                      Terlambat
+                    </span>
+                    <span v-else class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                      Menunggu
+                    </span>
                   </div>
                 </div>
               </div>
@@ -269,57 +277,7 @@
               </h3>
             </div>
 
-            <div v-if="plannedRouteSteps.length === 0" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
-              Rute ini belum memiliki langkah geofence yang terdaftar.
-            </div>
-
-            <div v-else class="grid gap-4 xl:grid-cols-[minmax(0,360px),minmax(0,1fr)]">
-              <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Rencana Langkah Rute
-                </p>
-                <div class="space-y-3">
-                  <div
-                    v-for="step in plannedRouteSteps"
-                    :key="step.step_key"
-                    class="rounded-lg border px-3 py-3"
-                    :class="
-                      routeHistoryByStepKey.has(step.step_key)
-                        ? 'border-brand-200 bg-brand-50/60 dark:border-brand-500/30 dark:bg-brand-500/10'
-                        : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
-                    "
-                  >
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                          {{ step.step_order }}. {{ step.step_name }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {{ step.wialon_zone_name || '-' }}
-                        </div>
-                        <div
-                          v-if="routeHistoryByStepKey.has(step.step_key)"
-                          class="mt-1 text-xs font-medium text-brand-600 dark:text-brand-400"
-                        >
-                          {{ formatDateTime(routeHistoryByStepKey.get(step.step_key)?.gps_time) }}
-                        </div>
-                      </div>
-                      <span
-                        class="rounded-full px-2.5 py-1 text-[11px] font-medium"
-                        :class="
-                          routeHistoryByStepKey.has(step.step_key)
-                            ? 'bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-200'
-                            : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-200'
-                        "
-                      >
-                        {{ routeHistoryByStepKey.has(step.step_key) ? 'Visited' : 'Pending' }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
                 <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   History Aktual
                 </p>
@@ -382,7 +340,6 @@
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
           </div>
         </div>
@@ -435,12 +392,16 @@ type DetailData = {
   route_steps?: RouteStepItem[]
   route_history?: RouteHistoryItem[]
   finish_step?: PlannedStepItem | null
-  step_schedules?: Array<{
+  delivery_stops?: Array<{
     id: number
-    id_area_route_step: number
-    step_order_snapshot: number
-    step_name_snapshot: string
-    estimated_arrival: string
+    stop_order: number
+    stop_name: string
+    wialon_resource_id: number | null
+    wialon_zone_id: number | null
+    wialon_zone_name: string | null
+    is_departure: number
+    is_finish: number
+    estimated_arrival: string | null
   }>
 }
 
@@ -471,6 +432,7 @@ type RouteHistoryItem = {
   id_sales_cost: number
   id_area: number
   id_area_route_step: number | null
+  id_sc_stop?: number | null
   step_key: string
   system_step_code: string | null
   id_truck: number
@@ -658,25 +620,6 @@ const shippingDurationLabel = computed(() => {
   return `${shippingDurationDays.value} Hari`
 })
 
-const plannedRouteSteps = computed<PlannedStepItem[]>(() => {
-  const routeSteps = (detail.value.route_steps || []).map((step) => ({
-    id_area_route_step: step.id_area_route_step,
-    step_order: step.step_order,
-    step_name: step.step_name,
-    step_key: step.step_key || `route:${step.id_area_route_step}`,
-    system_step_code: step.system_step_code || null,
-    wialon_resource_id: step.wialon_resource_id,
-    wialon_zone_id: step.wialon_zone_id,
-    wialon_zone_name: step.wialon_zone_name
-  }))
-
-  if (detail.value.finish_step) {
-    routeSteps.push(detail.value.finish_step)
-  }
-
-  return routeSteps
-})
-
 const routeHistory = computed(() => detail.value.route_history || [])
 
 const routeHistoryByStepKey = computed(() => {
@@ -687,31 +630,26 @@ const routeHistoryByStepKey = computed(() => {
   return mapped
 })
 
-const stepSchedulesWithHistory = computed(() => {
-  if (!detail.value?.step_schedules?.length) return []
+const deliveryStopsWithHistory = computed(() => {
+  if (!detail.value?.delivery_stops?.length) return []
 
-  const historyStepIds = new Set(
+  const historyByStopId = new Map(
     (detail.value.route_history || [])
-      .filter(h => h.id_area_route_step)
-      .map(h => Number(h.id_area_route_step))
-  )
-
-  const historyByStep = new Map(
-    (detail.value.route_history || [])
-      .filter(h => h.id_area_route_step && h.gps_time)
-      .map(h => [Number(h.id_area_route_step), h.gps_time])
+      .filter(h => h.id_sc_stop)
+      .map(h => [Number(h.id_sc_stop), h])
   )
 
   const now = new Date()
 
-  return detail.value.step_schedules.map(s => {
-    const hit = historyStepIds.has(s.id_area_route_step)
-    const overdue = !hit && new Date(s.estimated_arrival) < now
+  return detail.value.delivery_stops.map(s => {
+    const hit = historyByStopId.has(s.id)
+    const historyEntry = historyByStopId.get(s.id)
+    const overdue = !hit && !!s.estimated_arrival && new Date(s.estimated_arrival) < now
     return {
       ...s,
       hit,
       overdue,
-      actual_arrival: hit ? historyByStep.get(s.id_area_route_step) : null
+      actual_arrival: hit ? historyEntry?.gps_time : null
     }
   })
 })

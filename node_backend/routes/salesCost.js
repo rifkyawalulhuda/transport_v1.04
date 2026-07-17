@@ -1353,11 +1353,13 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
-    const [stepScheduleRows] = await db.query(
-      `SELECT id, id_area_route_step, step_order_snapshot, step_name_snapshot, estimated_arrival
+    const [deliveryStopRows] = await db.query(
+      `SELECT id, id_sales_cost, stop_order, stop_name,
+              wialon_resource_id, wialon_zone_id, wialon_zone_name,
+              is_departure, is_finish, estimated_arrival
        FROM sales_cost_step_schedule
        WHERE id_sales_cost = ?
-       ORDER BY step_order_snapshot ASC`,
+       ORDER BY stop_order ASC`,
       [id]
     );
 
@@ -1378,12 +1380,17 @@ router.get("/:id", async (req, res) => {
             : null,
           wialon_zone_name: finishGeofenceName
         },
-      step_schedules: stepScheduleRows.map(r => ({
+      delivery_stops: deliveryStopRows.map(r => ({
         id: Number(r.id),
-        id_area_route_step: Number(r.id_area_route_step),
-        step_order_snapshot: Number(r.step_order_snapshot),
-        step_name_snapshot: r.step_name_snapshot || '',
-        estimated_arrival: r.estimated_arrival
+        id_sales_cost: Number(r.id_sales_cost),
+        stop_order: Number(r.stop_order),
+        stop_name: r.stop_name || '',
+        wialon_resource_id: r.wialon_resource_id ? Number(r.wialon_resource_id) : null,
+        wialon_zone_id: r.wialon_zone_id ? Number(r.wialon_zone_id) : null,
+        wialon_zone_name: r.wialon_zone_name || null,
+        is_departure: Number(r.is_departure),
+        is_finish: Number(r.is_finish),
+        estimated_arrival: r.estimated_arrival || null
       })),
       route_history: historyRows.map((row) => ({
         id_sales_cost_route_history: Number(row.id_sales_cost_route_history),
@@ -1556,25 +1563,26 @@ router.post("/", authenticateToken, async (req, res) => {
       ]
     );
 
-    // Save per-step schedules if provided
-    const stepSchedules = Array.isArray(body.step_schedules) ? body.step_schedules : [];
-    for (const schedule of stepSchedules) {
-      if (!schedule.id_area_route_step || !schedule.estimated_arrival) continue;
-      if (!isValidIsoDateTime(String(schedule.estimated_arrival))) continue;
+    // Save delivery stops
+    const deliveryStops = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
+    for (const stop of deliveryStops) {
+      if (stop.stop_order === undefined || stop.stop_order === null) continue;
+      const estimatedArrival = stop.estimated_arrival || null;
+      if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
       await db.query(
         `INSERT INTO sales_cost_step_schedule
-          (id_sales_cost, id_area_route_step, step_order_snapshot, step_name_snapshot, estimated_arrival)
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           estimated_arrival = VALUES(estimated_arrival),
-           step_order_snapshot = VALUES(step_order_snapshot),
-           step_name_snapshot = VALUES(step_name_snapshot)`,
+          (id_sales_cost, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          result.insertId,
-          Number(schedule.id_area_route_step),
-          Number(schedule.step_order_snapshot) || 0,
-          String(schedule.step_name_snapshot || ''),
-          schedule.estimated_arrival
+          insertedId,
+          Number(stop.stop_order),
+          String(stop.stop_name || ''),
+          stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+          stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+          stop.wialon_zone_name || null,
+          stop.is_departure ? 1 : 0,
+          stop.is_finish ? 1 : 0,
+          estimatedArrival || null
         ]
       );
     }
@@ -1760,39 +1768,27 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Sales cost not found" });
     }
 
-    // Upsert per-step schedules
-    const stepSchedulesPut = Array.isArray(body.step_schedules) ? body.step_schedules : [];
-    // Delete existing schedules not in the new list
-    const keepIds = stepSchedulesPut
-      .filter(s => s.id_area_route_step)
-      .map(s => Number(s.id_area_route_step));
-    if (keepIds.length > 0) {
-      const placeholders = keepIds.map(() => '?').join(',');
-      await db.query(
-        `DELETE FROM sales_cost_step_schedule WHERE id_sales_cost = ? AND id_area_route_step NOT IN (${placeholders})`,
-        [id, ...keepIds]
-      );
-    } else {
-      await db.query('DELETE FROM sales_cost_step_schedule WHERE id_sales_cost = ?', [id]);
-    }
-    // Upsert each schedule
-    for (const schedule of stepSchedulesPut) {
-      if (!schedule.id_area_route_step || !schedule.estimated_arrival) continue;
-      if (!isValidIsoDateTime(String(schedule.estimated_arrival))) continue;
+    // Upsert delivery stops: delete all then re-insert
+    const deliveryStopsPut = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
+    await db.query('DELETE FROM sales_cost_step_schedule WHERE id_sales_cost = ?', [id]);
+    for (const stop of deliveryStopsPut) {
+      if (stop.stop_order === undefined || stop.stop_order === null) continue;
+      const estimatedArrival = stop.estimated_arrival || null;
+      if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
       await db.query(
         `INSERT INTO sales_cost_step_schedule
-          (id_sales_cost, id_area_route_step, step_order_snapshot, step_name_snapshot, estimated_arrival)
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           estimated_arrival = VALUES(estimated_arrival),
-           step_order_snapshot = VALUES(step_order_snapshot),
-           step_name_snapshot = VALUES(step_name_snapshot)`,
+          (id_sales_cost, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           Number(id),
-          Number(schedule.id_area_route_step),
-          Number(schedule.step_order_snapshot) || 0,
-          String(schedule.step_name_snapshot || ''),
-          schedule.estimated_arrival
+          Number(stop.stop_order),
+          String(stop.stop_name || ''),
+          stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+          stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+          stop.wialon_zone_name || null,
+          stop.is_departure ? 1 : 0,
+          stop.is_finish ? 1 : 0,
+          estimatedArrival || null
         ]
       );
     }

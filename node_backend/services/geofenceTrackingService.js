@@ -1,8 +1,5 @@
 const db = require("../db");
 const {
-  fetchAreaRouteStepsMap
-} = require("./areaRouteService");
-const {
   fetchWialonGeofences,
   fetchUnitsInZonesByResource,
   getUnitPositionMap
@@ -62,57 +59,39 @@ const normalizePositiveIntString = (value) => {
 };
 
 const getActiveSalesCostCandidates = async () => {
-  const todayString = toDateString(new Date());
-  const [rows] = await db.query(
-    `
-      SELECT
-        sc.id_sales_cost,
-        sc.id_area,
-        sc.id_truck,
-        sc.departure_datetime,
-        sc.arrival_datetime,
-        sc.finish_order_datetime,
-        t.wialon_unit_id,
-        a.finish_geofence_resource_id,
-        a.finish_geofence_zone_id,
-        a.finish_geofence_zone_name
-      FROM sales_cost sc
-      INNER JOIN truck t ON sc.id_truck = t.id_truck
-      INNER JOIN area a ON sc.id_area = a.id_area
-      WHERE sc.id_truck IS NOT NULL
-        AND t.wialon_unit_id IS NOT NULL
-        AND t.wialon_unit_id <> ''
-        AND EXISTS (
-          SELECT 1
-          FROM area_route_step ars
-          WHERE ars.id_area = sc.id_area
-        )
-        AND (
-          (
-            sc.finish_order_datetime IS NOT NULL
-            AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00'
-            AND sc.finish_order_datetime > ?
-          )
-          OR (
-            (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
-            AND (
-              sc.arrival_datetime IS NULL
-              OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00'
-              OR sc.arrival_datetime >= ?
-            )
-          )
-        )
-      ORDER BY sc.id_truck ASC, sc.departure_datetime DESC, sc.id_sales_cost DESC
-    `,
-    [todayString, todayString]
-  );
+  const [rows] = await db.query(`
+    SELECT DISTINCT
+      sc.id_sales_cost,
+      sc.id_area,
+      sc.id_truck,
+      sc.departure_datetime,
+      sc.arrival_datetime,
+      sc.finish_order_datetime,
+      t.wialon_unit_id,
+      a.finish_geofence_resource_id,
+      a.finish_geofence_zone_id,
+      a.finish_geofence_zone_name
+    FROM sales_cost sc
+    INNER JOIN truck t ON sc.id_truck = t.id_truck
+    INNER JOIN area a ON sc.id_area = a.id_area
+    INNER JOIN sales_cost_step_schedule scss ON scss.id_sales_cost = sc.id_sales_cost
+    WHERE sc.id_truck IS NOT NULL
+      AND t.wialon_unit_id IS NOT NULL
+      AND t.wialon_unit_id <> ''
+      AND t.is_active = 1
+      AND scss.wialon_zone_id IS NOT NULL
+      AND (
+        sc.finish_order_datetime IS NULL
+        OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00 00:00:00'
+        OR sc.finish_order_datetime > NOW()
+      )
+    ORDER BY sc.id_truck ASC, sc.departure_datetime DESC, sc.id_sales_cost DESC
+  `);
 
   const pickedByTruck = new Map();
   rows.forEach((row) => {
-    const truckKey = String(row.id_truck || "");
-    if (!truckKey || pickedByTruck.has(truckKey)) {
-      return;
-    }
+    const truckKey = String(row.id_truck || '');
+    if (!truckKey || pickedByTruck.has(truckKey)) return;
     pickedByTruck.set(truckKey, {
       id_sales_cost: Number(row.id_sales_cost),
       id_area: Number(row.id_area),
@@ -174,8 +153,8 @@ const checkArrivalDelays = async () => {
     const [stepOverdueRows] = await db.query(`
       SELECT
         scss.id_sales_cost,
-        scss.id_area_route_step,
-        scss.step_name_snapshot,
+        scss.id AS id_sc_stop,
+        scss.stop_name,
         scss.estimated_arrival,
         t.no_police,
         a.nama_area
@@ -184,29 +163,30 @@ const checkArrivalDelays = async () => {
       INNER JOIN truck t ON sc.id_truck = t.id_truck
       INNER JOIN area a ON sc.id_area = a.id_area
       WHERE scss.estimated_arrival < NOW()
+        AND scss.is_finish = 0
         AND sc.finish_order_datetime IS NULL
         AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         AND NOT EXISTS (
           SELECT 1 FROM sales_cost_route_history scrh
           WHERE scrh.id_sales_cost = scss.id_sales_cost
-            AND scrh.id_area_route_step = scss.id_area_route_step
+            AND scrh.id_sc_stop = scss.id
         )
         AND NOT EXISTS (
           SELECT 1 FROM delivery_notifications dn
           WHERE dn.id_sales_cost = scss.id_sales_cost
-            AND dn.id_area_route_step = scss.id_area_route_step
+            AND dn.id_sc_stop = scss.id
             AND dn.is_dismissed = 0
         )
     `);
 
     for (const row of stepOverdueRows) {
       const arrivalStr = toMySqlDateTime(row.estimated_arrival);
-      const message = `Truk ${row.no_police} seharusnya sudah tiba di ${row.step_name_snapshot} pada ${arrivalStr}. Truk belum trigger Geofence Area tersebut. Harap verifikasi posisi truk.`;
+      const message = `Truk ${row.no_police} seharusnya sudah tiba di ${row.stop_name} pada ${arrivalStr}. Truk belum trigger Geofence Area tersebut. Harap verifikasi posisi truk.`;
       await db.query(
         `INSERT INTO delivery_notifications
-          (id_sales_cost, id_area_route_step, step_name, notification_type, truck_plate, route_name, scheduled_arrival, message)
+          (id_sales_cost, id_sc_stop, step_name, notification_type, truck_plate, route_name, scheduled_arrival, message)
          VALUES (?, ?, ?, 'arrival_overdue', ?, ?, ?, ?)`,
-        [row.id_sales_cost, row.id_area_route_step, row.step_name_snapshot,
+        [row.id_sales_cost, row.id_sc_stop, row.stop_name,
          row.no_police, row.nama_area, row.estimated_arrival, message]
       );
     }
@@ -220,28 +200,22 @@ const checkArrivalDelays = async () => {
 };
 
 const fetchExistingHistoryKeys = async (salesCostIds) => {
-  if (!Array.isArray(salesCostIds) || salesCostIds.length === 0) {
-    return new Set();
-  }
+  if (!Array.isArray(salesCostIds) || salesCostIds.length === 0) return new Set();
 
-  const placeholders = salesCostIds.map(() => "?").join(",");
+  const placeholders = salesCostIds.map(() => '?').join(',');
   const [rows] = await db.query(
-    `
-      SELECT id_sales_cost, id_area_route_step, step_key
-      FROM sales_cost_route_history
-      WHERE id_sales_cost IN (${placeholders})
-    `,
+    `SELECT id_sales_cost, id_sc_stop, step_key
+     FROM sales_cost_route_history
+     WHERE id_sales_cost IN (${placeholders})`,
     salesCostIds
   );
 
   return new Set(
     rows.map((row) => {
-      const fallbackKey =
-        row.id_area_route_step === null || row.id_area_route_step === undefined
-          ? ""
-          : `route:${Number(row.id_area_route_step)}`;
-      return `${Number(row.id_sales_cost)}:${row.step_key || fallbackKey}`;
-    })
+      const scId = Number(row.id_sales_cost);
+      const key = row.step_key || (row.id_sc_stop ? `stop:${row.id_sc_stop}` : '');
+      return `${scId}:${key}`;
+    }).filter(k => k !== ':')
   );
 };
 
@@ -279,43 +253,6 @@ const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence) =>
   return null;
 };
 
-const buildResourceZoneMap = (activeSalesCosts, routeStepsMap, fallbackFinishGeofence) => {
-  const resourceMap = new Map();
-
-  activeSalesCosts.forEach((salesCost) => {
-    const steps = routeStepsMap.get(Number(salesCost.id_area)) || [];
-    steps.forEach((step) => {
-      const resourceId = normalizePositiveIntString(step.wialon_resource_id);
-      const zoneId = normalizePositiveIntString(step.wialon_zone_id);
-      if (!resourceId || !zoneId) {
-        return;
-      }
-
-      if (!resourceMap.has(resourceId)) {
-        resourceMap.set(resourceId, new Set());
-      }
-      resourceMap.get(resourceId).add(zoneId);
-    });
-
-    const finishGeofence = resolveFinishGeofenceForSalesCost(
-      salesCost,
-      fallbackFinishGeofence
-    );
-    if (finishGeofence?.resource_id && finishGeofence?.zone_id) {
-      const resourceId = normalizePositiveIntString(finishGeofence.resource_id);
-      const zoneId = normalizePositiveIntString(finishGeofence.zone_id);
-      if (resourceId && zoneId) {
-        if (!resourceMap.has(resourceId)) {
-          resourceMap.set(resourceId, new Set());
-        }
-        resourceMap.get(resourceId).add(zoneId);
-      }
-    }
-  });
-
-  return resourceMap;
-};
-
 const syncGeofenceRouteHistory = async () => {
   const activeSalesCosts = await getActiveSalesCostCandidates();
   if (activeSalesCosts.length === 0) {
@@ -325,36 +262,69 @@ const syncGeofenceRouteHistory = async () => {
     };
   }
 
-  const routeStepsMap = await fetchAreaRouteStepsMap(
-    activeSalesCosts.map((salesCost) => salesCost.id_area)
-  );
   const fallbackFinishGeofence = await findDefaultFinishGeofence();
-  const salesCostsWithSteps = activeSalesCosts.filter((salesCost) => {
-    const steps = routeStepsMap.get(Number(salesCost.id_area)) || [];
-    return steps.length > 0;
-  });
 
-  if (salesCostsWithSteps.length === 0) {
+  const existingHistoryKeys = await fetchExistingHistoryKeys(
+    activeSalesCosts.map((salesCost) => salesCost.id_sales_cost)
+  );
+
+  // Build resource/zone map from scss stops across all active sales costs
+  const [allStopsRows] = await db.query(`
+    SELECT id, id_sales_cost, stop_order, stop_name,
+           wialon_resource_id, wialon_zone_id, wialon_zone_name,
+           is_departure, is_finish
+    FROM sales_cost_step_schedule
+    WHERE id_sales_cost IN (${activeSalesCosts.map(() => '?').join(',')})
+      AND is_finish = 0
+    ORDER BY id_sales_cost ASC, stop_order ASC
+  `, activeSalesCosts.map(sc => sc.id_sales_cost));
+
+  // Group stops by sales cost id
+  const stopsBySalesCost = new Map();
+  for (const row of allStopsRows) {
+    const scId = Number(row.id_sales_cost);
+    if (!stopsBySalesCost.has(scId)) stopsBySalesCost.set(scId, []);
+    stopsBySalesCost.get(scId).push(row);
+  }
+
+  // Filter to only sales costs that have at least one scss stop
+  const salesCostsWithStops = activeSalesCosts.filter(
+    (sc) => (stopsBySalesCost.get(sc.id_sales_cost) || []).length > 0
+  );
+
+  if (salesCostsWithStops.length === 0) {
     return {
       active: activeSalesCosts.length,
       inserted: 0
     };
   }
 
-  const existingHistoryKeys = await fetchExistingHistoryKeys(
-    salesCostsWithSteps.map((salesCost) => salesCost.id_sales_cost)
-  );
-  const resourceZoneMap = buildResourceZoneMap(
-    salesCostsWithSteps,
-    routeStepsMap,
-    fallbackFinishGeofence
-  );
-  const unitIds = salesCostsWithSteps
-    .map((salesCost) => salesCost.wialon_unit_id)
-    .filter(Boolean);
+  // Build resource→zone map for membership queries
+  const resourceMap = new Map();
+  for (const sc of salesCostsWithStops) {
+    const stops = stopsBySalesCost.get(sc.id_sales_cost) || [];
+    for (const stop of stops) {
+      const resourceId = normalizePositiveIntString(stop.wialon_resource_id);
+      const zoneId = normalizePositiveIntString(stop.wialon_zone_id);
+      if (!resourceId || !zoneId) continue;
+      if (!resourceMap.has(resourceId)) resourceMap.set(resourceId, new Set());
+      resourceMap.get(resourceId).add(zoneId);
+    }
+    const finishGeofence = resolveFinishGeofenceForSalesCost(sc, fallbackFinishGeofence);
+    if (finishGeofence?.resource_id && finishGeofence?.zone_id) {
+      const rId = normalizePositiveIntString(finishGeofence.resource_id);
+      const zId = normalizePositiveIntString(finishGeofence.zone_id);
+      if (rId && zId) {
+        if (!resourceMap.has(rId)) resourceMap.set(rId, new Set());
+        resourceMap.get(rId).add(zId);
+      }
+    }
+  }
+
+  const unitIds = salesCostsWithStops.map((sc) => sc.wialon_unit_id).filter(Boolean);
 
   const membershipResults = await Promise.all(
-    Array.from(resourceZoneMap.entries()).map(async ([resourceId, zoneIdSet]) => {
+    Array.from(resourceMap.entries()).map(async ([resourceId, zoneIdSet]) => {
       const membershipMap = await fetchUnitsInZonesByResource({
         resourceId,
         zoneIds: Array.from(zoneIdSet),
@@ -368,64 +338,46 @@ const syncGeofenceRouteHistory = async () => {
   const positionMap = await getUnitPositionMap(unitIds);
 
   let inserted = 0;
-  for (const salesCost of salesCostsWithSteps) {
-    const steps = routeStepsMap.get(Number(salesCost.id_area)) || [];
+  for (const salesCost of salesCostsWithStops) {
+    const stops = stopsBySalesCost.get(salesCost.id_sales_cost) || [];
     const unitId = normalizePositiveIntString(salesCost.wialon_unit_id);
     const position = positionMap.get(unitId) || null;
-    const gpsTime =
-      toMySqlDateTime(position?.gps_time) || toMySqlDateTime(new Date());
-    const finishGeofence = resolveFinishGeofenceForSalesCost(
-      salesCost,
-      fallbackFinishGeofence
-    );
+    const gpsTime = toMySqlDateTime(position?.gps_time) || toMySqlDateTime(new Date());
+    const finishGeofence = resolveFinishGeofenceForSalesCost(salesCost, fallbackFinishGeofence);
 
-    for (const step of steps) {
-      const stepKey = `route:${step.id_area_route_step}`;
+    // Process delivery stops (is_departure=0, is_finish=0)
+    for (const stop of stops) {
+      if (Number(stop.is_departure) === 1) continue;
+
+      const stepKey = `stop:${stop.id}`;
       const historyKey = `${salesCost.id_sales_cost}:${stepKey}`;
-      if (existingHistoryKeys.has(historyKey)) {
-        continue;
-      }
+      if (existingHistoryKeys.has(historyKey)) continue;
 
-      const resourceId = normalizePositiveIntString(step.wialon_resource_id);
-      const zoneId = normalizePositiveIntString(step.wialon_zone_id);
+      const resourceId = normalizePositiveIntString(stop.wialon_resource_id);
+      const zoneId = normalizePositiveIntString(stop.wialon_zone_id);
       const membershipForResource = membershipByResource.get(resourceId);
       const unitsInZone = membershipForResource?.get(zoneId);
-      if (!unitsInZone || !unitsInZone.has(unitId)) {
-        continue;
-      }
+      if (!unitsInZone || !unitsInZone.has(unitId)) continue;
 
       await db.query(
-        `
-          INSERT INTO sales_cost_route_history (
-            id_sales_cost,
-            id_area,
-            id_area_route_step,
-            step_key,
-            system_step_code,
-            id_truck,
-            step_order_snapshot,
-            step_name_snapshot,
-            wialon_resource_id,
-            wialon_zone_id,
-            wialon_zone_name,
-            gps_time,
-            lat,
-            lon
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
+        `INSERT INTO sales_cost_route_history (
+            id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+            id_truck, step_order_snapshot, step_name_snapshot,
+            wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            gps_time, lat, lon
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           salesCost.id_sales_cost,
           salesCost.id_area,
-          step.id_area_route_step,
+          stop.id,
           stepKey,
           null,
           salesCost.id_truck,
-          step.step_order,
-          step.step_name,
-          step.wialon_resource_id,
-          step.wialon_zone_id,
-          step.wialon_zone_name,
+          stop.stop_order,
+          stop.stop_name,
+          stop.wialon_resource_id,
+          stop.wialon_zone_id,
+          stop.wialon_zone_name,
           gpsTime,
           position?.lat ?? null,
           position?.lon ?? null
@@ -436,42 +388,28 @@ const syncGeofenceRouteHistory = async () => {
       inserted += 1;
     }
 
-    const allRouteStepsVisited = steps.every((step) =>
-      existingHistoryKeys.has(`${salesCost.id_sales_cost}:route:${step.id_area_route_step}`)
+    // Process finish geofence — only after all non-departure stops visited
+    const deliveryStops = stops.filter((s) => Number(s.is_departure) !== 1);
+    const allDeliveryStopsVisited = deliveryStops.every((s) =>
+      existingHistoryKeys.has(`${salesCost.id_sales_cost}:stop:${s.id}`)
     );
     const finishHistoryKey = `${salesCost.id_sales_cost}:${DEFAULT_FINISH_STEP_KEY}`;
-    if (!allRouteStepsVisited || existingHistoryKeys.has(finishHistoryKey) || !finishGeofence) {
+    if (!allDeliveryStopsVisited || existingHistoryKeys.has(finishHistoryKey) || !finishGeofence) {
       continue;
     }
 
     const finishResourceId = normalizePositiveIntString(finishGeofence.resource_id);
     const finishZoneId = normalizePositiveIntString(finishGeofence.zone_id);
-    const finishMembership =
-      membershipByResource.get(finishResourceId)?.get(finishZoneId) || null;
-    if (!finishMembership || !finishMembership.has(unitId)) {
-      continue;
-    }
+    const finishMembership = membershipByResource.get(finishResourceId)?.get(finishZoneId) || null;
+    if (!finishMembership || !finishMembership.has(unitId)) continue;
 
     await db.query(
-      `
-        INSERT INTO sales_cost_route_history (
-          id_sales_cost,
-          id_area,
-          id_area_route_step,
-          step_key,
-          system_step_code,
-          id_truck,
-          step_order_snapshot,
-          step_name_snapshot,
-          wialon_resource_id,
-          wialon_zone_id,
-          wialon_zone_name,
-          gps_time,
-          lat,
-          lon
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
+      `INSERT INTO sales_cost_route_history (
+          id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+          id_truck, step_order_snapshot, step_name_snapshot,
+          wialon_resource_id, wialon_zone_id, wialon_zone_name,
+          gps_time, lat, lon
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         salesCost.id_sales_cost,
         salesCost.id_area,
@@ -479,8 +417,8 @@ const syncGeofenceRouteHistory = async () => {
         DEFAULT_FINISH_STEP_KEY,
         DEFAULT_FINISH_STEP_CODE,
         salesCost.id_truck,
-        steps.length + 1,
-        "Finish Order",
+        deliveryStops.length + 1,
+        'Finish Order',
         finishGeofence.resource_id,
         finishGeofence.zone_id,
         finishGeofence.zone_name,
@@ -495,7 +433,7 @@ const syncGeofenceRouteHistory = async () => {
   }
 
   return {
-    active: salesCostsWithSteps.length,
+    active: salesCostsWithStops.length,
     inserted
   };
 };
@@ -588,16 +526,35 @@ const runBackfill = async (fromTs, toTs) => {
   }
   console.log(`[geofence-backfill] ${salesCosts.length} sales cost(s) to process`);
 
-  const areaIds = [...new Set(salesCosts.map(sc => Number(sc.id_area)))];
-  const routeStepsMap = await fetchAreaRouteStepsMap(areaIds);
-
   const salesCostIds = salesCosts.map(sc => Number(sc.id_sales_cost));
   const placeholders = salesCostIds.map(() => '?').join(',');
   const [existingRows] = await db.query(
-    `SELECT id_sales_cost, step_key FROM sales_cost_route_history WHERE id_sales_cost IN (${placeholders})`,
+    `SELECT id_sales_cost, id_sc_stop, step_key FROM sales_cost_route_history WHERE id_sales_cost IN (${placeholders})`,
     salesCostIds
   );
-  const existingKeys = new Set(existingRows.map(r => `${r.id_sales_cost}:${r.step_key}`));
+  const existingKeys = new Set(
+    existingRows.map(r => {
+      const key = r.step_key || (r.id_sc_stop ? `stop:${r.id_sc_stop}` : '');
+      return `${r.id_sales_cost}:${key}`;
+    }).filter(k => k !== ':')
+  );
+
+  // Fetch all scss stops for the sales costs in the window
+  const [allStopsRows] = await db.query(
+    `SELECT id, id_sales_cost, stop_order, stop_name,
+            wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            is_departure, is_finish
+     FROM sales_cost_step_schedule
+     WHERE id_sales_cost IN (${placeholders}) AND is_finish = 0
+     ORDER BY id_sales_cost ASC, stop_order ASC`,
+    salesCostIds
+  );
+  const stopsBySalesCost = new Map();
+  for (const row of allStopsRows) {
+    const scId = Number(row.id_sales_cost);
+    if (!stopsBySalesCost.has(scId)) stopsBySalesCost.set(scId, []);
+    stopsBySalesCost.get(scId).push(row);
+  }
 
   const zonePolygonCache = new Map();
   const getZonePolygon = async (resourceId, zoneId, sid) => {
@@ -623,8 +580,8 @@ const runBackfill = async (fromTs, toTs) => {
         const unitId = String(sc.wialon_unit_id || '').trim();
         if (!unitId) { summary.skipped += 1; continue; }
 
-        const steps = routeStepsMap.get(Number(sc.id_area)) || [];
-        if (steps.length === 0) { summary.skipped += 1; continue; }
+        const stops = stopsBySalesCost.get(Number(sc.id_sales_cost)) || [];
+        if (stops.length === 0) { summary.skipped += 1; continue; }
 
         const scFrom = Math.max(fromTs, Math.floor(new Date(sc.departure_datetime).getTime() / 1000));
         const scTo = sc.finish_order_datetime
@@ -635,11 +592,13 @@ const runBackfill = async (fromTs, toTs) => {
         const messages = await fetchRawMessagesForUnit({ sid, unitId, timeFrom: scFrom, timeTo: scTo });
         if (messages.length === 0) { summary.skipped += 1; continue; }
 
-        for (const step of steps) {
-          const stepKey = `route:${step.id_area_route_step}`;
+        // Process delivery stops (excluding departure stops)
+        for (const stop of stops) {
+          if (Number(stop.is_departure) === 1) continue;
+          const stepKey = `stop:${stop.id}`;
           if (existingKeys.has(`${sc.id_sales_cost}:${stepKey}`)) continue;
-          const resId = normalizePositiveIntString(step.wialon_resource_id);
-          const zId = normalizePositiveIntString(step.wialon_zone_id);
+          const resId = normalizePositiveIntString(stop.wialon_resource_id);
+          const zId = normalizePositiveIntString(stop.wialon_zone_id);
           if (!resId || !zId) continue;
           const zoneData = await getZonePolygon(resId, zId, sid);
           if (!zoneData || zoneData.points.length < 3) continue;
@@ -648,18 +607,20 @@ const runBackfill = async (fromTs, toTs) => {
           const gpsTime = toMySqlDateTime(new Date(hit.t * 1000));
           await db.query(`
             INSERT IGNORE INTO sales_cost_route_history
-              (id_sales_cost, id_area, id_area_route_step, step_key, system_step_code,
+              (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
                id_truck, step_order_snapshot, step_name_snapshot,
                wialon_resource_id, wialon_zone_id, wialon_zone_name, gps_time, recorded_at, lat, lon)
             VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
-          `, [sc.id_sales_cost, sc.id_area, step.id_area_route_step, stepKey,
-             sc.id_truck, step.step_order, step.step_name,
-             step.wialon_resource_id, step.wialon_zone_id, step.wialon_zone_name,
+          `, [sc.id_sales_cost, sc.id_area, stop.id, stepKey,
+             sc.id_truck, stop.stop_order, stop.stop_name,
+             stop.wialon_resource_id, stop.wialon_zone_id, stop.wialon_zone_name,
              gpsTime, hit.lat, hit.lon]);
           existingKeys.add(`${sc.id_sales_cost}:${stepKey}`);
           summary.inserted += 1;
         }
 
+        // Process finish geofence (from area table)
+        const deliveryStops = stops.filter(s => Number(s.is_departure) !== 1);
         const finishKey = DEFAULT_FINISH_STEP_KEY;
         if (!existingKeys.has(`${sc.id_sales_cost}:${finishKey}`)) {
           const fResId = normalizePositiveIntString(sc.finish_geofence_resource_id);
@@ -672,12 +633,12 @@ const runBackfill = async (fromTs, toTs) => {
                 const gpsTime = toMySqlDateTime(new Date(hit.t * 1000));
                 await db.query(`
                   INSERT IGNORE INTO sales_cost_route_history
-                    (id_sales_cost, id_area, id_area_route_step, step_key, system_step_code,
+                    (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
                      id_truck, step_order_snapshot, step_name_snapshot,
                      wialon_resource_id, wialon_zone_id, wialon_zone_name, gps_time, recorded_at, lat, lon)
                   VALUES (?, ?, NULL, ?, ?, ?, ?, 'Finish Order', ?, ?, ?, ?, NOW(), ?, ?)
                 `, [sc.id_sales_cost, sc.id_area, finishKey, DEFAULT_FINISH_STEP_CODE,
-                   sc.id_truck, steps.length + 1,
+                   sc.id_truck, deliveryStops.length + 1,
                    sc.finish_geofence_resource_id, sc.finish_geofence_zone_id, sc.finish_geofence_zone_name,
                    gpsTime, hit.lat, hit.lon]);
                 existingKeys.add(`${sc.id_sales_cost}:${finishKey}`);
