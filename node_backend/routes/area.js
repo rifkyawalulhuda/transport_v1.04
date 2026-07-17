@@ -136,6 +136,20 @@ router.get("/", async (_req, res) => {
   }
 });
 
+router.get("/:id/route-steps", async (req, res) => {
+  try {
+    const area = await loadAreaById(req.params.id);
+    if (!area) {
+      return res.status(404).json({ message: "Area not found" });
+    }
+    const steps = Array.isArray(area.route_steps) ? area.route_steps : [];
+    res.json(steps);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.get("/:id", async (req, res) => {
   try {
     const area = await loadAreaById(req.params.id);

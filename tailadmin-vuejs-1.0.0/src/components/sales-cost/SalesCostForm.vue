@@ -1480,6 +1480,7 @@ watch(
       stepSchedules.value = []
     }
   },
+  { immediate: true }
 )
 
 watch(
