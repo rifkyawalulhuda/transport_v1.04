@@ -90,16 +90,16 @@
             </div>
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-                <p class="text-[11px] text-gray-400 dark:text-gray-500">Delivery Order</p>
-                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDate(detail.delivery_order) }}</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500">Departure</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDateTime(detail.departure_datetime) }}</p>
               </div>
               <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                 <p class="text-[11px] text-gray-400 dark:text-gray-500">Arrival</p>
-                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDate(detail.arrival_order) }}</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDateTime(detail.arrival_datetime) }}</p>
               </div>
               <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                 <p class="text-[11px] text-gray-400 dark:text-gray-500">Finish Order</p>
-                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDate(detail.finish_order) }}</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatDateTime(detail.finish_order_datetime) }}</p>
               </div>
               <div class="rounded-lg border border-brand-200 bg-brand-50/60 p-3 dark:border-brand-500/30 dark:bg-brand-500/10">
                 <p class="text-[11px] text-brand-600 dark:text-brand-400">Waktu Pengiriman</p>
@@ -358,9 +358,9 @@ type DetailData = {
   jenis_kendaraan: string
   container_size: string | null
   nama_driver: string
-  delivery_order: string | null
-  arrival_order: string | null
-  finish_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
+  finish_order_datetime: string | null
   jenis_trip: string | null
   no_container: string | null
   trip: string | number | null
@@ -457,9 +457,9 @@ const detail = ref<DetailData>({
   jenis_kendaraan: '',
   container_size: null,
   nama_driver: '',
-  delivery_order: null,
-  arrival_order: null,
-  finish_order: null,
+  departure_datetime: null,
+  arrival_datetime: null,
+  finish_order_datetime: null,
   jenis_trip: '',
   no_container: '',
   trip: '',
@@ -581,8 +581,8 @@ const parseDateOnly = (value?: string | null) => {
 }
 
 const shippingDurationDays = computed(() => {
-  const delivery = parseDateOnly(detail.value.delivery_order)
-  const arrival = parseDateOnly(detail.value.arrival_order)
+  const delivery = parseDateOnly(detail.value.departure_datetime)
+  const arrival = parseDateOnly(detail.value.arrival_datetime)
   if (!delivery || !arrival) {
     return null
   }

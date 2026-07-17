@@ -69,9 +69,9 @@ const getActiveSalesCostCandidates = async () => {
         sc.id_sales_cost,
         sc.id_area,
         sc.id_truck,
-        sc.delivery_order,
-        sc.arrival_order,
-        sc.finish_order,
+        sc.departure_datetime,
+        sc.arrival_datetime,
+        sc.finish_order_datetime,
         t.wialon_unit_id,
         a.finish_geofence_resource_id,
         a.finish_geofence_zone_id,
@@ -89,20 +89,20 @@ const getActiveSalesCostCandidates = async () => {
         )
         AND (
           (
-            sc.finish_order IS NOT NULL
-            AND CAST(sc.finish_order AS CHAR) <> '0000-00-00'
-            AND sc.finish_order > ?
+            sc.finish_order_datetime IS NOT NULL
+            AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00'
+            AND sc.finish_order_datetime > ?
           )
           OR (
-            (sc.finish_order IS NULL OR CAST(sc.finish_order AS CHAR) = '0000-00-00')
+            (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
             AND (
-              sc.arrival_order IS NULL
-              OR CAST(sc.arrival_order AS CHAR) = '0000-00-00'
-              OR sc.arrival_order >= ?
+              sc.arrival_datetime IS NULL
+              OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00'
+              OR sc.arrival_datetime >= ?
             )
           )
         )
-      ORDER BY sc.id_truck ASC, sc.delivery_order DESC, sc.id_sales_cost DESC
+      ORDER BY sc.id_truck ASC, sc.departure_datetime DESC, sc.id_sales_cost DESC
     `,
     [todayString, todayString]
   );
@@ -124,6 +124,53 @@ const getActiveSalesCostCandidates = async () => {
   return Array.from(pickedByTruck.values()).filter(
     (item) => item.id_sales_cost && item.id_area && item.id_truck && item.wialon_unit_id
   );
+};
+
+const checkArrivalDelays = async () => {
+  try {
+    const [overdueRows] = await db.query(`
+      SELECT
+        sc.id_sales_cost,
+        sc.arrival_datetime,
+        t.no_police,
+        a.nama_area
+      FROM sales_cost sc
+      INNER JOIN truck t ON sc.id_truck = t.id_truck
+      INNER JOIN area a ON sc.id_area = a.id_area
+      WHERE sc.arrival_datetime IS NOT NULL
+        AND sc.arrival_datetime < NOW()
+        AND sc.finish_order_datetime IS NULL
+        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_cost_route_history scrh
+          WHERE scrh.id_sales_cost = sc.id_sales_cost
+            AND scrh.step_key = 'system:finish_order'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM delivery_notifications dn
+          WHERE dn.id_sales_cost = sc.id_sales_cost
+            AND dn.notification_type = 'arrival_overdue'
+            AND dn.is_dismissed = 0
+        )
+    `);
+
+    for (const row of overdueRows) {
+      const arrivalStr = toMySqlDateTime(row.arrival_datetime);
+      const message = `Truk ${row.no_police} seharusnya sudah tiba di rute ${row.nama_area} pada ${arrivalStr}. Truk belum trigger Geofence Area tujuan. Harap verifikasi posisi truk.`;
+      await db.query(
+        `INSERT INTO delivery_notifications
+          (id_sales_cost, notification_type, truck_plate, route_name, scheduled_arrival, message)
+         VALUES (?, 'arrival_overdue', ?, ?, ?, ?)`,
+        [row.id_sales_cost, row.no_police, row.nama_area, row.arrival_datetime, message]
+      );
+    }
+
+    if (overdueRows.length > 0) {
+      console.log(`[geofence-tracking] created ${overdueRows.length} arrival overdue notification(s)`);
+    }
+  } catch (error) {
+    console.warn('[geofence-tracking] checkArrivalDelays failed', error);
+  }
 };
 
 const fetchExistingHistoryKeys = async (salesCostIds) => {
@@ -420,6 +467,7 @@ const runSyncCycle = async () => {
         `[geofence-tracking] inserted ${summary.inserted} route history row(s) for ${summary.active} active sales cost(s)`
       );
     }
+    await checkArrivalDelays();
   } catch (error) {
     console.warn("[geofence-tracking] sync failed", error);
   } finally {
@@ -453,5 +501,6 @@ const stopGeofenceTracking = () => {
 module.exports = {
   startGeofenceTracking,
   stopGeofenceTracking,
-  syncGeofenceRouteHistory
+  syncGeofenceRouteHistory,
+  checkArrivalDelays
 };

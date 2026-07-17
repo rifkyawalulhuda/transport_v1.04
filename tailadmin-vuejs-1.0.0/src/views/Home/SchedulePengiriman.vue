@@ -7,7 +7,7 @@
           <div class="grid gap-4 sm:grid-cols-4">
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Tanggal Delivery Order
+                Tanggal Departure
               </label>
               <input
                 v-model="filters.startDate"
@@ -20,7 +20,7 @@
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Tanggal Arrival Order
+                Tanggal Arrival
               </label>
               <input
                 v-model="filters.endDate"
@@ -116,10 +116,10 @@
                   </th>
                   <th
                     class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('delivery_order')"
+                    @click="toggleSort('departure_datetime')"
                   >
                     <div class="flex items-center gap-1">
-                      Delivery Order
+                      Departure
                       <span class="flex flex-col">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -132,7 +132,7 @@
                           stroke-linecap="round"
                           stroke-linejoin="round"
                           class="transition-colors"
-                          :class="sortIconClass('delivery_order', 'asc')"
+                          :class="sortIconClass('departure_datetime', 'asc')"
                         >
                           <path d="m18 15-6-6-6 6" />
                         </svg>
@@ -147,7 +147,7 @@
                           stroke-linecap="round"
                           stroke-linejoin="round"
                           class="-mt-1 transition-colors"
-                          :class="sortIconClass('delivery_order', 'desc')"
+                          :class="sortIconClass('departure_datetime', 'desc')"
                         >
                           <path d="m6 9 6 6 6-6" />
                         </svg>
@@ -319,7 +319,7 @@
                     @click="toggleSort('arrival')"
                   >
                     <div class="flex items-center gap-1">
-                      Arrival Order
+                      Arrival
                       <span class="flex flex-col">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -531,7 +531,7 @@
                       </span>
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ formatDate(row.delivery_order) }}
+                      {{ formatDateTime(row.departure_datetime) }}
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
                       {{ row.truck.no_police || '-' }}
@@ -730,7 +730,7 @@ type DnItem = {
 
 type ScheduleRow = {
   id_sales_cost: number
-  delivery_order: string | null
+  departure_datetime: string | null
   arrival: string | null
   no_spk: string | number
   no_po: string | null
@@ -746,7 +746,7 @@ type ScheduleRow = {
 }
 
 type SortKey =
-  | 'delivery_order'
+  | 'departure_datetime'
   | 'no_police'
   | 'driver'
   | 'customer'
@@ -815,7 +815,7 @@ const expanded = reactive<Record<number, boolean>>({})
 const currentPage = ref(1)
 const pageSize = ref(10)
 const pageSizeOptions = [10, 20, 50]
-const sortColumn = ref<SortKey>('delivery_order')
+const sortColumn = ref<SortKey>('departure_datetime')
 const sortOrder = ref<'asc' | 'desc'>('asc')
 
 const meta = reactive<ScheduleMeta>({
@@ -896,6 +896,16 @@ const formatDate = (value?: string | null) => {
     month: 'long',
     year: 'numeric'
   }).format(date)
+}
+
+const formatDateTime = (value: string | null | undefined): string => {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return '-'
+  return d.toLocaleString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  })
 }
 
 const openDatePicker = (event: Event) => {

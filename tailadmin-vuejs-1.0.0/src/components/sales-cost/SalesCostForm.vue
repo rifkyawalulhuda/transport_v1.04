@@ -136,16 +136,16 @@
         <div class="grid gap-4 md:grid-cols-3">
           <div>
             <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
-              >Delivery Order</label
+              >Departure</label
             >
             <DatePickerInput
-              v-model="form.delivery_order"
-              placeholder="Pilih tanggal"
+              v-model="form.departure_datetime"
+              placeholder="Pilih tanggal & waktu"
               required
               :disabled="isDisabled"
             />
-            <p v-if="errors.delivery_order" class="mt-1 text-xs text-error-600">
-              {{ errors.delivery_order }}
+            <p v-if="errors.departure_datetime" class="mt-1 text-xs text-error-600">
+              {{ errors.departure_datetime }}
             </p>
           </div>
           <div>
@@ -153,16 +153,16 @@
               >Arrival</label
             >
             <DatePickerInput
-              v-model="form.arrival_order"
-              placeholder="Pilih tanggal"
+              v-model="form.arrival_datetime"
+              placeholder="Pilih tanggal & waktu"
               required
               :disabled="isDisabled"
             />
             <p
-              v-if="dateOrderErrors.arrival_order || errors.arrival_order"
+              v-if="dateOrderErrors.arrival_datetime || errors.arrival_datetime"
               class="mt-1 text-xs text-error-600"
             >
-              {{ dateOrderErrors.arrival_order || errors.arrival_order }}
+              {{ dateOrderErrors.arrival_datetime || errors.arrival_datetime }}
             </p>
           </div>
           <div>
@@ -170,16 +170,16 @@
               >Finish Order</label
             >
             <DatePickerInput
-              v-model="form.finish_order"
-              placeholder="Pilih tanggal"
+              v-model="form.finish_order_datetime"
+              placeholder="Pilih tanggal & waktu"
               :required="props.mode === 'create'"
               :disabled="isDisabled"
             />
             <p
-              v-if="dateOrderErrors.finish_order || errors.finish_order"
+              v-if="dateOrderErrors.finish_order_datetime || errors.finish_order_datetime"
               class="mt-1 text-xs text-error-600"
             >
-              {{ dateOrderErrors.finish_order || errors.finish_order }}
+              {{ dateOrderErrors.finish_order_datetime || errors.finish_order_datetime }}
             </p>
           </div>
         </div>
@@ -696,9 +696,9 @@ type SalesCostFormData = {
   bills: string
   lift_on: string
   lift_of: string
-  delivery_order: string
-  arrival_order: string
-  finish_order: string
+  departure_datetime: string
+  arrival_datetime: string
+  finish_order_datetime: string
   container_depot: string
   no_po: string
   tax: string
@@ -761,9 +761,9 @@ const customers = ref<CustomerOption[]>([])
 const areas = ref<AreaOption[]>([])
 const showOptionalCosts = ref(false)
 const errors = reactive<Record<string, string>>({})
-const dateOrderErrors = reactive<Record<'arrival_order' | 'finish_order', string>>({
-  arrival_order: '',
-  finish_order: '',
+const dateOrderErrors = reactive<Record<'arrival_datetime' | 'finish_order_datetime', string>>({
+  arrival_datetime: '',
+  finish_order_datetime: '',
 })
 const toast = useToast()
 const checkingTruckStatus = ref(false)
@@ -790,9 +790,9 @@ const form = reactive<SalesCostFormData>({
   bills: '',
   lift_on: '0',
   lift_of: '0',
-  delivery_order: '',
-  arrival_order: '',
-  finish_order: '',
+  departure_datetime: '',
+  arrival_datetime: '',
+  finish_order_datetime: '',
   container_depot: '0',
   no_po: '0',
   tax: '0',
@@ -918,11 +918,15 @@ const formatNumeric = (field: string) => {
   ;(form as Record<string, string>)[field] = formatIndonesianNumber(parsed)
 }
 
-const normalizeDate = (value?: string | null) => {
+const normalizeDateTime = (value?: string | null): string => {
   if (!value) {
     return ''
   }
-  // Jika value sudah format YYYY-MM-DD, kembalikan langsung
+  // Already YYYY-MM-DD HH:MM or YYYY-MM-DDTHH:MM, slice to 16 chars
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)) {
+    return String(value).slice(0, 16).replace('T', ' ')
+  }
+  // Fallback: date-only string — return as-is (no time to add)
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value
   }
@@ -932,11 +936,20 @@ const normalizeDate = (value?: string | null) => {
     return ''
   }
 
-  // Gunakan local time untuk mendapatkan tanggal yang benar sesuai timezone user
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+function isValidIsoDateTime(value: string): boolean {
+  if (!value) return false
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) return false
+  const d = new Date(value.replace('T', ' '))
+  return !isNaN(d.getTime())
 }
 
 const clearErrors = () => {
@@ -945,19 +958,6 @@ const clearErrors = () => {
   })
 }
 
-const isValidIsoDate = (value: string) => {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) {
-    return false
-  }
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(Date.UTC(year, month - 1, day))
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day
-  )
-}
 
 const ARRIVAL_LT_DELIVERY_MSG =
   'Tanggal Arrival Order tidak boleh kurang dari tanggal Delivery Order.'
@@ -968,33 +968,33 @@ const updateDateOrderErrors = () => {
   let finishOrderMessage = ''
 
   if (
-    form.delivery_order &&
-    form.arrival_order &&
-    isValidIsoDate(form.delivery_order) &&
-    isValidIsoDate(form.arrival_order) &&
-    form.arrival_order < form.delivery_order
+    form.departure_datetime &&
+    form.arrival_datetime &&
+    isValidIsoDateTime(form.departure_datetime) &&
+    isValidIsoDateTime(form.arrival_datetime) &&
+    form.arrival_datetime < form.departure_datetime
   ) {
     arrivalOrderMessage = ARRIVAL_LT_DELIVERY_MSG
   }
 
   if (
-    form.arrival_order &&
-    form.finish_order &&
-    isValidIsoDate(form.arrival_order) &&
-    isValidIsoDate(form.finish_order) &&
-    form.finish_order < form.arrival_order
+    form.arrival_datetime &&
+    form.finish_order_datetime &&
+    isValidIsoDateTime(form.arrival_datetime) &&
+    isValidIsoDateTime(form.finish_order_datetime) &&
+    form.finish_order_datetime < form.arrival_datetime
   ) {
     finishOrderMessage = FINISH_LT_ARRIVAL_MSG
   }
 
-  dateOrderErrors.arrival_order = arrivalOrderMessage
-  dateOrderErrors.finish_order = finishOrderMessage
+  dateOrderErrors.arrival_datetime = arrivalOrderMessage
+  dateOrderErrors.finish_order_datetime = finishOrderMessage
 
-  if (!arrivalOrderMessage && errors.arrival_order === ARRIVAL_LT_DELIVERY_MSG) {
-    delete errors.arrival_order
+  if (!arrivalOrderMessage && errors.arrival_datetime === ARRIVAL_LT_DELIVERY_MSG) {
+    delete errors.arrival_datetime
   }
-  if (!finishOrderMessage && errors.finish_order === FINISH_LT_ARRIVAL_MSG) {
-    delete errors.finish_order
+  if (!finishOrderMessage && errors.finish_order_datetime === FINISH_LT_ARRIVAL_MSG) {
+    delete errors.finish_order_datetime
   }
 }
 
@@ -1012,27 +1012,27 @@ const validateForm = () => {
   if (!form.id_area) {
     errors.id_area = 'Rute wajib dipilih.'
   }
-  if (!form.delivery_order) {
-    errors.delivery_order = 'Delivery Order wajib diisi.'
-  } else if (!isValidIsoDate(form.delivery_order)) {
-    errors.delivery_order = 'Delivery Order tidak valid.'
+  if (!form.departure_datetime) {
+    errors.departure_datetime = 'Departure wajib diisi.'
+  } else if (!isValidIsoDateTime(form.departure_datetime)) {
+    errors.departure_datetime = 'Format Departure harus YYYY-MM-DD HH:MM.'
   }
-  if (!form.arrival_order) {
-    errors.arrival_order = 'Arrival wajib diisi.'
-  } else if (!isValidIsoDate(form.arrival_order)) {
-    errors.arrival_order = 'Arrival tidak valid.'
+  if (!form.arrival_datetime) {
+    errors.arrival_datetime = 'Arrival wajib diisi.'
+  } else if (!isValidIsoDateTime(form.arrival_datetime)) {
+    errors.arrival_datetime = 'Format Arrival harus YYYY-MM-DD HH:MM.'
   }
-  if (props.mode === 'create' && !form.finish_order) {
-    errors.finish_order = 'Finish Order wajib diisi.'
-  } else if (form.finish_order && !isValidIsoDate(form.finish_order)) {
-    errors.finish_order = 'Finish Order tidak valid.'
+  if (props.mode === 'create' && !form.finish_order_datetime) {
+    errors.finish_order_datetime = 'Finish Order wajib diisi.'
+  } else if (form.finish_order_datetime && !isValidIsoDateTime(form.finish_order_datetime)) {
+    errors.finish_order_datetime = 'Format Finish Order harus YYYY-MM-DD HH:MM.'
   }
   updateDateOrderErrors()
-  if (!errors.arrival_order && dateOrderErrors.arrival_order) {
-    errors.arrival_order = dateOrderErrors.arrival_order
+  if (!errors.arrival_datetime && dateOrderErrors.arrival_datetime) {
+    errors.arrival_datetime = dateOrderErrors.arrival_datetime
   }
-  if (!errors.finish_order && dateOrderErrors.finish_order) {
-    errors.finish_order = dateOrderErrors.finish_order
+  if (!errors.finish_order_datetime && dateOrderErrors.finish_order_datetime) {
+    errors.finish_order_datetime = dateOrderErrors.finish_order_datetime
   }
   if (!form.ops_cost) {
     errors.ops_cost = 'Operasional Cost wajib diisi.'
@@ -1070,9 +1070,9 @@ const resetForm = () => {
   form.bills = ''
   form.lift_on = '0'
   form.lift_of = '0'
-  form.delivery_order = ''
-  form.arrival_order = ''
-  form.finish_order = ''
+  form.departure_datetime = ''
+  form.arrival_datetime = ''
+  form.finish_order_datetime = ''
   form.container_depot = '0'
   form.no_po = '0'
   form.tax = '0'
@@ -1111,9 +1111,9 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
   form.bills = data.bills || ''
   form.lift_on = formatIndonesianNumber(parseIndonesianNumber(String(data.lift_on ?? '0')))
   form.lift_of = formatIndonesianNumber(parseIndonesianNumber(String(data.lift_of ?? '0')))
-  form.delivery_order = normalizeDate(data.delivery_order)
-  form.arrival_order = normalizeDate(data.arrival_order)
-  form.finish_order = normalizeDate(data.finish_order)
+  form.departure_datetime = normalizeDateTime(data.departure_datetime)
+  form.arrival_datetime = normalizeDateTime(data.arrival_datetime)
+  form.finish_order_datetime = normalizeDateTime(data.finish_order_datetime)
   form.container_depot = data.container_depot ?? '0'
   form.no_po = data.no_po ?? '0'
   form.tax = data.tax ?? '0'
@@ -1206,9 +1206,9 @@ const buildPayload = () => ({
   id_area: form.id_area ? Number(form.id_area) : null,
   id_customer: form.id_customer ? Number(form.id_customer) : null,
   nik_admin: form.nik_admin,
-  delivery_order: form.delivery_order,
-  arrival_order: form.arrival_order,
-  finish_order: form.finish_order,
+  departure_datetime: form.departure_datetime,
+  arrival_datetime: form.arrival_datetime,
+  finish_order_datetime: form.finish_order_datetime,
   bills: form.bills,
   lift_on: parseIndonesianNumber(form.lift_on || '0'),
   lift_of: parseIndonesianNumber(form.lift_of || '0'),
@@ -1402,7 +1402,7 @@ watch(
 )
 
 watch(
-  () => [form.delivery_order, form.arrival_order, form.finish_order],
+  () => [form.departure_datetime, form.arrival_datetime, form.finish_order_datetime],
   () => {
     updateDateOrderErrors()
   },

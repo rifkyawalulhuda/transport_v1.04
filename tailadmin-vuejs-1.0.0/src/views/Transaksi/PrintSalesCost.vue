@@ -34,7 +34,7 @@
 
         <div class="print-label label-tanggal">Tanggal</div>
         <div class="print-colon colon-tanggal">:</div>
-        <div class="print-value value-tanggal">{{ formatLegacyDate(detail.delivery_order) }}</div>
+        <div class="print-value value-tanggal">{{ formatLegacyDate(detail.departure_datetime) }}</div>
 
         <div class="print-label label-driver">Nama Driver</div>
         <div class="print-colon colon-driver">:</div>
@@ -136,8 +136,8 @@ import { salesCostService } from '@/services/salesCostService'
 
 type SalesCostPrintDetail = {
   id_sales_cost: number
-  delivery_order: string | null
-  arrival_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
   no_police: string | null
   jenis_kendaraan: string | null
   container_size: string | null
@@ -165,7 +165,7 @@ const details = ref<SalesCostPrintDetail[]>([])
 const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
 const getSpkCode = (detail: SalesCostPrintDetail) => {
-  const deliveryYear = getYear(detail.delivery_order) || new Date().getFullYear()
+  const deliveryYear = getYear(detail.departure_datetime) || new Date().getFullYear()
   const romanMonth = romanMonths[new Date().getMonth()]
   return `${detail.id_sales_cost} / SPK / CLC / ${romanMonth} / ${deliveryYear}`
 }

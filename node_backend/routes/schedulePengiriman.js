@@ -69,20 +69,20 @@ router.get("/", authenticateToken, async (req, res) => {
     pageSize = Math.min(pageSize, 100);
 
     const sortableColumns = {
-      delivery_order: "sc.delivery_order",
+      departure_datetime: "sc.departure_datetime",
       no_police: "t.no_police",
       driver: "d.nama_driver",
       customer: "c.nama_customer",
       route: "a.nama_area",
-      arrival: "sc.arrival_order",
+      arrival: "sc.arrival_datetime",
       no_po: "sc.no_po",
       jenis_pengiriman: "sc.jenis_trip",
       trip: "sc.trip"
     };
-    const sortBy = String(req.query.sort_by || "delivery_order").trim().toLowerCase();
+    const sortBy = String(req.query.sort_by || "departure_datetime").trim().toLowerCase();
     const sortDirRaw = String(req.query.sort_dir || "asc").trim().toLowerCase();
     const sortDir = sortDirRaw === "desc" ? "DESC" : "ASC";
-    const sortColumn = sortableColumns[sortBy] || sortableColumns.delivery_order;
+    const sortColumn = sortableColumns[sortBy] || sortableColumns.departure_datetime;
 
     const search = String(req.query.search || "").trim();
     const { startDate, endDate } = resolveDateRange(
@@ -95,17 +95,17 @@ router.get("/", authenticateToken, async (req, res) => {
 
     const todayString = toLocalDateString(new Date());
     if (todayString) {
-      conditions.push("sc.arrival_order >= ?");
+      conditions.push("sc.arrival_datetime >= ?");
       params.push(todayString);
     }
 
     if (startDate) {
-      conditions.push("sc.delivery_order >= ?");
+      conditions.push("sc.departure_datetime >= ?");
       params.push(startDate);
     }
 
     if (endDate) {
-      conditions.push("sc.delivery_order <= ?");
+      conditions.push("sc.departure_datetime <= ?");
       params.push(`${endDate} 23:59:59`);
     }
 
@@ -166,8 +166,8 @@ router.get("/", authenticateToken, async (req, res) => {
     const dataSql = `
       SELECT
         sc.id_sales_cost,
-        sc.delivery_order,
-        sc.arrival_order,
+        sc.departure_datetime,
+        sc.arrival_datetime,
         sc.no_po,
         sc.jenis_trip,
         sc.trip,
@@ -224,8 +224,8 @@ router.get("/", authenticateToken, async (req, res) => {
 
       return {
         id_sales_cost: salesCostId,
-        delivery_order: formatDateValue(row.delivery_order),
-        arrival: formatDateValue(row.arrival_order),
+        departure_datetime: formatDateValue(row.departure_datetime),
+        arrival: formatDateValue(row.arrival_datetime),
         no_spk: row.no_spk || salesCostId,
         no_po: row.no_po || null,
         jenis_pengiriman: row.jenis_trip || null,

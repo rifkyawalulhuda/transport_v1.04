@@ -54,7 +54,7 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <button
           v-for="card in summaryCards"
           :key="card.key"
@@ -79,6 +79,97 @@
             {{ card.value }}
           </h4>
         </button>
+      </div>
+
+      <div
+        ref="sectionOnTrip"
+        class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+        v-show="activeFilter === 'all' || activeFilter === 'on_trip'"
+      >
+        <div
+          class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+        >
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                Kendaraan Dalam Perjalanan
+              </h3>
+              <Badge color="warning" size="sm">{{ monitoringData.on_trip.length }}</Badge>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Kendaraan yang sedang dalam perjalanan pengiriman.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            :aria-expanded="sections.on_trip"
+            @click="toggleSection('on_trip')"
+          >
+            <svg
+              class="h-4 w-4 transition-transform duration-200"
+              :class="sections.on_trip ? 'rotate-180' : ''"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 8l6 6 6-6" />
+            </svg>
+          </button>
+        </div>
+        <div v-show="sections.on_trip" class="px-5 pb-5 pt-4 sm:px-6">
+          <div v-if="loading" class="text-sm text-gray-500">Memuat data...</div>
+          <div v-else-if="!monitoringData.on_trip.length" class="text-sm text-gray-500">
+            Tidak ada kendaraan dalam perjalanan.
+          </div>
+          <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-for="item in monitoringData.on_trip"
+              :key="`on_trip-${item.id_truck}`"
+              class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-white/[0.03]"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs text-gray-500">Plat Nomor</p>
+                  <h4 class="text-base font-semibold text-gray-800 dark:text-white/90">
+                    {{ item.no_police || `Truck ${item.id_truck}` }}
+                  </h4>
+                  <p class="text-xs text-gray-500">
+                    {{ resolveVehicleName(item) }}
+                  </p>
+                </div>
+                <div class="flex flex-col items-end gap-1">
+                  <Badge color="warning" size="sm">Dalam Perjalanan</Badge>
+                  <span
+                    v-if="item.is_overdue === true"
+                    class="text-xs font-medium text-error-500"
+                  >⚠ Terlambat</span>
+                </div>
+              </div>
+              <div class="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                <p>
+                  <span class="font-medium text-gray-700 dark:text-gray-200">Driver:</span>
+                  {{ item.transaksi?.driver_name || item.driver_name || '-' }}
+                </p>
+                <p>
+                  <span class="font-medium text-gray-700 dark:text-gray-200">Rute:</span>
+                  {{ item.transaksi?.route || '-' }}
+                </p>
+                <p>
+                  <span class="font-medium text-gray-700 dark:text-gray-200">Keberangkatan:</span>
+                  {{ formatDateTime(item.transaksi?.departure_datetime) }}
+                </p>
+                <p>
+                  <span class="font-medium text-gray-700 dark:text-gray-200">Est. Tiba:</span>
+                  {{ formatDateTime(item.transaksi?.arrival_datetime) }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div
@@ -158,18 +249,18 @@
                 </p>
                 <p>
                   <span class="font-medium text-gray-700 dark:text-gray-200">Delivery Order:</span>
-                  {{ formatDate(item.transaksi?.delivery_order) }}
+                  {{ formatDateTime(item.transaksi?.departure_datetime) }}
                 </p>
                 <p>
                   <span class="font-medium text-gray-700 dark:text-gray-200">Finish Order:</span>
-                  {{ formatDate(item.transaksi?.finish_order || item.transaksi?.arrival_order) }}
+                  {{ formatDateTime(item.transaksi?.finish_order_datetime || item.transaksi?.arrival_datetime) }}
                 </p>
                 <p>
                   <span class="font-medium text-gray-700 dark:text-gray-200">Waktu Kirim:</span>
                   {{
                     resolveShippingDurationLabel(
-                      item.transaksi?.delivery_order,
-                      item.transaksi?.arrival_order
+                      item.transaksi?.departure_datetime,
+                      item.transaksi?.arrival_datetime
                     )
                   }}
                 </p>
@@ -332,9 +423,9 @@
                   {{ item.driver_name || '-' }}
                 </p>
                 <p>
-                  <span class="font-medium text-gray-700 dark:text-gray-200">Transaksi Terakhir:</span>
-                  {{ formatDate(item.last_transaction?.delivery_order) }}
-                </p>
+                   <span class="font-medium text-gray-700 dark:text-gray-200">Transaksi Terakhir:</span>
+                   {{ formatDateTime(item.last_transaction?.departure_datetime) }}
+                 </p>
                 <p>
                   <span class="font-medium text-gray-700 dark:text-gray-200">Rute Terakhir:</span>
                   {{ item.last_transaction?.route || '-' }}
@@ -345,8 +436,8 @@
                   >
                   {{
                     resolveShippingDurationLabel(
-                      item.last_transaction?.delivery_order,
-                      item.last_transaction?.arrival_order
+                      item.last_transaction?.departure_datetime,
+                      item.last_transaction?.arrival_datetime
                     )
                   }}
                 </p>
@@ -364,7 +455,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import Badge from '@/components/ui/Badge.vue'
-import { BoxCubeIcon, DocsIcon, WarningIcon, InfoCircleIcon } from '@/icons'
+import { BoxCubeIcon, DocsIcon, WarningIcon, InfoCircleIcon, TaskIcon } from '@/icons'
 import { monitoringKendaraanService } from '@/services/monitoringKendaraanService'
 import { useToast } from '@/composables/useToast'
 
@@ -374,10 +465,12 @@ const toast = useToast()
 const monitoringData = ref({
   summary: {
     total: 0,
+    on_trip: 0,
     transaksi: 0,
     repair: 0,
     idle: 0
   },
+  on_trip: [] as any[],
   transaksi: [],
   repair: [],
   idle: []
@@ -386,23 +479,26 @@ const monitoringData = ref({
 const loading = ref(false)
 const searchInput = ref('')
 const sections = reactive({
+  on_trip: true,
   transaksi: true,
   repair: true,
   idle: true
 })
 
-const toggleSection = (key: 'transaksi' | 'repair' | 'idle') => {
+const toggleSection = (key: 'on_trip' | 'transaksi' | 'repair' | 'idle') => {
   sections[key] = !sections[key]
 }
 
+const sectionOnTrip = ref<HTMLElement | null>(null)
 const sectionTransaksi = ref<HTMLElement | null>(null)
 const sectionRepair = ref<HTMLElement | null>(null)
 const sectionIdle = ref<HTMLElement | null>(null)
-const activeFilter = ref<'all' | 'transaksi' | 'repair' | 'idle'>('all')
+const activeFilter = ref<'all' | 'on_trip' | 'transaksi' | 'repair' | 'idle'>('all')
 
-const focusSection = (key: 'total' | 'transaksi' | 'repair' | 'idle') => {
+const focusSection = (key: 'total' | 'on_trip' | 'transaksi' | 'repair' | 'idle') => {
   if (key === 'total') {
     activeFilter.value = 'all'
+    sections.on_trip = true
     sections.transaksi = true
     sections.repair = true
     sections.idle = true
@@ -410,16 +506,19 @@ const focusSection = (key: 'total' | 'transaksi' | 'repair' | 'idle') => {
   }
 
   activeFilter.value = key
+  sections.on_trip = key === 'on_trip'
   sections.transaksi = key === 'transaksi'
   sections.repair = key === 'repair'
   sections.idle = key === 'idle'
 
   const target =
-    key === 'transaksi'
-      ? sectionTransaksi.value
-      : key === 'repair'
-        ? sectionRepair.value
-        : sectionIdle.value
+    key === 'on_trip'
+      ? sectionOnTrip.value
+      : key === 'transaksi'
+        ? sectionTransaksi.value
+        : key === 'repair'
+          ? sectionRepair.value
+          : sectionIdle.value
 
   if (target) {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -438,6 +537,12 @@ const summaryCards = computed(() => {
       label: 'Total Kendaraan',
       value: formatNumber(summary.total || 0),
       icon: BoxCubeIcon
+    },
+    {
+      key: 'on_trip',
+      label: 'Dalam Perjalanan',
+      value: formatNumber(summary.on_trip || 0),
+      icon: TaskIcon
     },
     {
       key: 'transaksi',
@@ -459,6 +564,16 @@ const summaryCards = computed(() => {
     }
   ]
 })
+
+const formatDateTime = (value: string | null | undefined): string => {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return '-'
+  return d.toLocaleString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  })
+}
 
 const formatDate = (value?: string | null) => {
   if (!value) {
