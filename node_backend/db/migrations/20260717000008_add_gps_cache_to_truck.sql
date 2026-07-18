@@ -1,0 +1,15 @@
+-- migrate:up
+ALTER TABLE truck
+  ADD COLUMN IF NOT EXISTS last_lat       DOUBLE        NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS last_lng       DOUBLE        NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS last_address   VARCHAR(255)  NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS last_gps_time  DATETIME      NULL DEFAULT NULL;
+
+-- migrate:down
+ALTER TABLE truck
+  DROP COLUMN IF EXISTS last_lat,
+  DROP COLUMN IF EXISTS last_lng,
+  DROP COLUMN IF EXISTS last_address,
+  DROP COLUMN IF EXISTS last_gps_time;
+
+

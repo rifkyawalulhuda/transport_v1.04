@@ -337,6 +337,30 @@ const syncGeofenceRouteHistory = async () => {
   const membershipByResource = new Map(membershipResults);
   const positionMap = await getUnitPositionMap(unitIds);
 
+  // Persist GPS cache to truck table
+  if (positionMap.size > 0) {
+    const gpsUpdates = [];
+    for (const [unitId, position] of positionMap.entries()) {
+      if (!position?.lat || !position?.lon) continue;
+      const gpsTime = toMySqlDateTime(position.gps_time) || toMySqlDateTime(new Date());
+      gpsUpdates.push(
+        db.query(
+          `UPDATE truck SET last_lat = ?, last_lng = ?, last_gps_time = ? WHERE wialon_unit_id = ? AND is_active = 1`,
+          [position.lat, position.lon, gpsTime, unitId]
+        )
+      );
+    }
+    if (gpsUpdates.length > 0) {
+      const results = await Promise.allSettled(gpsUpdates);
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) {
+        console.warn(`[geofence-tracking] GPS cache update: ${gpsUpdates.length - failed} ok, ${failed} failed`);
+      } else {
+        console.log(`[geofence-tracking] updated GPS cache for ${gpsUpdates.length} unit(s)`);
+      }
+    }
+  }
+
   let inserted = 0;
   for (const salesCost of salesCostsWithStops) {
     const stops = stopsBySalesCost.get(salesCost.id_sales_cost) || [];

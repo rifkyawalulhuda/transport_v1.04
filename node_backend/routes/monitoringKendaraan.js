@@ -106,7 +106,7 @@ router.get("/", async (req, res) => {
     const todayString = toDateString(new Date());
 
     const [truckRows] = await db.query(
-      "SELECT id_truck, no_police, merk_mobil, model, type_truck, jenis_kendaraan FROM truck WHERE is_active = 1"
+      "SELECT id_truck, no_police, merk_mobil, model, type_truck, jenis_kendaraan, last_lat, last_lng, last_gps_time FROM truck WHERE is_active = 1"
     );
 
     const repairConditions = [
@@ -221,6 +221,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN area a ON sc.id_area = a.id_area
       WHERE t.is_active = 1
         AND sc.departure_datetime IS NOT NULL
+        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 60 DAY)
         AND sc.finish_order_datetime IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM sales_cost_route_history scrh
@@ -243,10 +244,16 @@ router.get("/", async (req, res) => {
         a.nama_area
       FROM sales_cost sc
       INNER JOIN (
-        SELECT id_truck, MAX(departure_datetime) AS max_delivery
-        FROM sales_cost
-        GROUP BY id_truck
-      ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.departure_datetime
+        SELECT sc2.id_truck, MAX(sc2.id_sales_cost) AS max_sc_id
+        FROM sales_cost sc2
+        INNER JOIN (
+          SELECT id_truck, MAX(departure_datetime) AS max_dt
+          FROM sales_cost
+          GROUP BY id_truck
+        ) md ON md.id_truck = sc2.id_truck AND md.max_dt = sc2.departure_datetime
+        GROUP BY sc2.id_truck
+      ) last_sc ON last_sc.id_truck = sc.id_truck
+        AND last_sc.max_sc_id = sc.id_sales_cost
       LEFT JOIN driver d ON sc.id_driver = d.id_driver
       LEFT JOIN area a ON sc.id_area = a.id_area
       ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
@@ -265,7 +272,12 @@ router.get("/", async (req, res) => {
         merk_mobil: truck.merk_mobil || null,
         model: truck.model || null,
         type_truck: truck.type_truck || null,
-        jenis_kendaraan: truck.jenis_kendaraan || null
+        jenis_kendaraan: truck.jenis_kendaraan || null,
+        last_gps: (truck.last_lat && truck.last_lng) ? {
+          lat: Number(truck.last_lat),
+          lng: Number(truck.last_lng),
+          gps_time: toDateTimeString(truck.last_gps_time)
+        } : null
       });
     });
 
@@ -353,6 +365,9 @@ router.get("/", async (req, res) => {
           status: 'on_trip',
           driver_name: onTripTrx.nama_driver || null,
           is_overdue: Boolean(onTripTrx.is_overdue),
+          status_duration_minutes: onTripTrx.departure_datetime
+            ? Math.floor((Date.now() - new Date(onTripTrx.departure_datetime).getTime()) / 60000)
+            : null,
           transaksi: {
             id_sales_cost: onTripTrx.id_sales_cost,
             departure_datetime: toDateTimeString(onTripTrx.departure_datetime),
@@ -373,6 +388,9 @@ router.get("/", async (req, res) => {
           ...base,
           status: "transaksi",
           driver_name: trx.nama_driver || null,
+          status_duration_minutes: trx.departure_datetime
+            ? Math.floor((Date.now() - new Date(trx.departure_datetime).getTime()) / 60000)
+            : null,
           transaksi: {
             id_sales_cost: trx.id_sales_cost,
             no_spk: trx.id_sales_cost,

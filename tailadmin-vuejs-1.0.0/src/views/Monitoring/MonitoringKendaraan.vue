@@ -50,6 +50,40 @@
                 Reset
               </button>
             </div>
+            <div class="flex items-center gap-2">
+              <select
+                v-model="filterMonth"
+                class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+              >
+                <option :value="undefined">Semua Bulan</option>
+                <option v-for="m in 12" :key="m" :value="m">
+                  {{ new Date(2000, m - 1).toLocaleString('id-ID', { month: 'long' }) }}
+                </option>
+              </select>
+              <select
+                v-model="filterYear"
+                class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+              >
+                <option :value="undefined">Semua Tahun</option>
+                <option v-for="y in [new Date().getFullYear()-1, new Date().getFullYear(), new Date().getFullYear()+1]" :key="y" :value="y">
+                  {{ y }}
+                </option>
+              </select>
+              <span v-if="lastRefreshedAt" class="text-xs text-gray-400 dark:text-gray-500">
+                {{ formatLastRefreshed(lastRefreshedAt) }}
+              </span>
+              <button
+                type="button"
+                @click="void fetchMonitoring()"
+                :disabled="loading"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{ 'animate-spin': loading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -166,14 +200,27 @@
                   <span class="font-medium text-gray-700 dark:text-gray-200">Est. Tiba:</span>
                   {{ formatDateTime(item.transaksi?.arrival_datetime) }}
                 </p>
+                <!-- Nomor SC -->
+                <div v-if="item.transaksi?.id_sales_cost" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">SC:</span>
+                  <span class="font-mono">#{{ item.transaksi.id_sales_cost }}</span>
+                </div>
+                <!-- Durasi status -->
+                <div v-if="item.status_duration_minutes != null" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">Durasi:</span>
+                  <span>{{ formatDuration(item.status_duration_minutes) }}</span>
+                </div>
+                <!-- GPS terakhir -->
+                <div v-if="item.last_gps?.lat" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">GPS:</span>
+                  <span class="font-mono">{{ formatGps(item.last_gps) }}</span>
+                  <span v-if="item.last_gps.gps_time" class="text-gray-400">({{ item.last_gps.gps_time }})</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      <div
-        ref="sectionTransaksi"
         class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
         v-show="activeFilter === 'all' || activeFilter === 'transaksi'"
       >
@@ -264,6 +311,22 @@
                     )
                   }}
                 </p>
+                <!-- Nomor SC -->
+                <div v-if="item.transaksi?.id_sales_cost" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">SC:</span>
+                  <span class="font-mono">#{{ item.transaksi.id_sales_cost }}</span>
+                </div>
+                <!-- Durasi status -->
+                <div v-if="item.status_duration_minutes != null" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">Durasi:</span>
+                  <span>{{ formatDuration(item.status_duration_minutes) }}</span>
+                </div>
+                <!-- GPS terakhir -->
+                <div v-if="item.last_gps?.lat" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">GPS:</span>
+                  <span class="font-mono">{{ formatGps(item.last_gps) }}</span>
+                  <span v-if="item.last_gps.gps_time" class="text-gray-400">({{ item.last_gps.gps_time }})</span>
+                </div>
               </div>
             </div>
           </div>
@@ -352,6 +415,12 @@
                   <span class="font-medium text-gray-700 dark:text-gray-200">Est. Selesai:</span>
                   {{ formatDate(item.repair?.tgl_proses) }}
                 </p>
+                <!-- GPS terakhir -->
+                <div v-if="item.last_gps?.lat" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">GPS:</span>
+                  <span class="font-mono">{{ formatGps(item.last_gps) }}</span>
+                  <span v-if="item.last_gps.gps_time" class="text-gray-400">({{ item.last_gps.gps_time }})</span>
+                </div>
               </div>
             </div>
           </div>
@@ -441,6 +510,12 @@
                     )
                   }}
                 </p>
+                <!-- GPS terakhir -->
+                <div v-if="item.last_gps?.lat" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-medium">GPS:</span>
+                  <span class="font-mono">{{ formatGps(item.last_gps) }}</span>
+                  <span v-if="item.last_gps.gps_time" class="text-gray-400">({{ item.last_gps.gps_time }})</span>
+                </div>
               </div>
             </div>
           </div>
@@ -451,7 +526,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -471,13 +546,17 @@ const monitoringData = ref({
     idle: 0
   },
   on_trip: [] as any[],
-  transaksi: [],
-  repair: [],
-  idle: []
+  transaksi: [] as any[],
+  repair: [] as any[],
+  idle: [] as any[]
 })
 
 const loading = ref(false)
 const searchInput = ref('')
+const filterMonth = ref<number | undefined>(undefined)
+const filterYear = ref<number | undefined>(undefined)
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+const lastRefreshedAt = ref<Date | null>(null)
 const sections = reactive({
   on_trip: true,
   transaksi: true,
@@ -626,15 +705,39 @@ const resolveVehicleName = (item: any) => {
   return parts.length ? parts.join(' ') : '-'
 }
 
+const formatDuration = (minutes: number | null | undefined): string => {
+  if (minutes == null) return '-'
+  if (minutes < 60) return `${minutes} mnt`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? `${h} jam ${m} mnt` : `${h} jam`
+}
+
+const formatGps = (gps: { lat: number; lng: number; gps_time?: string | null } | null | undefined): string => {
+  if (!gps?.lat || !gps?.lng) return '-'
+  return `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}`
+}
+
+const formatLastRefreshed = (date: Date): string => {
+  const diffMs = Date.now() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'Baru saja'
+  if (diffMins === 1) return '1 menit lalu'
+  return `${diffMins} menit lalu`
+}
+
 const fetchMonitoring = async () => {
   loading.value = true
   try {
     const params = {
       search: searchInput.value.trim() || undefined,
-      limit: 24
+      limit: 24,
+      month: filterMonth.value || undefined,
+      year: filterYear.value || undefined,
     }
     const response = await monitoringKendaraanService.fetchMonitoring(params)
     monitoringData.value = response
+    lastRefreshedAt.value = new Date()
   } catch (error: any) {
     toast.error(error?.message || 'Gagal memuat monitoring kendaraan.')
   } finally {
@@ -653,5 +756,13 @@ const resetFilter = () => {
 
 onMounted(() => {
   void fetchMonitoring()
+  refreshInterval = setInterval(() => void fetchMonitoring(), 60_000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
 })
 </script>
