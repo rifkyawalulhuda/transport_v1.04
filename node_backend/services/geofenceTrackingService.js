@@ -97,7 +97,10 @@ const getActiveSalesCostCandidates = async () => {
       id_sales_cost: Number(row.id_sales_cost),
       id_area: Number(row.id_area),
       id_truck: Number(row.id_truck),
-      wialon_unit_id: normalizePositiveIntString(row.wialon_unit_id)
+      wialon_unit_id: normalizePositiveIntString(row.wialon_unit_id),
+      finish_geofence_resource_id: row.finish_geofence_resource_id ?? null,
+      finish_geofence_zone_id: row.finish_geofence_zone_id ?? null,
+      finish_geofence_zone_name: row.finish_geofence_zone_name ?? null
     });
   });
 
@@ -342,7 +345,7 @@ const syncGeofenceRouteHistory = async () => {
   if (positionMap.size > 0) {
     const gpsUpdates = [];
     for (const [unitId, position] of positionMap.entries()) {
-      if (!position?.lat || !position?.lon) continue;
+      if (position?.lat == null || position?.lon == null) continue;
       const gpsTime = toMySqlDateTime(position.gps_time) || toMySqlDateTime(new Date());
       const geo = await reverseGeocodeCoordinates({ lat: position.lat, lon: position.lon }).catch(() => null);
       const address = geo?.formatted_address || null;
@@ -453,6 +456,18 @@ const syncGeofenceRouteHistory = async () => {
         position?.lat ?? null,
         position?.lon ?? null
       ]
+    );
+
+    // Set finish_order_datetime on the sales_cost record (idempotent guard prevents double-set)
+    // Use NOW() rather than gpsTime so the timestamp reflects when the system detected the event,
+    // not when the GPS unit last reported its position (which could be stale).
+    await db.query(
+      `UPDATE sales_cost
+         SET finish_order_datetime = NOW()
+       WHERE id_sales_cost = ?
+         AND (finish_order_datetime IS NULL
+              OR CAST(finish_order_datetime AS CHAR) = '0000-00-00 00:00:00')`,
+      [salesCost.id_sales_cost]
     );
 
     existingHistoryKeys.add(finishHistoryKey);

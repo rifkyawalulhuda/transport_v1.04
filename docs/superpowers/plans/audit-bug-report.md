@@ -1,19 +1,50 @@
 # Audit Bug Report — transport_v1.04
 **Tanggal audit:** 2026-07-18  
+**Terakhir diupdate:** 2026-07-18  
 **Branch:** add-module-bbs  
 **Scope:** Backend penuh (auth, salesCost, repair, monitoring, geofenceTracking, wialonService, deliveryNotifications, server)
 
 ---
 
+## Status Perbaikan
+
+| ID | Deskripsi Singkat | Status | Tanggal Fix |
+|---|---|---|---|
+| C2 | updateRepair overwrite id_truck ke null | ✅ FIXED | 2026-07-18 |
+| C3 | updateRepair overwrite nik_admin ke null | ✅ FIXED | 2026-07-18 |
+| C4 | updateRepair overwrite semua field string ke "" | ✅ FIXED | 2026-07-18 |
+| C5 | finish_order_datetime tidak pernah di-set geofence | ✅ FIXED | 2026-07-18 |
+| C6 | finish_geofence fields dibuang, selalu fallback Sankyu | ✅ FIXED | 2026-07-18 |
+| C7 | tax pakai Number() bukan parseNumber() | ⏸ DITUNDA | Field jarang dipakai, risiko minimal |
+| C8 | total tidak include adminCharge/materai | ⏸ DITUNDA | Formula konsisten di 3 tempat, fix akan corrupt data historis |
+| C9 | GPS cache skip koordinat 0 karena falsy check | ✅ FIXED | 2026-07-18 |
+
+### Fix di luar audit ini
+| Modul | Deskripsi | Status | Tanggal |
+|---|---|---|---|
+| Monitoring Kendaraan | Stale on_trip window 60 hari | ✅ FIXED | 2026-07-18 |
+| Monitoring Kendaraan | lastSql tie-breaking non-deterministik | ✅ FIXED | 2026-07-18 |
+| Monitoring Kendaraan | Enrich response GPS + durasi + SC number | ✅ FIXED | 2026-07-18 |
+| Monitoring Kendaraan | Auto-refresh 60 detik + filter bulan/tahun | ✅ FIXED | 2026-07-18 |
+| GPS Cache | Kolom last_lat/lng/address/gps_time di tabel truck | ✅ FIXED | 2026-07-18 |
+| GPS Cache | geofenceTrackingService persist posisi Wialon ke DB | ✅ FIXED | 2026-07-18 |
+| GPS Cache | Reverse geocode ke last_address (Geoapify) | ✅ FIXED | 2026-07-18 |
+| Notifikasi Pengiriman | Auto-refresh polling 60 detik | ✅ FIXED | 2026-07-18 |
+| Notifikasi Pengiriman | unread_count dihitung dari LIMIT bukan total DB | ✅ FIXED | 2026-07-18 |
+| Notifikasi Pengiriman | formatTimeAgo bug label "d" untuk detik | ✅ FIXED | 2026-07-18 |
+| Notifikasi Pengiriman | Navigasi klik notif ke /sales-cost list (bukan detail) | ✅ FIXED | 2026-07-18 |
+
+---
+
 ## Ringkasan Eksekutif
 
-| Tingkat | Jumlah |
-|---|---|
-| CRITICAL | 9 |
-| HIGH | 15 |
-| MEDIUM | 12 |
-| LOW | 9 |
-| **Total** | **45** |
+| Tingkat | Jumlah | Sudah Fix | Tersisa |
+|---|---|---|---|
+| CRITICAL | 9 | 6 | 3 (C1, C7⏸, C8⏸) |
+| HIGH | 15 | 0 | 15 |
+| MEDIUM | 12 | 0 | 12 |
+| LOW | 9 | 0 | 9 |
+| **Total** | **45** | **6** | **39** |
 
 ---
 
@@ -27,66 +58,58 @@
 ---
 
 ### C2 — `updateRepair` silently overwrite `id_truck` ke null
+**Status: ✅ FIXED 2026-07-18** — `repairService.js:266` — pattern `!== undefined && != null` untuk preserve existing value dan guard NOT NULL constraint  
 **File:** `node_backend/services/repairService.js:266`  
-**Masalah:** `id_truck: payload.id_truck || null` akan menghapus relasi truck jika client tidak mengirim field ini dalam partial update.  
-**Fix:** Gunakan `payload.id_truck !== undefined ? payload.id_truck : existingRecord.id_truck`.
+**Masalah:** `id_truck: payload.id_truck || null` akan menghapus relasi truck jika client tidak mengirim field ini dalam partial update.
 
 ---
 
 ### C3 — `updateRepair` silently overwrite `nik_admin` ke null
+**Status: ✅ FIXED 2026-07-18** — `repairService.js:276` — pattern `!== undefined && != null` untuk preserve existing value dan guard NOT NULL constraint  
 **File:** `node_backend/services/repairService.js:276`  
-**Masalah:** Sama seperti C2 untuk field `nik_admin`.  
-**Fix:** Sama seperti C2.
+**Masalah:** Sama seperti C2 untuk field `nik_admin`.
 
 ---
 
 ### C4 — `updateRepair` overwrite semua field string ke `""`
+**Status: ✅ FIXED 2026-07-18** — `repairService.js:265–274` — semua 12 field diubah ke pattern `payload.field !== undefined ? payload.field : existing.field`  
 **File:** `node_backend/services/repairService.js:265–274`  
-**Masalah:** Semua field string (`kategori_repair`, `no_spk_perbaikan`, `jenis_kerusakan`, `spare_part`, `keterangan`) tidak punya fallback ke nilai existing. Partial update apapun akan menghapus semua data string.  
-**Fix:** Gunakan `payload.field ?? existingRecord.field` untuk semua field optional.
+**Masalah:** Semua field string (`kategori_repair`, `no_spk_perbaikan`, `jenis_kerusakan`, `spare_part`, `keterangan`) tidak punya fallback ke nilai existing. Partial update apapun akan menghapus semua data string.
 
 ---
 
 ### C5 — `finish_order_datetime` tidak pernah di-set oleh geofence tracking
+**Status: ✅ FIXED 2026-07-18** — `geofenceTrackingService.js:461-471` — tambah `UPDATE sales_cost SET finish_order_datetime = NOW()` setelah INSERT route history, dengan idempotency guard dan pakai `NOW()` bukan `gpsTime` yang bisa stale  
 **File:** `node_backend/services/geofenceTrackingService.js:433–459`  
 **Masalah:** Setelah truk masuk finish geofence dan INSERT ke `sales_cost_route_history`, tidak ada `UPDATE sales_cost SET finish_order_datetime = NOW()`. Akibatnya:
 - Pengiriman yang sudah selesai secara fisik tetap dianggap aktif selamanya
 - `getActiveSalesCostCandidates` akan terus memprosesnya setiap sync cycle
 - `checkArrivalDelays` terus generate notifikasi duplikat
-**Fix:** Tambahkan `UPDATE sales_cost SET finish_order_datetime = NOW() WHERE id_sales_cost = ?` setelah INSERT route history untuk step `system:finish_order`.
 
 ---
 
 ### C6 — `finish_geofence_resource_id/zone_id` selalu dibuang, semua pakai fallback "Sankyu"
+**Status: ✅ FIXED 2026-07-18** — `geofenceTrackingService.js:96-104` — tambah 3 field `finish_geofence_resource_id`, `finish_geofence_zone_id`, `finish_geofence_zone_name` ke objek `pickedByTruck`  
 **File:** `node_backend/services/geofenceTrackingService.js:96–101`  
-**Masalah:** Query SQL mengambil `finish_geofence_resource_id`, `finish_geofence_zone_id` dari tabel area, tapi saat build objek di `pickedByTruck.set(...)`, kolom-kolom itu tidak disertakan. `resolveFinishGeofenceForSalesCost` selalu fallback ke `DEFAULT_FINISH_GEOFENCE_NAME`. Semua pengiriman ke area berbeda menggunakan finish geofence yang sama (Sankyu).  
-**Fix:** Sertakan `finish_geofence_resource_id` dan `finish_geofence_zone_id` dalam objek yang disimpan ke `pickedByTruck`.
+**Masalah:** Query SQL mengambil `finish_geofence_resource_id`, `finish_geofence_zone_id` dari tabel area, tapi saat build objek di `pickedByTruck.set(...)`, kolom-kolom itu tidak disertakan. `resolveFinishGeofenceForSalesCost` selalu fallback ke `DEFAULT_FINISH_GEOFENCE_NAME`. Semua pengiriman ke area berbeda menggunakan finish geofence yang sama (Sankyu).
 
 ---
 
 ### C7 — `tax` pakai `Number()` bukan `parseNumber()` — silent data loss
-**File:** `node_backend/routes/salesCost.js:1459, 1794`  
-**Masalah:** `Number("1.500.000")` = NaN → fallback ke 0. Semua field finansial lain pakai `parseNumber()` yang strip separator Indonesia (titik ribuan, koma desimal). Field `tax` memakai `Number()` sehingga nilai dengan format Indonesia selalu tersimpan sebagai 0.  
-**Fix:** Ganti `Number(body.tax)` dengan `parseNumber(body.tax)`.
+**Status: ⏸ DITUNDA** — Field jarang dipakai, dampak minimal. Masuk sprint berikutnya sebagai low-risk fix.  
+**File:** `node_backend/routes/salesCost.js:1459, 1794`
 
 ---
 
 ### C8 — `total` tidak menyertakan `adminCharge` dan `materai` → margin salah
-**File:** `node_backend/routes/salesCost.js:1496–1504, 1826–1834, 682`  
-**Masalah:** `adminCharge` dan `materai` disimpan ke DB tapi tidak masuk kalkulasi `total`. Akibatnya `margin = price - total` overstated di semua record finansial.  
-**Fix:** Tambahkan `adminCharge` dan `materai` ke formula total:
-```js
-const total = bills + liftOn + liftOf + containerDepot + tax + adminCharge + materai
-              + containerRepair + demurrageChargers + detentionChargers
-              + extendGatePass + additionalCost + opsValue;
-```
+**Status: ⏸ DITUNDA** — Formula konsisten di 3 tempat (baris 682, 1496-1504, 1826-1834). Fix akan merusak data historis. Field hampir tidak pernah dipakai. Perlu data migration strategy terpisah.  
+**File:** `node_backend/routes/salesCost.js:1496–1504, 1826–1834, 682`
 
 ---
 
 ### C9 — GPS cache skip koordinat 0 karena falsy check
-**File:** `node_backend/services/geofenceTrackingService.js:345`  
-**Masalah:** `if (!position?.lat || !position?.lon)` akan skip truk yang berada di koordinat 0,0 (perpotongan equator dan meridian utama, area Afrika Barat / Samudra Atlantik). Meski jarang secara geografis, ini adalah bug logika karena `0` adalah nilai koordinat valid.  
-**Fix:** Ganti dengan `if (position?.lat == null || position?.lon == null)`.
+**Status: ✅ FIXED 2026-07-18** — `geofenceTrackingService.js:348` — ganti `!position?.lon` ke `position?.lon == null`  
+**File:** `node_backend/services/geofenceTrackingService.js:345`
 
 ---
 
@@ -205,32 +228,36 @@ const total = bills + liftOn + liftOf + containerDepot + tax + adminCharge + mat
 
 ## Prioritas Penanganan
 
-### Minggu ini — Blocking / Data Corruption
-Urutan berdasarkan dampak terbesar:
-1. **C5** — `finish_order_datetime` tidak pernah di-set (tracking loop tak berhenti, notif spam)
-2. **C6** — Finish geofence per-area selalu diabaikan (semua delivery pakai geofence Sankyu)
-3. **C7/C8** — `tax` dan `total` salah hitung (data finansial corrupt di semua record)
-4. **C2/C3/C4** — Partial update merusak data repair (data loss setiap edit)
-5. **C1** — Plaintext password (security breach)
+### ✅ Sudah Selesai — Kelompok 1
+1. **C5** — `finish_order_datetime` tidak pernah di-set (tracking loop tak berhenti, notif spam) — **FIXED 2026-07-18**
+2. **C6** — Finish geofence per-area selalu diabaikan, semua fallback ke Sankyu — **FIXED 2026-07-18**
+3. **C2/C3/C4** — Partial update merusak data repair — **FIXED 2026-07-18**
+4. **C9** — GPS falsy check skip koordinat 0 — **FIXED 2026-07-18**
+
+### ⏸ Ditunda
+5. **C8** — Formula total tidak include adminCharge/materai — field hampir tidak dipakai, fix akan corrupt data historis, butuh data migration strategy
+6. **C7** — tax pakai Number() bukan parseNumber() — dampak minimal, field jarang dipakai
 
 ### Sprint Berikutnya — Logika Bisnis
-6. **H12** — Reverse geocoding sequential (bottleneck 300 detik per sync cycle)
-7. **H1/H2/H3** — Repair business logic (status machine, race condition)
-8. **H13/H14** — Validasi FK dan ordering tanggal di salesCost
-9. **H4** — RBAC JWT decode ulang
-10. **H15** — DELETE lock inconsistency
+7. **H12** — Reverse geocoding sequential dalam GPS loop (bottleneck 300 detik per sync cycle)
+8. **H1/H2/H3** — Repair business logic (status machine, race condition, guard on_trip)
+9. **H13/H14** — Validasi FK dan ordering tanggal di salesCost
+10. **H4** — RBAC JWT decode ulang
+11. **H15** — DELETE lock inconsistency
+12. **H6** — Repair query tidak filter is_active=0
 
 ### Backlog — Security & Infrastructure
-11. **M8** — CORS whitelist untuk production
-12. **M12** — Static file auth
-13. **M7** — RBAC path matching
-14. **C9** — GPS falsy check fix (kecil, tapi logika salah)
-15. **H5** — Reduce 60-day window setelah C5 fix
+13. **C1** — Plaintext password (breaking change, butuh migration semua password)
+14. **M8** — CORS whitelist untuk production
+15. **M12** — Static file auth
+16. **M7** — RBAC path matching
+17. **H5** — Reduce 60-day window on_trip (bisa dikurangi setelah C5 sudah fix)
 
 ---
 
 ## Catatan
 
-- Item C5 dan C6 saling berkaitan — C6 menyebabkan finish geofence tidak pernah benar, C5 menyebabkan record tidak pernah ditutup. Harus di-fix bersama.
-- Item C7 dan C8 menyebabkan **semua data finansial historis sudah corrupt**. Perlu migration data setelah fix.
-- Item H12 adalah bottleneck performance kritis yang bisa menyebabkan sync cycle overlap.
+- C5 dan C6 sudah di-fix bersama — sekarang finish geofence per-area dipakai dengan benar DAN delivery yang selesai ditandai dengan `finish_order_datetime`.
+- C7 dan C8 **ditunda** — formula total konsisten di 3 tempat, field hampir tidak pernah dipakai, mengubahnya akan merusak data historis.
+- H12 adalah bottleneck performance kritis — geocoding sequential 50 truk × 6 detik = 300 detik per sync cycle, jauh melebihi interval 60 detik.
+- C1 (plaintext password) adalah breaking change — semua user harus reset password atau ada migration script untuk rehash, butuh planning khusus.

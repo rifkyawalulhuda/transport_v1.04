@@ -262,21 +262,21 @@ const updateRepair = async (id, payload = {}) => {
   }
 
   const data = {
-    kategori_repair: payload.kategori_repair || "",
-    id_truck: payload.id_truck || null,
-    tgl_input: normalizeDateValue(payload.tgl_input),
-    tgl_kerusakan: tglKerusakanValue,
-    no_spk_perbaikan: payload.no_spk_perbaikan || "",
-    kilometer: payload.kilometer || "",
-    jenis_kerusakan: payload.jenis_kerusakan || "",
-    spare_part: payload.spare_part || "",
-    jadwal_berkala: normalizeDateValue(payload.jadwal_berkala),
-    keterangan: payload.keterangan || "",
-    biaya_perbaikan: parseNumber(payload.biaya_perbaikan),
-    nik_admin: payload.nik_admin || null,
-    status_repair: statusRepair,
-    tgl_proses: resolvedTglProses,
-    tgl_selesai: resolvedTglSelesai
+    kategori_repair:  payload.kategori_repair  !== undefined ? payload.kategori_repair  : (existing.kategori_repair  || ""),
+    id_truck:         (payload.id_truck         !== undefined && payload.id_truck         != null) ? payload.id_truck         : existing.id_truck,
+    tgl_input:        normalizeDateValue(payload.tgl_input !== undefined ? payload.tgl_input : existing.tgl_input),
+    tgl_kerusakan:    tglKerusakanValue,
+    no_spk_perbaikan: payload.no_spk_perbaikan !== undefined ? payload.no_spk_perbaikan : (existing.no_spk_perbaikan || ""),
+    kilometer:        payload.kilometer        !== undefined ? payload.kilometer        : (existing.kilometer        || ""),
+    jenis_kerusakan:  payload.jenis_kerusakan  !== undefined ? payload.jenis_kerusakan  : (existing.jenis_kerusakan  || ""),
+    spare_part:       payload.spare_part       !== undefined ? payload.spare_part       : (existing.spare_part       || ""),
+    jadwal_berkala:   normalizeDateValue(payload.jadwal_berkala !== undefined ? payload.jadwal_berkala : existing.jadwal_berkala),
+    keterangan:       payload.keterangan       !== undefined ? payload.keterangan       : (existing.keterangan       || ""),
+    biaya_perbaikan:  payload.biaya_perbaikan  !== undefined ? parseNumber(payload.biaya_perbaikan) : parseNumber(existing.biaya_perbaikan),
+    nik_admin:        (payload.nik_admin        !== undefined && payload.nik_admin        != null) ? payload.nik_admin        : existing.nik_admin,
+    status_repair:    statusRepair,
+    tgl_proses:       resolvedTglProses,
+    tgl_selesai:      resolvedTglSelesai
   };
 
   const [result] = await db.query(
