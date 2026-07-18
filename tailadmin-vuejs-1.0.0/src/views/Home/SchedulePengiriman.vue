@@ -119,8 +119,12 @@
             class="group rounded-xl border bg-white transition hover:border-brand-200 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500/40"
           >
             <!-- Card Header -->
-            <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
-              <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="flex w-full items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 text-left transition hover:bg-gray-50/60 dark:border-gray-800 dark:hover:bg-gray-800/30"
+                @click="toggleCard(row.id_sales_cost)"
+              >
+                <div class="flex flex-wrap items-center gap-2">
                 <span class="text-xs font-semibold text-gray-400 dark:text-gray-500">SPK</span>
                 <span class="text-sm font-bold text-gray-800 dark:text-gray-100">{{ row.id_sales_cost }}</span>
                 <span class="mx-1 text-gray-300 dark:text-gray-600">|</span>
@@ -129,8 +133,8 @@
                   {{ row.truck.jenis_kendaraan }}
                 </span>
               </div>
-              <div class="flex items-center gap-2">
-                <!-- Status badge -->
+                <div class="flex items-center gap-2">
+                  <!-- Status badge -->
                 <span
                   v-if="resolveStatus(row).color === 'success'"
                   class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-0.5 text-[11px] font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400"
@@ -153,18 +157,29 @@
                   </svg>
                   {{ resolveStatus(row).label }}
                 </span>
-                <span
-                  v-else
-                  class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                >
-                  <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  {{ resolveStatus(row).label }}
-                </span>
-              </div>
-            </div>
+                  <span
+                    v-else
+                    class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                  >
+                    <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    {{ resolveStatus(row).label }}
+                  </span>
 
-            <!-- Card Body -->
-            <div class="px-4 py-3">
+                  <svg
+                    class="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200"
+                    :class="isCardExpanded(row.id_sales_cost) ? 'rotate-180' : ''"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25L12 15.75 4.5 8.25" />
+                  </svg>
+                </div>
+              </button>
+
+              <!-- Card Body -->
+              <div class="px-4 py-3">
               <!-- Meta row: Customer � Driver � Rute -->
               <div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                 <span class="flex items-center gap-1">
@@ -181,56 +196,8 @@
                 </span>
               </div>
 
-              <!-- Mini Timeline: Departure -- Arrival -- Finish -->
-              <div class="relative mb-3">
-                <!-- Progress track -->
-                <div class="flex items-center">
-                  <!-- Departure dot + label -->
-                  <div class="flex flex-col items-center">
-                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 ring-2 ring-brand-100 dark:ring-brand-500/20">
-                      <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" /></svg>
-                    </div>
-                    <span class="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 dark:text-gray-400">Berangkat</span>
-                    <span class="whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500">{{ formatDateTime(row.departure_datetime) }}</span>
-                  </div>
-
-                  <!-- Connector line -->
-                  <div class="mx-2 h-0.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700" />
-
-                  <!-- Arrival dot + label -->
-                  <div class="flex flex-col items-center">
-                    <div v-if="row.arrival" class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-900">
-                      <svg class="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
-                    </div>
-                    <div v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                      <svg class="h-3 w-3 text-gray-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
-                    </div>
-                    <span class="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 dark:text-gray-400">Tiba</span>
-                    <span class="whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500">{{ row.arrival ? formatDateTime(row.arrival) : '-' }}</span>
-                  </div>
-
-                  <!-- Connector line -->
-                  <div class="mx-2 h-0.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700" />
-
-                  <!-- Finish dot + label -->
-                  <div class="flex flex-col items-center">
-                    <div v-if="row.schedule_status === 'completed'" class="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 ring-2 ring-success-100 dark:ring-success-500/20">
-                      <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
-                    </div>
-                    <div v-else-if="row.schedule_status === 'incomplete_finish'" class="flex h-7 w-7 items-center justify-center rounded-full bg-warning-500 ring-2 ring-warning-100 dark:ring-warning-500/20">
-                      <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                    </div>
-                    <div v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
-                      <svg class="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
-                    </div>
-                    <span class="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 dark:text-gray-400">Selesai</span>
-                    <span class="whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500">{{ row.finish_order_datetime ? formatDateTime(row.finish_order_datetime) : '-' }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Geofence progress summary -->
-              <div class="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              <!-- Compact summary always visible -->
+              <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                   {{ resolveProgressLabel(row) }}
                 </span>
@@ -244,7 +211,7 @@
 
               <p
                 v-if="resolveScheduleHint(row)"
-                class="mb-2 text-xs"
+                class="mb-3 text-xs"
                 :class="
                   row.has_incomplete_finish
                     ? 'text-warning-700 dark:text-warning-400'
@@ -258,6 +225,131 @@
                 {{ resolveScheduleHint(row) }}
               </p>
 
+              <!-- Expanded content only -->
+              <div v-if="isCardExpanded(row.id_sales_cost)">
+              <!-- Full Timeline: all delivery stops with actual status -->
+              <div class="relative mb-3 pl-8">
+                <div class="absolute left-3 top-4 bottom-4 w-0.5 bg-gradient-to-b from-brand-300 via-gray-200 to-gray-300 dark:from-brand-500/50 dark:via-gray-700 dark:to-gray-600" />
+
+                <div class="space-y-3">
+                  <div
+                    v-for="(stop, stopIdx) in row.delivery_stops_summary"
+                    :key="stop.id"
+                    class="relative"
+                  >
+                    <!-- Node dot -->
+                    <div
+                      class="absolute -left-8 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-white dark:ring-gray-900"
+                      :class="
+                        stop.incomplete_finish
+                          ? 'bg-warning-500'
+                          : stop.hit
+                            ? 'bg-success-500'
+                            : stop.inferred_passed
+                              ? 'bg-success-500'
+                              : stop.overdue
+                                ? 'bg-error-500'
+                                : stop.is_departure
+                                  ? 'bg-brand-500'
+                                  : stop.is_finish
+                                    ? 'bg-gray-500'
+                                    : 'bg-gray-300 dark:bg-gray-600'
+                      "
+                    >
+                      <span class="text-[10px] font-bold text-white">
+                        <template v-if="stop.is_departure">D</template>
+                        <template v-else-if="stop.is_finish">F</template>
+                        <template v-else>{{ stop.stop_order }}</template>
+                      </span>
+                    </div>
+
+                    <!-- Stop content -->
+                    <div class="rounded-lg border px-3 py-2"
+                      :class="
+                        stop.incomplete_finish
+                          ? 'border-warning-200 bg-warning-50/50 dark:border-warning-500/30 dark:bg-warning-500/10'
+                          : stop.hit || stop.inferred_passed
+                            ? 'border-success-200 bg-success-50/50 dark:border-success-500/20 dark:bg-success-500/5'
+                            : stop.overdue
+                              ? 'border-error-200 bg-error-50/50 dark:border-error-500/30 dark:bg-error-500/10'
+                              : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+                      "
+                    >
+                      <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                              <template v-if="stop.is_departure">Departure</template>
+                              <template v-else-if="stop.is_finish">Finish</template>
+                              <template v-else>Tujuan {{ stop.stop_order }}</template>
+                            </span>
+                            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                              {{ stop.wialon_zone_name || stop.stop_name || '-' }}
+                            </span>
+                          </div>
+
+                          <div class="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
+                            <span>
+                              <span class="font-medium text-gray-600 dark:text-gray-300">Alamat:</span>
+                              {{ stop.wialon_zone_name || stop.stop_name || '-' }}
+                            </span>
+                            <span>
+                              <span class="font-medium text-gray-600 dark:text-gray-300">Est:</span>
+                              {{ stop.estimated_arrival ? formatDateTime(stop.estimated_arrival) : '-' }}
+                            </span>
+                            <span v-if="stop.actual_arrival">
+                              <span class="font-medium text-gray-600 dark:text-gray-300">Aktual:</span>
+                              {{ formatDateTime(stop.actual_arrival) }}
+                            </span>
+                          </div>
+
+                          <p
+                            v-if="stop.incomplete_finish"
+                            class="mt-1 text-[11px] text-warning-700 dark:text-warning-400"
+                          >
+                            Masih ada tujuan yang belum dikunjungi.
+                          </p>
+                          <p
+                            v-else-if="stop.inferred_passed"
+                            class="mt-1 text-[11px] text-success-700 dark:text-success-400"
+                          >
+                            Keberangkatan dianggap sudah terlampaui karena tujuan berikutnya sudah visited.
+                          </p>
+                        </div>
+
+                        <div class="flex-shrink-0">
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            :class="
+                              resolveStopBadge(stop).color === 'success'
+                                ? 'bg-success-100 text-success-700 dark:bg-success-500/15 dark:text-success-400'
+                                : resolveStopBadge(stop).color === 'warning'
+                                  ? 'bg-warning-100 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400'
+                                  : resolveStopBadge(stop).color === 'error'
+                                    ? 'bg-error-100 text-error-700 dark:bg-error-500/15 dark:text-error-400'
+                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                            "
+                          >
+                            {{ resolveStopBadge(stop).label }}
+                          </span>
+                          <span
+                            v-if="stop.hit"
+                            class="ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            :class="
+                              stop.is_manual
+                                ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                                : 'bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-300'
+                            "
+                          >
+                            {{ stop.is_manual ? 'Manual' : 'GPS' }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Info row: PO, Jenis, Trip -->
               <div class="mb-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                 <span v-if="row.no_po" class="flex items-center gap-1">
@@ -269,6 +361,7 @@
                 <span v-if="resolveTrip(row)" class="flex items-center gap-1">
                   <span class="font-medium text-gray-600 dark:text-gray-300">Trip:</span> {{ resolveTrip(row) }}
                 </span>
+              </div>
               </div>
             </div>
 
@@ -419,6 +512,22 @@ type DnItem = {
   remarks: string | null
 }
 
+type DeliveryStopSummary = {
+  id: number
+  stop_order: number
+  stop_name: string
+  wialon_zone_name: string | null
+  estimated_arrival: string | null
+  is_departure: boolean
+  is_finish: boolean
+  hit: boolean
+  actual_arrival: string | null
+  is_manual: boolean
+  inferred_passed: boolean
+  incomplete_finish: boolean
+  overdue: boolean
+}
+
 type ScheduleRow = {
   id_sales_cost: number
   departure_datetime: string | null
@@ -441,6 +550,7 @@ type ScheduleRow = {
   total_stops: number
   finish_hit: boolean
   has_incomplete_finish: boolean
+  delivery_stops_summary: DeliveryStopSummary[]
 }
 
 type SortKey =
@@ -509,6 +619,7 @@ const filterError = ref('')
 const rows = ref<ScheduleRow[]>([])
 const loading = ref(false)
 const expanded = reactive<Record<number, boolean>>({})
+const expandedCards = reactive<Record<number, boolean>>({})
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -660,6 +771,28 @@ const resolveScheduleHint = (row: ScheduleRow) => {
   return ''
 }
 
+const isCardExpanded = (id: number) => Boolean(expandedCards[id])
+
+const toggleCard = (id: number) => {
+  expandedCards[id] = !expandedCards[id]
+}
+
+const resolveStopBadge = (stop: DeliveryStopSummary): { label: string; color: string } => {
+  if (stop.incomplete_finish) {
+    return { label: 'Belum Lengkap', color: 'warning' }
+  }
+  if (stop.hit) {
+    return { label: 'Sudah Tiba', color: 'success' }
+  }
+  if (stop.inferred_passed) {
+    return { label: 'Terlampaui', color: 'success' }
+  }
+  if (stop.overdue) {
+    return { label: 'Terlambat', color: 'error' }
+  }
+  return { label: 'Menunggu', color: 'gray' }
+}
+
 const filterTitle = computed(() => {
   const prefix = filters.startDate || filters.search ? 'Filter' : 'Filter Schedule Pengiriman'
   const suffix = filters.startDate ? ` (${filters.startDate} — ${filters.endDate})` : ''
@@ -732,6 +865,14 @@ const loadData = async () => {
     }
     Object.keys(expanded).forEach((key) => {
       delete expanded[Number(key)]
+    })
+    Object.keys(expandedCards).forEach((key) => {
+      delete expandedCards[Number(key)]
+    })
+    rows.value.forEach((row) => {
+      if (row.schedule_status === 'overdue' || row.schedule_status === 'incomplete_finish') {
+        expandedCards[row.id_sales_cost] = true
+      }
     })
   } catch (error: any) {
     console.error(error)

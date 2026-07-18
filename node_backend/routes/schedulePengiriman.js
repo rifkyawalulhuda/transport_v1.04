@@ -77,6 +77,59 @@ const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishHit, 
   };
 };
 
+const resolveStopTimelineSummary = ({ deliveryStops, historyRows }) => {
+  const historyByStopId = new Map(
+    historyRows
+      .filter((h) => h.id_sc_stop)
+      .map((h) => [Number(h.id_sc_stop), h])
+  );
+
+  const now = new Date();
+
+  const baseStops = deliveryStops.map((stop) => {
+    const historyEntry = historyByStopId.get(Number(stop.id));
+    const hit = !!historyEntry;
+    const overdue = !hit && !!stop.estimated_arrival && new Date(stop.estimated_arrival) < now;
+
+    return {
+      id: Number(stop.id),
+      stop_order: Number(stop.stop_order),
+      stop_name: stop.stop_name || "",
+      wialon_zone_name: stop.wialon_zone_name || null,
+      estimated_arrival: stop.estimated_arrival || null,
+      is_departure: Number(stop.is_departure) === 1,
+      is_finish: Number(stop.is_finish) === 1,
+      hit,
+      actual_arrival: hit ? historyEntry?.gps_time || null : null,
+      is_manual: historyEntry?.is_manual === 1,
+      inferred_passed: false,
+      incomplete_finish: false,
+      overdue
+    };
+  });
+
+  const hasAnyVisitedAfterDeparture = baseStops.some((stop) => !stop.is_departure && stop.hit);
+  const missingMiddleStops = baseStops.filter((stop) => !stop.is_departure && !stop.is_finish && !stop.hit);
+
+  return baseStops.map((stop) => {
+    if (stop.is_departure && !stop.hit && hasAnyVisitedAfterDeparture) {
+      return {
+        ...stop,
+        inferred_passed: true
+      };
+    }
+
+    if (stop.is_finish && stop.hit && missingMiddleStops.length > 0) {
+      return {
+        ...stop,
+        incomplete_finish: true
+      };
+    }
+
+    return stop;
+  });
+};
+
 const resolveDateRange = (startParam, endParam) => {
   const today = new Date();
   const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -297,6 +350,63 @@ router.get("/", authenticateToken, async (req, res) => {
       });
     }
 
+    const deliveryStopsMap = new Map();
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      const [deliveryStopRows] = await db.query(
+        `
+          SELECT
+            id,
+            id_sales_cost,
+            stop_order,
+            stop_name,
+            wialon_zone_name,
+            estimated_arrival,
+            is_departure,
+            is_finish
+          FROM sales_cost_step_schedule
+          WHERE id_sales_cost IN (${placeholders})
+          ORDER BY id_sales_cost ASC, stop_order ASC
+        `,
+        ids
+      );
+
+      deliveryStopRows.forEach((row) => {
+        const salesCostId = Number(row.id_sales_cost);
+        if (!deliveryStopsMap.has(salesCostId)) {
+          deliveryStopsMap.set(salesCostId, []);
+        }
+        deliveryStopsMap.get(salesCostId).push(row);
+      });
+    }
+
+    const routeHistoryMap = new Map();
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      const [routeHistoryRows] = await db.query(
+        `
+          SELECT
+            id_sales_cost,
+            id_sc_stop,
+            gps_time,
+            is_manual,
+            step_key
+          FROM sales_cost_route_history
+          WHERE id_sales_cost IN (${placeholders})
+          ORDER BY gps_time ASC, id_sales_cost_route_history ASC
+        `,
+        ids
+      );
+
+      routeHistoryRows.forEach((row) => {
+        const salesCostId = Number(row.id_sales_cost);
+        if (!routeHistoryMap.has(salesCostId)) {
+          routeHistoryMap.set(salesCostId, []);
+        }
+        routeHistoryMap.get(salesCostId).push(row);
+      });
+    }
+
     const responseRows = rows.map((row) => {
       const salesCostId = Number(row.id_sales_cost);
       const dnItemsRaw = dnMap.get(salesCostId) || [];
@@ -322,6 +432,9 @@ router.get("/", authenticateToken, async (req, res) => {
         visited_stops: 0,
         finish_hit: false
       };
+
+      const deliveryStops = deliveryStopsMap.get(salesCostId) || [];
+      const routeHistory = routeHistoryMap.get(salesCostId) || [];
 
       const statusSummary = resolveScheduleStatus({
         departureDatetime: row.departure_datetime,
@@ -365,7 +478,11 @@ router.get("/", authenticateToken, async (req, res) => {
         visited_stops: historySummary.visited_stops,
         total_stops: stopSummary.total_stops,
         finish_hit: historySummary.finish_hit,
-        has_incomplete_finish: statusSummary.has_incomplete_finish
+        has_incomplete_finish: statusSummary.has_incomplete_finish,
+        delivery_stops_summary: resolveStopTimelineSummary({
+          deliveryStops,
+          historyRows: routeHistory
+        })
       };
     });
 
