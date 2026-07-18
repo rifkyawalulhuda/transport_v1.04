@@ -2,7 +2,9 @@
   <AdminLayout>
     <PageBreadcrumb :pageTitle="currentPageTitle" />
     <div class="space-y-5 sm:space-y-6">
-      <ComponentCard title="Filter Schedule Pengiriman">
+
+      <!-- -- Filter Section (Compact) ------------------------------ -->
+      <ComponentCard :title="filterTitle">
         <form class="space-y-4" @submit.prevent="applyFilter">
           <div class="grid gap-4 sm:grid-cols-4">
             <div>
@@ -33,12 +35,12 @@
             </div>
             <div class="sm:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Kata Kunci (No Police / Customer / Driver / No DN)
+                Kata Kunci
               </label>
               <input
                 v-model="filters.search"
                 type="text"
-                placeholder="Cari schedule..."
+                placeholder="No. Police / Customer / Driver / No. DN..."
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               />
             </div>
@@ -67,11 +69,19 @@
         </form>
       </ComponentCard>
 
-      <ComponentCard title="Schedule Pengiriman">
+      <!-- -- Schedule Cards ---------------------------------------- -->
+      <div class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+        <!-- Toolbar -->
         <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Total: {{ meta.totalItems }} transaksi
-          </p>
+          <div class="flex items-center gap-3">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              <span class="font-semibold text-gray-700 dark:text-gray-200">{{ meta.totalItems }}</span> transaksi ditemukan
+            </p>
+            <p v-if="filters.startDate || filters.search" class="text-xs text-gray-400 dark:text-gray-500">
+              {{ filters.startDate }} � {{ filters.endDate }}
+              <span v-if="filters.search"> � cari: "{{ filters.search }}"</span>
+            </p>
+          </div>
           <div class="flex items-center gap-2">
             <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
             <select
@@ -79,589 +89,239 @@
               class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               @change="changePageSize"
             >
-              <option v-for="size in pageSizeOptions" :key="size" :value="size">
-                {{ size }}
-              </option>
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
             </select>
           </div>
         </div>
-        <div
-          class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
-        >
-          <div class="max-w-full overflow-x-auto custom-scrollbar">
-            <table class="min-w-full">
-              <thead>
-                <tr class="border-b border-gray-200 dark:border-gray-700">
-                  <th class="w-10 px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    <button
-                      type="button"
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-                      :disabled="!hasExpandableRows"
-                      :aria-label="allExpanded ? 'Collapse all' : 'Expand all'"
-                      @click="toggleAll"
-                    >
-                      <svg
-                        class="h-4 w-4 transition-transform duration-200"
-                        :class="allExpanded ? 'rotate-180' : ''"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.6"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="m5 8 5 5 5-5" />
-                      </svg>
-                    </button>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('departure_datetime')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Departure
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('departure_datetime', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('departure_datetime', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('no_police')"
-                  >
-                    <div class="flex items-center gap-1">
-                      No. Police
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('no_police', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('no_police', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('driver')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Driver
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('driver', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('driver', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('customer')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Customer
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('customer', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('customer', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('route')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Rute
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('route', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('route', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('arrival')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Arrival
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('arrival', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('arrival', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('no_po')"
-                  >
-                    <div class="flex items-center gap-1">
-                      No. PO
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('no_po', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('no_po', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('jenis_pengiriman')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Jenis Pengiriman
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('jenis_pengiriman', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('jenis_pengiriman', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    DN
-                  </th>
-                  <th
-                    class="group cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6"
-                    @click="toggleSort('trip')"
-                  >
-                    <div class="flex items-center gap-1">
-                      Trip
-                      <span class="flex flex-col">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="transition-colors"
-                          :class="sortIconClass('trip', 'asc')"
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          class="-mt-1 transition-colors"
-                          :class="sortIconClass('trip', 'desc')"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </div>
-                  </th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 sm:px-6">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody v-if="loading">
-                <tr>
-                  <td
-                    :colspan="parentColumnCount"
-                    class="px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
-                  >
-                    Loading...
-                  </td>
-                </tr>
-              </tbody>
-              <tbody v-else-if="rows.length === 0">
-                <tr>
-                  <td
-                    :colspan="parentColumnCount"
-                    class="px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
-                  >
-                    Tidak ada schedule pada rentang ini.
-                  </td>
-                </tr>
-              </tbody>
-              <tbody v-else>
-                <template v-for="row in rows" :key="row.id_sales_cost">
-                  <tr class="border-b border-gray-200 dark:border-gray-700">
-                    <td class="px-4 py-3 sm:px-6">
-                      <button
-                        v-if="row.dnCount > 0"
-                        type="button"
-                        class="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-                        :aria-expanded="expanded[row.id_sales_cost] || false"
-                        @click.stop="toggleExpand(row.id_sales_cost)"
-                      >
-                        <svg
-                          class="h-4 w-4 transition-transform duration-200"
-                          :class="expanded[row.id_sales_cost] ? 'rotate-180' : ''"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.6"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="m5 8 5 5 5-5" />
-                        </svg>
-                      </button>
-                      <span v-else class="inline-flex h-7 w-7 items-center justify-center text-gray-300">
-                        -
-                      </span>
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ formatDateTime(row.departure_datetime) }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.truck.no_police || '-' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.driver.name || '-' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.customer.name || '-' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.route.name || '-' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ formatDate(row.arrival) }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.no_po || '-' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.jenis_pengiriman || '-' }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ row.dnCount }}
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 sm:px-6">
-                      {{ resolveTrip(row) }}
-                    </td>
-                    <td class="px-4 py-3 sm:px-6">
-                      <button
-                        type="button"
-                        class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                        :disabled="isDetailDisabled"
-                        @click="goToDetail(row)"
-                      >
-                        Detail
-                      </button>
-                    </td>
-                  </tr>
-                  <tr v-if="expanded[row.id_sales_cost]">
-                    <td :colspan="parentColumnCount" class="px-5 py-4 sm:px-6">
-                      <div
-                        class="rounded-lg border border-gray-200 bg-emerald-50 p-5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200"
-                      >
-                        <div class="max-w-full overflow-x-auto custom-scrollbar">
-                          <table class="min-w-full">
-                            <thead>
-                              <tr class="border-b border-gray-200 dark:border-gray-700">
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  No. DN
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  Pickup
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  Drop
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  Qty
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  PKG
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  G.W
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  No. Container
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  No. Aju
-                                </th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                                  Remarks
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr
-                                v-for="item in row.dnItems"
-                                :key="item._id"
-                                class="border-b border-gray-200 last:border-b-0 dark:border-gray-700"
-                              >
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.no_dn || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.almt_pickup || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.almt_drop || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.qty || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.pkg || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.gw || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.no_container || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.no_aju || '-' }}
-                                </td>
-                                <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                  {{ item.remarks || '-' }}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
+
+        <!-- Loading -->
+        <div v-if="loading" class="space-y-3">
+          <div v-for="n in 3" :key="n" class="animate-pulse rounded-xl border border-gray-200 p-5 dark:border-gray-700">
+            <div class="mb-3 h-4 w-48 rounded bg-gray-200 dark:bg-gray-700" />
+            <div class="mb-2 h-3 w-80 rounded bg-gray-200 dark:bg-gray-700" />
+            <div class="h-3 w-64 rounded bg-gray-100 dark:bg-gray-800" />
           </div>
         </div>
+
+        <!-- Empty -->
+        <div v-else-if="rows.length === 0" class="flex flex-col items-center gap-2 py-12 text-center">
+          <svg class="h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+          </svg>
+          <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada schedule pada rentang ini.</p>
+        </div>
+
+        <!-- Cards -->
+        <div v-else class="space-y-3">
+          <div
+            v-for="row in rows"
+            :key="row.id_sales_cost"
+            class="group rounded-xl border bg-white transition hover:border-brand-200 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500/40"
+          >
+            <!-- Card Header -->
+            <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-gray-400 dark:text-gray-500">SPK</span>
+                <span class="text-sm font-bold text-gray-800 dark:text-gray-100">{{ row.id_sales_cost }}</span>
+                <span class="mx-1 text-gray-300 dark:text-gray-600">|</span>
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ row.truck.no_police || '-' }}</span>
+                <span v-if="row.truck.jenis_kendaraan" class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {{ row.truck.jenis_kendaraan }}
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <!-- Status badge -->
+                <span
+                  v-if="resolveStatus(row).color === 'success'"
+                  class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-0.5 text-[11px] font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400"
+                >
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                  {{ resolveStatus(row).label }}
+                </span>
+                <span
+                  v-else-if="resolveStatus(row).color === 'error'"
+                  class="inline-flex items-center gap-1 rounded-full bg-error-100 px-2.5 py-0.5 text-[11px] font-semibold text-error-700 dark:bg-error-500/15 dark:text-error-400"
+                >
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                  {{ resolveStatus(row).label }}
+                </span>
+                <span
+                  v-else-if="resolveStatus(row).color === 'warning'"
+                  class="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-semibold text-warning-700 dark:bg-warning-500/15 dark:text-warning-400"
+                >
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                  </svg>
+                  {{ resolveStatus(row).label }}
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  {{ resolveStatus(row).label }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Card Body -->
+            <div class="px-4 py-3">
+              <!-- Meta row: Customer � Driver � Rute -->
+              <div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <span class="flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+                  <span class="font-medium text-gray-600 dark:text-gray-300">{{ row.driver.name || '-' }}</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008z"/></svg>
+                  <span class="text-gray-600 dark:text-gray-300">{{ row.customer.name || '-' }}</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z"/></svg>
+                  <span class="text-gray-600 dark:text-gray-300">{{ row.route.name || '-' }}</span>
+                </span>
+              </div>
+
+              <!-- Mini Timeline: Departure -- Arrival -- Finish -->
+              <div class="relative mb-3">
+                <!-- Progress track -->
+                <div class="flex items-center">
+                  <!-- Departure dot + label -->
+                  <div class="flex flex-col items-center">
+                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 ring-2 ring-brand-100 dark:ring-brand-500/20">
+                      <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" /></svg>
+                    </div>
+                    <span class="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 dark:text-gray-400">Berangkat</span>
+                    <span class="whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500">{{ formatDateTime(row.departure_datetime) }}</span>
+                  </div>
+
+                  <!-- Connector line -->
+                  <div class="mx-2 h-0.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+
+                  <!-- Arrival dot + label -->
+                  <div class="flex flex-col items-center">
+                    <div v-if="row.arrival" class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-900">
+                      <svg class="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+                    </div>
+                    <div v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                      <svg class="h-3 w-3 text-gray-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+                    </div>
+                    <span class="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 dark:text-gray-400">Tiba</span>
+                    <span class="whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500">{{ row.arrival ? formatDateTime(row.arrival) : '-' }}</span>
+                  </div>
+
+                  <!-- Connector line -->
+                  <div class="mx-2 h-0.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+
+                  <!-- Finish dot + label -->
+                  <div class="flex flex-col items-center">
+                    <div v-if="row.finish_order_datetime" class="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 ring-2 ring-success-100 dark:ring-success-500/20">
+                      <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
+                    </div>
+                    <div v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
+                      <svg class="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
+                    </div>
+                    <span class="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 dark:text-gray-400">Selesai</span>
+                    <span class="whitespace-nowrap text-[10px] text-gray-400 dark:text-gray-500">{{ row.finish_order_datetime ? formatDateTime(row.finish_order_datetime) : '-' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Info row: PO, Jenis, Trip -->
+              <div class="mb-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                <span v-if="row.no_po" class="flex items-center gap-1">
+                  <span class="font-medium text-gray-600 dark:text-gray-300">PO:</span> {{ row.no_po }}
+                </span>
+                <span v-if="row.jenis_pengiriman" class="flex items-center gap-1">
+                  <span class="font-medium text-gray-600 dark:text-gray-300">Jenis:</span> {{ row.jenis_pengiriman }}
+                </span>
+                <span v-if="resolveTrip(row)" class="flex items-center gap-1">
+                  <span class="font-medium text-gray-600 dark:text-gray-300">Trip:</span> {{ resolveTrip(row) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Card Footer: DN pills + Action -->
+            <div class="flex items-center justify-between gap-3 rounded-b-xl border-t border-gray-100 bg-gray-50/50 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-800/30">
+              <!-- DN pill chips -->
+              <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                <button
+                  v-if="row.dnCount > 0"
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-600 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                  @click="toggleExpand(row.id_sales_cost)"
+                >
+                  <svg
+                    class="h-3 w-3 transition-transform"
+                    :class="expanded[row.id_sales_cost] ? 'rotate-90' : ''"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                  {{ row.dnCount }} DN
+                </button>
+                <span
+                  v-for="(item, dnIdx) in row.dnItems.slice(0, expanded[row.id_sales_cost] ? row.dnItems.length : 2)"
+                  :key="dnIdx"
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700"
+                >
+                  <span class="max-w-[120px] truncate">{{ item.no_dn || item.almt_pickup?.split(' ').slice(0,2).join(' ') || '-' }}</span>
+                  <svg class="h-2.5 w-2.5 flex-shrink-0 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                  <span class="max-w-[120px] truncate">{{ item.almt_drop?.split(' ').slice(0,2).join(' ') || '-' }}</span>
+                </span>
+                <span v-if="!expanded[row.id_sales_cost] && row.dnCount > 2" class="text-[10px] text-gray-400 dark:text-gray-500">
+                  +{{ row.dnCount - 2 }} lagi
+                </span>
+              </div>
+
+              <!-- Action button -->
+              <div class="flex-shrink-0">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs transition hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-brand-500/10"
+                  :disabled="isDetailDisabled"
+                  @click="goToDetail(row)"
+                >
+                  Detail
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Expanded DN Items (collapsible pills) -->
+            <div v-if="expanded[row.id_sales_cost] && row.dnItems.length > 0" class="border-t border-gray-100 px-4 py-3 dark:border-gray-800">
+              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  v-for="(item, dnIdx) in row.dnItems"
+                  :key="dnIdx"
+                  class="rounded-lg border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-900/50"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-semibold text-gray-700 dark:text-gray-300">{{ item.no_dn || '-' }}</span>
+                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ item.qty || '-' }} {{ item.pkg || '' }}</span>
+                  </div>
+                  <p class="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                    {{ item.almt_pickup || '-' }} ? {{ item.almt_drop || '-' }}
+                  </p>
+                  <div v-if="item.gw || item.no_container" class="mt-1 flex gap-2 text-[10px] text-gray-400 dark:text-gray-500">
+                    <span v-if="item.gw">GW: {{ item.gw }}</span>
+                    <span v-if="item.no_container">Cont: {{ item.no_container }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
         <div
-          class="mt-4 flex items-center justify-between border-t border-gray-200 bg-gray-50 px-5 py-3 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400"
+          class="mt-4 flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800/30"
         >
           <div>
-            Halaman
-            <span class="font-medium text-gray-700 dark:text-gray-200">{{ currentPage }}</span>
-            dari
-            <span class="font-medium text-gray-700 dark:text-gray-200">{{ meta.totalPages }}</span>
+            Halaman <span class="font-medium text-gray-700 dark:text-gray-200">{{ currentPage }}</span>
+            dari <span class="font-medium text-gray-700 dark:text-gray-200">{{ meta.totalPages }}</span>
           </div>
           <div class="flex items-center gap-2">
             <button
@@ -700,11 +360,10 @@
             </button>
           </div>
         </div>
-      </ComponentCard>
+      </div>
     </div>
   </AdminLayout>
 </template>
-
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -732,6 +391,7 @@ type ScheduleRow = {
   id_sales_cost: number
   departure_datetime: string | null
   arrival: string | null
+  finish_order_datetime: string | null
   no_spk: string | number
   no_po: string | null
   jenis_pengiriman: string | null
@@ -926,6 +586,28 @@ const resolveTrip = (row: ScheduleRow) => {
   }
   return row.dnCount
 }
+
+// Status badge: Terlambat / Dalam Perjalanan / Menunggu
+// Note: "Selesai" is intentionally excluded — this page shows upcoming schedules
+const resolveStatus = (row: ScheduleRow): { label: string; color: string } => {
+  const now = new Date()
+  const departure = row.departure_datetime ? new Date(row.departure_datetime) : null
+  const arrival = row.arrival ? new Date(row.arrival) : null
+
+  if (arrival && !isNaN(arrival.getTime()) && arrival < now && (!departure || departure <= now)) {
+    return { label: 'Terlambat', color: 'error' }
+  }
+  if (departure && !isNaN(departure.getTime()) && departure <= now) {
+    return { label: 'Dalam Perjalanan', color: 'warning' }
+  }
+  return { label: 'Menunggu', color: 'gray' }
+}
+
+const filterTitle = computed(() => {
+  const prefix = filters.startDate || filters.search ? 'Filter' : 'Filter Schedule Pengiriman'
+  const suffix = filters.startDate ? ` (${filters.startDate} — ${filters.endDate})` : ''
+  return prefix + suffix
+})
 
 const applyFilter = () => {
   if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
