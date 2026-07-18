@@ -276,7 +276,8 @@ router.get("/", async (req, res) => {
         last_gps: (truck.last_lat && truck.last_lng) ? {
           lat: Number(truck.last_lat),
           lng: Number(truck.last_lng),
-          gps_time: toDateTimeString(truck.last_gps_time)
+          gps_time: toDateTimeString(truck.last_gps_time),
+          address: truck.last_address || null
         } : null
       });
     });

@@ -2,7 +2,8 @@ const db = require("../db");
 const {
   fetchWialonGeofences,
   fetchUnitsInZonesByResource,
-  getUnitPositionMap
+  getUnitPositionMap,
+  reverseGeocodeCoordinates
 } = require("./wialonService");
 
 const DEFAULT_INTERVAL_MS = Number.parseInt(
@@ -343,10 +344,12 @@ const syncGeofenceRouteHistory = async () => {
     for (const [unitId, position] of positionMap.entries()) {
       if (!position?.lat || !position?.lon) continue;
       const gpsTime = toMySqlDateTime(position.gps_time) || toMySqlDateTime(new Date());
+      const geo = await reverseGeocodeCoordinates({ lat: position.lat, lon: position.lon }).catch(() => null);
+      const address = geo?.formatted_address || null;
       gpsUpdates.push(
         db.query(
-          `UPDATE truck SET last_lat = ?, last_lng = ?, last_gps_time = ? WHERE wialon_unit_id = ? AND is_active = 1`,
-          [position.lat, position.lon, gpsTime, unitId]
+          `UPDATE truck SET last_lat = ?, last_lng = ?, last_gps_time = ?, last_address = ? WHERE wialon_unit_id = ? AND is_active = 1`,
+          [position.lat, position.lon, gpsTime, address, unitId]
         )
       );
     }

@@ -715,8 +715,9 @@ const formatDuration = (minutes: number | null | undefined): string => {
   return m > 0 ? `${h} jam ${m} mnt` : `${h} jam`
 }
 
-const formatGps = (gps: { lat: number; lng: number; gps_time?: string | null } | null | undefined): string => {
+const formatGps = (gps: { lat: number; lng: number; gps_time?: string | null; address?: string | null } | null | undefined): string => {
   if (!gps?.lat || !gps?.lng) return '-'
+  if (gps.address) return gps.address
   return `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}`
 }
 
