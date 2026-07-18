@@ -247,7 +247,11 @@ const handleItemClick = async (item) => {
     await markOneRead(item.id)
   }
   closeDropdown()
-  router.push('/sales-cost')
+  if (item.id_sales_cost) {
+    router.push(`/sales-cost/${item.id_sales_cost}`)
+  } else {
+    router.push('/sales-cost')
+  }
 }
 
 const handleMarkAllRead = async () => {
@@ -274,7 +278,7 @@ const formatTimeAgo = (dateValue) => {
   const date = new Date(dateValue)
   const now = new Date()
   const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-  if (diff < 60) return `${diff}d lalu`
+  if (diff < 60) return `${diff} dtk lalu`
   const minutes = Math.floor(diff / 60)
   if (minutes < 60) return `${minutes} mnt lalu`
   const hours = Math.floor(minutes / 60)
@@ -297,13 +301,14 @@ watch(dropdownOpen, (open) => {
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   fetchNotifications()
-  pollerId.value = window.setInterval(fetchNotifications, 30000)
+  pollerId.value = window.setInterval(fetchNotifications, 60_000)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   if (pollerId.value) {
     clearInterval(pollerId.value)
+    pollerId.value = null
   }
 })
 </script>

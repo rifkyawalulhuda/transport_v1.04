@@ -11,12 +11,15 @@ router.get("/", async (req, res) => {
     const unreadOnly = req.query.unread === "true";
     const conditions = ["is_dismissed = 0"];
     if (unreadOnly) conditions.push("is_read = 0");
-    const [rows] = await db.query(
-      `SELECT * FROM delivery_notifications
-       WHERE ${conditions.join(" AND ")}
-       ORDER BY created_at DESC LIMIT 50`
-    );
-    const unreadCount = rows.filter((r) => !r.is_read).length;
+    const [[rows], [[countRow]]] = await Promise.all([
+      db.query(
+        `SELECT * FROM delivery_notifications WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC LIMIT 50`
+      ),
+      db.query(
+        'SELECT COUNT(*) AS cnt FROM delivery_notifications WHERE is_read = 0 AND is_dismissed = 0'
+      )
+    ]);
+    const unreadCount = Number(countRow?.cnt || 0);
     res.json({ notifications: rows, unread_count: unreadCount });
   } catch (err) {
     console.error("deliveryNotifications GET error:", err);
