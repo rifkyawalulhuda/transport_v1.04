@@ -1505,6 +1505,22 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const margin = price - total;
 
+    // Validate date ordering
+    if (departureDatetime && arrivalDatetime) {
+      if (new Date(arrivalDatetime) < new Date(departureDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal tiba tidak boleh lebih awal dari tanggal berangkat."
+        });
+      }
+    }
+    if (arrivalDatetime && finishOrderDatetime) {
+      if (new Date(finishOrderDatetime) < new Date(arrivalDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal selesai order tidak boleh lebih awal dari tanggal tiba."
+        });
+      }
+    }
+
     const truckStatus = await getTruckStatus(idTruck);
     if (!truckStatus) {
       return res.status(400).json({ message: "Truck tidak ditemukan." });
@@ -1835,6 +1851,22 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     const margin = price - total;
 
+    // Validate date ordering
+    if (departureDatetime && arrivalDatetime) {
+      if (new Date(arrivalDatetime) < new Date(departureDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal tiba tidak boleh lebih awal dari tanggal berangkat."
+        });
+      }
+    }
+    if (arrivalDatetime && finishOrderDatetime) {
+      if (new Date(finishOrderDatetime) < new Date(arrivalDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal selesai order tidak boleh lebih awal dari tanggal tiba."
+        });
+      }
+    }
+
     const [currentRows] = await db.query(
       "SELECT id_truck, id_driver FROM sales_cost WHERE id_sales_cost = ?",
       [id]
@@ -1968,6 +2000,30 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const id = req.params.id;
+
+    // Lock check — same rule as PUT: records from past months cannot be deleted
+    const [lockRows] = await db.query(
+      "SELECT departure_datetime FROM sales_cost WHERE id_sales_cost = ?",
+      [id]
+    );
+    if (lockRows.length === 0) {
+      return res.status(404).json({ message: "Sales cost not found" });
+    }
+    const depDatetime = lockRows[0].departure_datetime;
+    if (depDatetime) {
+      const deliveryDate = new Date(depDatetime);
+      if (!Number.isNaN(deliveryDate.getTime())) {
+        const now = new Date();
+        const locked =
+          now.getFullYear() > deliveryDate.getFullYear() ||
+          (now.getFullYear() === deliveryDate.getFullYear() &&
+           now.getMonth() > deliveryDate.getMonth());
+        if (locked) {
+          return res.status(403).json({ message: "Data terkunci. Tidak bisa dihapus." });
+        }
+      }
+    }
+
     const [result] = await db.query(
       "DELETE FROM sales_cost WHERE id_sales_cost = ?",
       [id]

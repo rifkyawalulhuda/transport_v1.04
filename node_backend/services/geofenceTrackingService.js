@@ -341,21 +341,24 @@ const syncGeofenceRouteHistory = async () => {
   const membershipByResource = new Map(membershipResults);
   const positionMap = await getUnitPositionMap(unitIds);
 
-  // Persist GPS cache to truck table
+  // Persist GPS cache to truck table — 2-phase: coordinates first, geocoding second (parallel)
   if (positionMap.size > 0) {
+    // Phase 1: update coordinates in parallel (no geocoding)
     const gpsUpdates = [];
+    const geocodeTargets = [];
+
     for (const [unitId, position] of positionMap.entries()) {
       if (position?.lat == null || position?.lon == null) continue;
       const gpsTime = toMySqlDateTime(position.gps_time) || toMySqlDateTime(new Date());
-      const geo = await reverseGeocodeCoordinates({ lat: position.lat, lon: position.lon }).catch(() => null);
-      const address = geo?.formatted_address || null;
+      geocodeTargets.push({ unitId, lat: position.lat, lon: position.lon });
       gpsUpdates.push(
         db.query(
-          `UPDATE truck SET last_lat = ?, last_lng = ?, last_gps_time = ?, last_address = ? WHERE wialon_unit_id = ? AND is_active = 1`,
-          [position.lat, position.lon, gpsTime, address, unitId]
+          `UPDATE truck SET last_lat = ?, last_lng = ?, last_gps_time = ? WHERE wialon_unit_id = ? AND is_active = 1`,
+          [position.lat, position.lon, gpsTime, unitId]
         )
       );
     }
+
     if (gpsUpdates.length > 0) {
       const results = await Promise.allSettled(gpsUpdates);
       const failed = results.filter(r => r.status === 'rejected').length;
@@ -364,6 +367,25 @@ const syncGeofenceRouteHistory = async () => {
       } else {
         console.log(`[geofence-tracking] updated GPS cache for ${gpsUpdates.length} unit(s)`);
       }
+    }
+
+    // Phase 2: geocode in parallel, fire-and-forget (does not block main sync cycle)
+    if (geocodeTargets.length > 0) {
+      const geocodeJobs = geocodeTargets.map(async ({ unitId, lat, lon }) => {
+        try {
+          const geo = await reverseGeocodeCoordinates({ lat, lon }).catch(() => null);
+          const address = geo?.formatted_address || null;
+          if (address) {
+            await db.query(
+              `UPDATE truck SET last_address = ? WHERE wialon_unit_id = ? AND is_active = 1`,
+              [address, unitId]
+            );
+          }
+        } catch {
+          // fail silently per unit
+        }
+      });
+      void Promise.allSettled(geocodeJobs);
     }
   }
 

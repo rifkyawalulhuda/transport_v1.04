@@ -163,6 +163,27 @@ const createRepair = async (payload = {}) => {
     throw error;
   }
 
+  // Guard: block if truck is currently on_trip
+  if (payload.id_truck) {
+    const [onTripRows] = await db.query(
+      `SELECT sc.id_sales_cost FROM sales_cost sc
+       WHERE sc.id_truck = ?
+         AND sc.finish_order_datetime IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM sales_cost_route_history scrh
+           WHERE scrh.id_sales_cost = sc.id_sales_cost
+             AND scrh.step_key = 'system:finish_order'
+         )
+       LIMIT 1`,
+      [payload.id_truck]
+    );
+    if (onTripRows.length > 0) {
+      const error = new Error("Kendaraan sedang dalam perjalanan. Tidak bisa membuat repair.");
+      error.status = 409;
+      throw error;
+    }
+  }
+
   if (statusRepair === "SELESAI") {
     if (!tglSelesaiValue) {
       const error = new Error("Tanggal selesai wajib diisi");
@@ -229,6 +250,12 @@ const updateRepair = async (id, payload = {}) => {
       throw error;
     }
     statusRepair = normalized;
+    // One-way state machine: SELESAI cannot revert to PROSES
+    if (existing.status_repair === 'SELESAI' && statusRepair === 'PROSES') {
+      const error = new Error("Status repair SELESAI tidak bisa dikembalikan ke PROSES.");
+      error.status = 400;
+      throw error;
+    }
   }
 
   const tglProsesValue = normalizeDateOnly(payload.tgl_proses);

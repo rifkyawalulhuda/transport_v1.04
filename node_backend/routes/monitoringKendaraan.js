@@ -138,7 +138,7 @@ router.get("/", async (req, res) => {
         truck.type_truck,
         truck.jenis_kendaraan
       FROM repair
-      LEFT JOIN truck ON repair.id_truck = truck.id_truck
+      INNER JOIN truck ON repair.id_truck = truck.id_truck AND truck.is_active = 1
       WHERE ${repairConditions.join(" AND ")}
       ORDER BY repair.tgl_input DESC, repair.id_repair DESC
     `;
