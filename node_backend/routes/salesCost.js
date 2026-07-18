@@ -1334,6 +1334,8 @@ router.get("/:id", async (req, res) => {
           id_sales_cost,
           id_area,
           id_area_route_step,
+          id_sc_stop,
+          is_manual,
           step_key,
           system_step_code,
           id_truck,
@@ -1400,12 +1402,17 @@ router.get("/:id", async (req, res) => {
           row.id_area_route_step === null || row.id_area_route_step === undefined
             ? null
             : Number(row.id_area_route_step),
+        id_sc_stop:
+          row.id_sc_stop === null || row.id_sc_stop === undefined
+            ? null
+            : Number(row.id_sc_stop),
         step_key:
           row.step_key ||
           (row.id_area_route_step === null || row.id_area_route_step === undefined
             ? "system:finish_order"
             : `route:${Number(row.id_area_route_step)}`),
         system_step_code: row.system_step_code || null,
+        is_manual: Number(row.is_manual) === 1,
         id_truck: Number(row.id_truck),
         step_order: Number(row.step_order_snapshot),
         step_name: row.step_name_snapshot || "",
@@ -1597,6 +1604,143 @@ router.post("/", authenticateToken, async (req, res) => {
       id: result.insertId,
       data: rows[0]
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.post("/:id/check-in", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const idSalesCost = Number(req.params.id);
+    const body = req.body || {};
+    const idScStop = Number.parseInt(String(body.id_sc_stop || ""), 10);
+    const arrivedAt = body.arrived_at;
+
+    if (!Number.isInteger(idScStop) || idScStop <= 0) {
+      return res.status(400).json({ message: "Stop pengiriman tidak valid." });
+    }
+    if (!arrivedAt) {
+      return res.status(400).json({ message: "Waktu tiba wajib diisi." });
+    }
+    if (!isValidIsoDateTime(arrivedAt)) {
+      return res.status(400).json({ message: "Format waktu tiba harus YYYY-MM-DD HH:MM." });
+    }
+
+    const [stopRows] = await db.query(
+      `SELECT
+         sc.id_area,
+         sc.id_truck,
+         stop.id,
+         stop.stop_order,
+         stop.stop_name,
+         stop.wialon_resource_id,
+         stop.wialon_zone_id,
+         stop.wialon_zone_name,
+         stop.is_departure
+       FROM sales_cost_step_schedule stop
+       INNER JOIN sales_cost sc ON sc.id_sales_cost = stop.id_sales_cost
+       WHERE stop.id = ? AND stop.id_sales_cost = ?
+       LIMIT 1`,
+      [idScStop, idSalesCost]
+    );
+
+    if (stopRows.length === 0) {
+      return res.status(404).json({ message: "Stop pengiriman tidak ditemukan." });
+    }
+
+    const stop = stopRows[0];
+
+    if (Number(stop.is_departure) === 1) {
+      return res.status(400).json({ message: "Stop keberangkatan tidak bisa ditandai tiba manual." });
+    }
+
+    const [existingHistoryRows] = await db.query(
+      "SELECT 1 FROM sales_cost_route_history WHERE id_sc_stop = ? LIMIT 1",
+      [idScStop]
+    );
+
+    if (existingHistoryRows.length > 0) {
+      return res.status(400).json({ message: "Stop ini sudah ditandai tiba sebelumnya." });
+    }
+
+    const arrivedAtDate = new Date(String(arrivedAt).replace("T", " "));
+    if (arrivedAtDate.getTime() > Date.now()) {
+      return res.status(400).json({ message: "Waktu tiba tidak boleh lebih dari waktu sekarang." });
+    }
+
+    const [previousStopRows] = await db.query(
+      `SELECT id, stop_order
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost = ? AND stop_order < ?
+       ORDER BY stop_order DESC
+       LIMIT 1`,
+      [idSalesCost, Number(stop.stop_order)]
+    );
+
+    if (previousStopRows.length > 0) {
+      const previousStop = previousStopRows[0];
+      const [previousHistoryRows] = await db.query(
+        `SELECT gps_time
+         FROM sales_cost_route_history
+         WHERE id_sc_stop = ? AND gps_time IS NOT NULL
+         ORDER BY gps_time DESC, id_sales_cost_route_history DESC
+         LIMIT 1`,
+        [previousStop.id]
+      );
+
+      if (previousHistoryRows.length > 0 && previousHistoryRows[0].gps_time) {
+        const previousGpsTime = new Date(previousHistoryRows[0].gps_time);
+        if (arrivedAtDate.getTime() < previousGpsTime.getTime()) {
+          return res.status(400).json({ message: "Waktu tiba tidak boleh kurang dari stop sebelumnya." });
+        }
+      }
+    }
+
+    await db.query(
+      `INSERT INTO sales_cost_route_history
+        (
+          id_sales_cost,
+          id_area,
+          id_sc_stop,
+          step_key,
+          system_step_code,
+          id_truck,
+          step_order_snapshot,
+          step_name_snapshot,
+          wialon_resource_id,
+          wialon_zone_id,
+          wialon_zone_name,
+          gps_time,
+          is_manual,
+          lat,
+          lon
+        )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        idSalesCost,
+        Number(stop.id_area),
+        Number(stop.id),
+        `stop:${Number(stop.id)}`,
+        null,
+        Number(stop.id_truck),
+        Number(stop.stop_order),
+        stop.stop_name || "",
+        stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+        stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+        stop.wialon_zone_name || null,
+        arrivedAt,
+        1,
+        null,
+        null
+      ]
+    );
+
+    res.json({ message: "Check-in manual berhasil disimpan." });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });

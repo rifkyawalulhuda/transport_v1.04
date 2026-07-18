@@ -135,15 +135,19 @@
                   <!-- Node dot -->
                   <div
                     class="absolute -left-10 top-2 z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ring-4"
-                    :class="stop.hit
-                      ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
-                      : stop.overdue
-                        ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
-                        : stop.is_departure
-                          ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
-                          : stop.is_finish
-                            ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
-                            : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
+                    :class="stop.incomplete_finish
+                      ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                      : stop.hit
+                        ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
+                        : stop.inferred_passed
+                          ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
+                          : stop.overdue
+                            ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                            : stop.is_departure
+                              ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
+                              : stop.is_finish
+                                ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
+                                : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
                   >
                     <!-- Departure icon -->
                     <svg v-if="stop.is_departure" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -153,9 +157,17 @@
                     <svg v-else-if="stop.is_finish" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
                     </svg>
+                    <!-- Incomplete finish warning -->
+                    <svg v-else-if="stop.incomplete_finish" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
                     <!-- Hit checkmark -->
                     <svg v-else-if="stop.hit" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <!-- Inferred departure passed -->
+                    <svg v-else-if="stop.inferred_passed" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
                     </svg>
                     <!-- Overdue warning -->
                     <svg v-else-if="stop.overdue" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -168,15 +180,19 @@
                   <!-- Card -->
                   <div
                     class="rounded-xl border p-4 transition-all"
-                    :class="stop.hit
-                      ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
-                      : stop.overdue
-                        ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
-                        : stop.is_departure
-                          ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
-                          : stop.is_finish
-                            ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
-                            : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                    :class="stop.incomplete_finish
+                      ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                      : stop.hit
+                        ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
+                        : stop.inferred_passed
+                          ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
+                          : stop.overdue
+                            ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                            : stop.is_departure
+                              ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
+                              : stop.is_finish
+                                ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
+                                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
                   >
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0 flex-1">
@@ -214,21 +230,39 @@
                             </svg>
                             <span>Est: <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatDateTime(stop.estimated_arrival) }}</span></span>
                           </div>
-                          <div v-if="stop.actual_arrival" class="flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
+                          <div v-if="stop.actual_arrival" class="flex flex-wrap items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
                             <svg class="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
                             </svg>
                             <span class="font-medium">Tiba: {{ formatDateTime(stop.actual_arrival) }}</span>
+                            <span
+                              class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                              :class="stop.is_manual
+                                ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                                : 'bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-300'"
+                            >
+                              {{ stop.is_manual ? 'Manual' : 'GPS' }}
+                            </span>
                           </div>
                           <p v-if="!stop.estimated_arrival && !stop.actual_arrival" class="text-xs italic text-gray-400 dark:text-gray-500">Tidak ada estimasi waktu</p>
+                          <p v-if="stop.incomplete_finish" class="mt-1 text-xs text-warning-700 dark:text-warning-400">Masih ada tujuan yang belum dikunjungi.</p>
+                          <p v-else-if="stop.inferred_passed" class="mt-1 text-xs text-success-700 dark:text-success-400">Keberangkatan dianggap sudah terlampaui karena tujuan berikutnya sudah visited.</p>
                         </div>
                       </div>
 
                       <!-- Status badge -->
-                      <div class="flex-shrink-0">
-                        <span v-if="stop.hit" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                      <div class="flex flex-shrink-0 flex-col items-end gap-2">
+                        <span v-if="stop.incomplete_finish" class="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2.5 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                          Belum Lengkap
+                        </span>
+                        <span v-else-if="stop.hit" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                           Sudah Tiba
+                        </span>
+                        <span v-else-if="stop.inferred_passed" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg>
+                          Terlampaui
                         </span>
                         <span v-else-if="stop.overdue" class="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2.5 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
@@ -238,6 +272,14 @@
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                           Menunggu
                         </span>
+                        <button
+                          v-if="!stop.hit && !stop.is_departure"
+                          type="button"
+                          class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                          @click="openCheckIn(stop)"
+                        >
+                          Tandai Tiba
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -431,6 +473,63 @@
         </div>
       </ComponentCard>
     </div>
+
+    <div
+      v-if="checkInModal.open"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 py-6"
+      @click.self="closeCheckIn"
+    >
+      <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <div class="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            Tandai Tiba - {{ checkInModal.stop?.stop_name }}
+          </h3>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              {{ resolveCheckInStopLabel(checkInModal.stop) }}
+            </span>
+            <span v-if="checkInModal.stop?.estimated_arrival">
+              Estimasi: {{ formatDateTime(checkInModal.stop?.estimated_arrival) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-4 px-5 py-4">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Waktu Tiba
+            </label>
+            <DatePickerInput
+              v-model="checkInModal.arrivedAt"
+              :enable-time="true"
+              placeholder="Pilih waktu tiba"
+            />
+            <p v-if="checkInModal.error" class="mt-2 text-sm text-error-600 dark:text-error-400">
+              {{ checkInModal.error }}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            :disabled="checkInModal.loading"
+            @click="closeCheckIn"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="checkInModal.loading"
+            @click="submitCheckIn"
+          >
+            {{ checkInModal.loading ? 'Menyimpan...' : 'Simpan Waktu Tiba' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </AdminLayout>
 </template>
 
@@ -440,6 +539,7 @@ import { useRoute } from 'vue-router'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
+import DatePickerInput from '@/components/DatePickerInput.vue'
 import { salesCostService } from '@/services/salesCostService'
 
 type DetailData = {
@@ -531,6 +631,7 @@ type RouteHistoryItem = {
   recorded_at: string | null
   lat: number | null
   lon: number | null
+  is_manual?: boolean | null
 }
 
 type DnItem = {
@@ -547,12 +648,26 @@ type DnItem = {
 
 const currentPageTitle = ref('Detail Sales Cost')
 const route = useRoute()
+const apiBase = `${import.meta.env.VITE_API_URL || window.location.origin}/api`
 const loading = ref(true)
 const dnLoading = ref(false)
 const formError = ref('')
 const dnItems = ref<DnItem[]>([])
 const currentPage = ref(1)
 const itemsPerPage = 5
+const checkInModal = ref({
+  open: false,
+  stop: null as null | {
+    id: number
+    stop_name: string
+    stop_order: number
+    estimated_arrival: string | null
+    is_finish: number
+  },
+  arrivedAt: '',
+  loading: false,
+  error: ''
+})
 
 const detail = ref<DetailData>({
   id_sales_cost: null,
@@ -727,7 +842,7 @@ const deliveryStopsWithHistory = computed(() => {
 
   const now = new Date()
 
-  return detail.value.delivery_stops.map(s => {
+  const baseStops = detail.value.delivery_stops.map(s => {
     const hit = historyByStopId.has(s.id)
     const historyEntry = historyByStopId.get(s.id)
     const overdue = !hit && !!s.estimated_arrival && new Date(s.estimated_arrival) < now
@@ -735,10 +850,129 @@ const deliveryStopsWithHistory = computed(() => {
       ...s,
       hit,
       overdue,
-      actual_arrival: hit ? historyEntry?.gps_time : null
+      actual_arrival: hit ? historyEntry?.gps_time : null,
+      is_manual: historyEntry?.is_manual === true,
+      inferred_passed: false,
+      incomplete_finish: false
     }
   })
+
+  const hasAnyVisitedAfterDeparture = baseStops.some(stop => !stop.is_departure && stop.hit)
+  const missingMiddleStops = baseStops.filter(stop => !stop.is_departure && !stop.is_finish && !stop.hit)
+
+  return baseStops.map(stop => {
+    if (stop.is_departure && !stop.hit && hasAnyVisitedAfterDeparture) {
+      return {
+        ...stop,
+        inferred_passed: true
+      }
+    }
+
+    if (stop.is_finish && stop.hit && missingMiddleStops.length > 0) {
+      return {
+        ...stop,
+        incomplete_finish: true
+      }
+    }
+
+    return stop
+  })
 })
+
+const parseDateTimeValue = (value?: string | null) => {
+  if (!value) {
+    return null
+  }
+
+  const normalized = String(value)
+    .trim()
+    .replace('T', ' ')
+    .replace(/Z$/, '')
+    .replace(/[+-]\d{2}:\d{2}$/, '')
+    .slice(0, 16)
+
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const hour = Number(match[4])
+  const minute = Number(match[5])
+  const parsed = new Date(year, month - 1, day, hour, minute)
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day ||
+    parsed.getHours() !== hour ||
+    parsed.getMinutes() !== minute
+  ) {
+    return null
+  }
+
+  return parsed
+}
+
+const resolveCheckInStopLabel = (
+  stop?: {
+    stop_order: number
+    is_finish: number
+  } | null
+) => {
+  if (!stop) {
+    return '-'
+  }
+
+  return stop.is_finish ? 'Finish' : `Tujuan ${stop.stop_order}`
+}
+
+const validateCheckIn = (arrivedAt: string, stop: typeof checkInModal.value.stop) => {
+  if (!arrivedAt) {
+    return 'Waktu tiba wajib diisi.'
+  }
+
+  const arrivedAtDate = parseDateTimeValue(arrivedAt)
+  if (!arrivedAtDate) {
+    return 'Format waktu tiba tidak valid.'
+  }
+
+  if (arrivedAtDate.getTime() > Date.now()) {
+    return 'Waktu tiba tidak boleh di masa depan.'
+  }
+
+  if (!stop) {
+    return ''
+  }
+
+  const previousStop = [...deliveryStopsWithHistory.value]
+    .filter(item => item.stop_order < stop.stop_order)
+    .sort((a, b) => b.stop_order - a.stop_order)[0]
+
+  if (!previousStop) {
+    return ''
+  }
+
+  const previousComparisonValue = previousStop.actual_arrival || previousStop.estimated_arrival
+  if (!previousComparisonValue) {
+    return ''
+  }
+
+  const previousDate = parseDateTimeValue(previousComparisonValue)
+  if (!previousDate) {
+    return ''
+  }
+
+  if (arrivedAtDate.getTime() < previousDate.getTime()) {
+    const stopLabel = resolveCheckInStopLabel(stop)
+    const prevLabel = previousStop.is_departure ? 'Departure' : `Tujuan ${previousStop.stop_order}`
+    return `Waktu ${stopLabel} tidak boleh kurang dari ${prevLabel}.`
+  }
+
+  return ''
+}
 
 const totalPages = computed(() => Math.ceil(dnItems.value.length / itemsPerPage))
 
@@ -747,6 +981,99 @@ const paginatedDnItems = computed(() => {
   const end = start + itemsPerPage
   return dnItems.value.slice(start, end)
 })
+
+const closeCheckIn = () => {
+  checkInModal.value = {
+    open: false,
+    stop: null,
+    arrivedAt: '',
+    loading: false,
+    error: ''
+  }
+}
+
+const openCheckIn = (stop: {
+  id: number
+  stop_name: string
+  stop_order: number
+  estimated_arrival: string | null
+  is_finish: number
+}) => {
+  checkInModal.value.open = true
+  checkInModal.value.stop = {
+    id: stop.id,
+    stop_name: stop.stop_name,
+    stop_order: stop.stop_order,
+    estimated_arrival: stop.estimated_arrival,
+    is_finish: stop.is_finish
+  }
+  checkInModal.value.arrivedAt = stop.estimated_arrival || ''
+  checkInModal.value.loading = false
+  checkInModal.value.error = ''
+}
+
+const submitCheckIn = async () => {
+  const selectedStop = checkInModal.value.stop
+  if (!selectedStop) {
+    return
+  }
+
+  const validationError = validateCheckIn(checkInModal.value.arrivedAt, selectedStop)
+  if (validationError) {
+    checkInModal.value.error = validationError
+    return
+  }
+
+  const idParam = resolveIdParam()
+  if (!idParam) {
+    checkInModal.value.error = 'ID transaksi tidak ditemukan.'
+    return
+  }
+
+  checkInModal.value.loading = true
+  checkInModal.value.error = ''
+
+  try {
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+    const response = await fetch(`${apiBase}/sales-costs/${idParam}/check-in`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        id_sc_stop: selectedStop.id,
+        arrived_at: checkInModal.value.arrivedAt
+      })
+    })
+
+    if (!response.ok) {
+      const raw = await response.text()
+      let message = raw || 'Gagal menyimpan waktu tiba.'
+
+      try {
+        const parsed = raw ? JSON.parse(raw) : null
+        if (parsed?.message) {
+          message = parsed.message
+        }
+      } catch {
+        // Keep non-JSON response text as-is.
+      }
+
+      checkInModal.value.error = message
+      return
+    }
+
+    closeCheckIn()
+    await loadDetail()
+  } catch (error: unknown) {
+    checkInModal.value.error = error instanceof Error ? error.message : 'Gagal menyimpan waktu tiba.'
+  } finally {
+    if (checkInModal.value.open) {
+      checkInModal.value.loading = false
+    }
+  }
+}
 
 const loadDetail = async () => {
   const idParam = resolveIdParam()
