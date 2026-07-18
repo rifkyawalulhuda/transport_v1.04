@@ -35,6 +35,48 @@ const parsePositiveInt = (value, fallback) => {
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishHit, visitedStops, totalStops }) => {
+  const now = new Date();
+  const departure = departureDatetime ? new Date(departureDatetime) : null;
+  const arrival = arrivalDatetime ? new Date(arrivalDatetime) : null;
+
+  const completed = finishHit && visitedStops >= totalStops && totalStops > 0;
+  const incompleteFinish = finishHit && visitedStops < totalStops;
+
+  if (completed) {
+    return {
+      schedule_status: "completed",
+      has_incomplete_finish: false
+    };
+  }
+
+  if (incompleteFinish) {
+    return {
+      schedule_status: "incomplete_finish",
+      has_incomplete_finish: true
+    };
+  }
+
+  if (arrival && !Number.isNaN(arrival.getTime()) && arrival < now) {
+    return {
+      schedule_status: "overdue",
+      has_incomplete_finish: false
+    };
+  }
+
+  if (departure && !Number.isNaN(departure.getTime()) && departure <= now) {
+    return {
+      schedule_status: "on_trip",
+      has_incomplete_finish: false
+    };
+  }
+
+  return {
+    schedule_status: "waiting",
+    has_incomplete_finish: false
+  };
+};
+
 const resolveDateRange = (startParam, endParam) => {
   const today = new Date();
   const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -207,6 +249,54 @@ router.get("/", authenticateToken, async (req, res) => {
       dnMap.set(Number(doc.salesCostId), items);
     });
 
+    const stopSummaryMap = new Map();
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      const [stopRows] = await db.query(
+        `
+          SELECT
+            id_sales_cost,
+            SUM(CASE WHEN is_departure = 0 AND is_finish = 0 THEN 1 ELSE 0 END) AS total_stops,
+            SUM(CASE WHEN is_finish = 1 THEN 1 ELSE 0 END) AS finish_defined
+          FROM sales_cost_step_schedule
+          WHERE id_sales_cost IN (${placeholders})
+          GROUP BY id_sales_cost
+        `,
+        ids
+      );
+
+      stopRows.forEach((row) => {
+        stopSummaryMap.set(Number(row.id_sales_cost), {
+          total_stops: Number(row.total_stops || 0),
+          finish_defined: Number(row.finish_defined || 0) > 0
+        });
+      });
+    }
+
+    const historySummaryMap = new Map();
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      const [historyRows] = await db.query(
+        `
+          SELECT
+            id_sales_cost,
+            SUM(CASE WHEN id_sc_stop IS NOT NULL THEN 1 ELSE 0 END) AS visited_stops,
+            SUM(CASE WHEN step_key = 'system:finish_order' THEN 1 ELSE 0 END) AS finish_hit
+          FROM sales_cost_route_history
+          WHERE id_sales_cost IN (${placeholders})
+          GROUP BY id_sales_cost
+        `,
+        ids
+      );
+
+      historyRows.forEach((row) => {
+        historySummaryMap.set(Number(row.id_sales_cost), {
+          visited_stops: Number(row.visited_stops || 0),
+          finish_hit: Number(row.finish_hit || 0) > 0
+        });
+      });
+    }
+
     const responseRows = rows.map((row) => {
       const salesCostId = Number(row.id_sales_cost);
       const dnItemsRaw = dnMap.get(salesCostId) || [];
@@ -222,6 +312,24 @@ router.get("/", authenticateToken, async (req, res) => {
         no_aju: item?.no_aju ?? null,
         remarks: item?.remarks ?? null
       }));
+
+      const stopSummary = stopSummaryMap.get(salesCostId) || {
+        total_stops: 0,
+        finish_defined: false
+      };
+
+      const historySummary = historySummaryMap.get(salesCostId) || {
+        visited_stops: 0,
+        finish_hit: false
+      };
+
+      const statusSummary = resolveScheduleStatus({
+        departureDatetime: row.departure_datetime,
+        arrivalDatetime: row.arrival_datetime,
+        finishHit: historySummary.finish_hit,
+        visitedStops: historySummary.visited_stops,
+        totalStops: stopSummary.total_stops
+      });
 
       return {
         id_sales_cost: salesCostId,
@@ -251,7 +359,13 @@ router.get("/", authenticateToken, async (req, res) => {
         },
         dnCount: dnItems.length,
         dnItems,
-        detailUrl: `/sales-cost/${salesCostId}`
+        detailUrl: `/sales-cost/${salesCostId}`,
+
+        schedule_status: statusSummary.schedule_status,
+        visited_stops: historySummary.visited_stops,
+        total_stops: stopSummary.total_stops,
+        finish_hit: historySummary.finish_hit,
+        has_incomplete_finish: statusSummary.has_incomplete_finish
       };
     });
 

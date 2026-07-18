@@ -214,8 +214,11 @@
 
                   <!-- Finish dot + label -->
                   <div class="flex flex-col items-center">
-                    <div v-if="row.finish_order_datetime" class="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 ring-2 ring-success-100 dark:ring-success-500/20">
+                    <div v-if="row.schedule_status === 'completed'" class="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 ring-2 ring-success-100 dark:ring-success-500/20">
                       <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
+                    </div>
+                    <div v-else-if="row.schedule_status === 'incomplete_finish'" class="flex h-7 w-7 items-center justify-center rounded-full bg-warning-500 ring-2 ring-warning-100 dark:ring-warning-500/20">
+                      <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
                     </div>
                     <div v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
                       <svg class="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" /></svg>
@@ -225,6 +228,35 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Geofence progress summary -->
+              <div class="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  {{ resolveProgressLabel(row) }}
+                </span>
+                <span
+                  v-if="row.finish_hit"
+                  class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  Finish tercapai
+                </span>
+              </div>
+
+              <p
+                v-if="resolveScheduleHint(row)"
+                class="mb-2 text-xs"
+                :class="
+                  row.has_incomplete_finish
+                    ? 'text-warning-700 dark:text-warning-400'
+                    : row.schedule_status === 'completed'
+                      ? 'text-success-700 dark:text-success-400'
+                      : row.schedule_status === 'overdue'
+                        ? 'text-error-700 dark:text-error-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                "
+              >
+                {{ resolveScheduleHint(row) }}
+              </p>
 
               <!-- Info row: PO, Jenis, Trip -->
               <div class="mb-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
@@ -403,6 +435,12 @@ type ScheduleRow = {
   dnCount: number
   dnItems: DnItem[]
   detailUrl: string
+
+  schedule_status: 'waiting' | 'on_trip' | 'overdue' | 'incomplete_finish' | 'completed'
+  visited_stops: number
+  total_stops: number
+  finish_hit: boolean
+  has_incomplete_finish: boolean
 }
 
 type SortKey =
@@ -587,20 +625,39 @@ const resolveTrip = (row: ScheduleRow) => {
   return row.dnCount
 }
 
-// Status badge: Terlambat / Dalam Perjalanan / Menunggu
-// Note: "Selesai" is intentionally excluded — this page shows upcoming schedules
 const resolveStatus = (row: ScheduleRow): { label: string; color: string } => {
-  const now = new Date()
-  const departure = row.departure_datetime ? new Date(row.departure_datetime) : null
-  const arrival = row.arrival ? new Date(row.arrival) : null
+  switch (row.schedule_status) {
+    case 'completed':
+      return { label: 'Selesai', color: 'success' }
+    case 'incomplete_finish':
+      return { label: 'Belum Lengkap', color: 'warning' }
+    case 'overdue':
+      return { label: 'Terlambat', color: 'error' }
+    case 'on_trip':
+      return { label: 'Dalam Perjalanan', color: 'warning' }
+    default:
+      return { label: 'Menunggu', color: 'gray' }
+  }
+}
 
-  if (arrival && !isNaN(arrival.getTime()) && arrival < now && (!departure || departure <= now)) {
-    return { label: 'Terlambat', color: 'error' }
+const resolveProgressLabel = (row: ScheduleRow) => {
+  if (!row.total_stops) {
+    return 'Belum ada tujuan terdaftar'
   }
-  if (departure && !isNaN(departure.getTime()) && departure <= now) {
-    return { label: 'Dalam Perjalanan', color: 'warning' }
+  return `${row.visited_stops} / ${row.total_stops} tujuan tercapai`
+}
+
+const resolveScheduleHint = (row: ScheduleRow) => {
+  if (row.has_incomplete_finish) {
+    return 'Finish sudah tercapai, tapi masih ada tujuan yang belum lengkap.'
   }
-  return { label: 'Menunggu', color: 'gray' }
+  if (row.schedule_status === 'completed') {
+    return 'Semua tujuan sudah tercapai.'
+  }
+  if (row.schedule_status === 'overdue') {
+    return 'Estimasi arrival sudah lewat.'
+  }
+  return ''
 }
 
 const filterTitle = computed(() => {
