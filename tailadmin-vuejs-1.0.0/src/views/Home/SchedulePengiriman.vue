@@ -78,8 +78,8 @@
               <span class="font-semibold text-gray-700 dark:text-gray-200">{{ meta.totalItems }}</span> transaksi ditemukan
             </p>
             <p v-if="filters.startDate || filters.search" class="text-xs text-gray-400 dark:text-gray-500">
-              {{ filters.startDate }} � {{ filters.endDate }}
-              <span v-if="filters.search"> � cari: "{{ filters.search }}"</span>
+              {{ filters.startDate }} &mdash; {{ filters.endDate }}
+              <span v-if="filters.search"> &bull; cari: "{{ filters.search }}"</span>
             </p>
           </div>
           <div class="flex items-center gap-2">
