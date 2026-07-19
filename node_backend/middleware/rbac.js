@@ -28,26 +28,30 @@ const restrictCsAccess = (req, res, next) => {
     return next();
   }
 
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    console.error("JWT_SECRET belum dikonfigurasi");
-    return res.status(500).json({ message: "JWT secret belum dikonfigurasi" });
+  // Use req.user if already decoded by authenticateToken, otherwise decode ourselves
+  let payload = req.user || null;
+  if (!payload) {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error("JWT_SECRET belum dikonfigurasi");
+      return res.status(500).json({ message: "JWT secret belum dikonfigurasi" });
+    }
+    try {
+      payload = jwt.verify(token, secret);
+    } catch (error) {
+      return res.status(401).json({ message: "Token tidak valid" });
+    }
   }
 
-  try {
-    const payload = jwt.verify(token, secret);
-    if (payload?.level !== "cs") {
-      return next();
-    }
-
-    if (isAllowedForCs(req)) {
-      return next();
-    }
-
-    return res.status(403).json({ message: "Forbidden" });
-  } catch (error) {
-    return res.status(401).json({ message: "Token tidak valid" });
+  if (payload?.level !== "cs") {
+    return next();
   }
+
+  if (isAllowedForCs(req)) {
+    return next();
+  }
+
+  return res.status(403).json({ message: "Forbidden" });
 };
 
 const isAllowedForPatcher = (req) => {
@@ -75,26 +79,30 @@ const restrictPatcherAccess = (req, res, next) => {
     return next();
   }
 
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    console.error("JWT_SECRET belum dikonfigurasi");
-    return res.status(500).json({ message: "JWT secret belum dikonfigurasi" });
+  // Use req.user if already decoded by authenticateToken, otherwise decode ourselves
+  let payload = req.user || null;
+  if (!payload) {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error("JWT_SECRET belum dikonfigurasi");
+      return res.status(500).json({ message: "JWT secret belum dikonfigurasi" });
+    }
+    try {
+      payload = jwt.verify(token, secret);
+    } catch (error) {
+      return res.status(401).json({ message: "Token tidak valid" });
+    }
   }
 
-  try {
-    const payload = jwt.verify(token, secret);
-    if (payload?.level !== "patcher") {
-      return next();
-    }
-
-    if (isAllowedForPatcher(req)) {
-      return next();
-    }
-
-    return res.status(403).json({ message: "Forbidden" });
-  } catch (error) {
-    return res.status(401).json({ message: "Token tidak valid" });
+  if (payload?.level !== "patcher") {
+    return next();
   }
+
+  if (isAllowedForPatcher(req)) {
+    return next();
+  }
+
+  return res.status(403).json({ message: "Forbidden" });
 };
 
 module.exports = {

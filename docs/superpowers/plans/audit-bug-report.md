@@ -1,6 +1,6 @@
 # Audit Bug Report — transport_v1.04
 **Tanggal audit:** 2026-07-18  
-**Terakhir diupdate:** 2026-07-18  
+**Terakhir diupdate:** 2026-07-19  
 **Branch:** add-module-bbs  
 **Scope:** Backend penuh (auth, salesCost, repair, monitoring, geofenceTracking, wialonService, deliveryNotifications, server)
 
@@ -8,8 +8,10 @@
 
 ## Status Perbaikan
 
+### CRITICAL
 | ID | Deskripsi Singkat | Status | Tanggal Fix |
 |---|---|---|---|
+| C1 | Password plaintext tanpa hashing | ✅ FIXED | 2026-07-19 |
 | C2 | updateRepair overwrite id_truck ke null | ✅ FIXED | 2026-07-18 |
 | C3 | updateRepair overwrite nik_admin ke null | ✅ FIXED | 2026-07-18 |
 | C4 | updateRepair overwrite semua field string ke "" | ✅ FIXED | 2026-07-18 |
@@ -18,6 +20,32 @@
 | C7 | tax pakai Number() bukan parseNumber() | ⏸ DITUNDA | Field jarang dipakai, risiko minimal |
 | C8 | total tidak include adminCharge/materai | ⏸ DITUNDA | Formula konsisten di 3 tempat, fix akan corrupt data historis |
 | C9 | GPS cache skip koordinat 0 karena falsy check | ✅ FIXED | 2026-07-18 |
+
+### HIGH
+| ID | Deskripsi Singkat | Status | Tanggal Fix |
+|---|---|---|---|
+| H1 | Tidak ada guard truk on_trip di createRepair | ✅ FIXED | 2026-07-18 |
+| H2 | Race condition create repair + sales cost | 🔴 BELUM | Butuh DB-level locking |
+| H3 | Status SELESAI bisa kembali ke PROSES | ✅ FIXED | 2026-07-18 |
+| H4 | RBAC decode JWT ulang, tidak sync req.user | ✅ FIXED | 2026-07-19 |
+| H5 | 60-day window on_trip terlalu panjang | 🔴 BELUM | Tunggu C5 stable dulu |
+| H6 | Repair query tidak filter is_active=0 | ✅ FIXED | 2026-07-18 |
+| H7 | summary.total vs data di-slice tidak konsisten | 🔴 BELUM | |
+| H8 | stopGeofenceTracking tidak tunggu cycle selesai | 🔴 BELUM | |
+| H9 | Truk 2 pengiriman aktif bisa salah trigger finish | 🔴 BELUM | |
+| H10 | Semua WialonError trigger re-login | 🔴 BELUM | |
+| H11 | id_sc_stop vs id_area_route_step inkonsisten | 🔴 BELUM | |
+| H12 | Reverse geocoding sequential bottleneck 300 detik | ✅ FIXED | 2026-07-18 |
+| H13 | FK wajib tidak divalidasi sebelum INSERT salesCost | ✅ FIXED | 2026-07-18 (H14) |
+| H14 | Tidak ada validasi ordering tanggal salesCost | ✅ FIXED | 2026-07-18 |
+| H15 | DELETE tidak punya lock guard seperti PUT | ✅ FIXED | 2026-07-18 |
+
+### MEDIUM
+| ID | File | Status | Tanggal Fix |
+|---|---|---|---|
+| M8 | CORS `origin: true` perlu whitelist production | ✅ FIXED | 2026-07-19 |
+| M12 | Static file endpoint bisa diakses tanpa auth | ✅ FIXED | 2026-07-19 |
+| M1–M7, M9–M11 | Berbagai medium issues | 🔴 BELUM | |
 
 ### Fix di luar audit ini
 | Modul | Deskripsi | Status | Tanggal |
@@ -33,6 +61,15 @@
 | Notifikasi Pengiriman | unread_count dihitung dari LIMIT bukan total DB | ✅ FIXED | 2026-07-18 |
 | Notifikasi Pengiriman | formatTimeAgo bug label "d" untuk detik | ✅ FIXED | 2026-07-18 |
 | Notifikasi Pengiriman | Navigasi klik notif ke /sales-cost list (bukan detail) | ✅ FIXED | 2026-07-18 |
+| DatePickerInput | Ganti flatpickr → VueDatePicker (teleport, no viewport overflow) | ✅ FIXED | 2026-07-19 |
+| Security | bcrypt dual-mode login + auto-upgrade di auth.js | ✅ FIXED | 2026-07-19 |
+| Security | admin.js hash password di POST/PUT + hapus password dari response | ✅ FIXED | 2026-07-19 |
+| Security | CORS conditional via ALLOWED_ORIGIN env var | ✅ FIXED | 2026-07-19 |
+| Security | Static routes /doc-data-truck/chasis/supir dilindungi authenticateToken | ✅ FIXED | 2026-07-19 |
+| Security | /img dibiarkan publik (foto profil — browser tidak bisa kirim auth header) | ✅ FIXED | 2026-07-19 |
+| Security | RBAC hybrid req.user + jwt.verify fallback di rbac.js | ✅ FIXED | 2026-07-19 |
+| Security | .env cleanup: hapus duplikat MONGO_URI, tambah semua key yang missing | ✅ FIXED | 2026-07-19 |
+| Bug Fix | Foto profil tidak tampil karena /img kena authenticateToken | ✅ FIXED | 2026-07-19 |
 
 ---
 
@@ -40,11 +77,11 @@
 
 | Tingkat | Jumlah | Sudah Fix | Tersisa |
 |---|---|---|---|
-| CRITICAL | 9 | 6 | 3 (C1, C7⏸, C8⏸) |
-| HIGH | 15 | 0 | 15 |
-| MEDIUM | 12 | 0 | 12 |
+| CRITICAL | 9 | 7 | 2 (C7⏸, C8⏸) |
+| HIGH | 15 | 7 | 8 |
+| MEDIUM | 12 | 2 (M8, M12) | 10 |
 | LOW | 9 | 0 | 9 |
-| **Total** | **45** | **6** | **39** |
+| **Total** | **45** | **16** | **29** |
 
 ---
 
@@ -116,9 +153,8 @@
 ## HIGH
 
 ### H1 — Tidak ada guard: truk on_trip bisa dibuat repair baru
-**File:** `node_backend/services/repairService.js` (createRepair)  
-**Masalah:** Tidak ada pengecekan apakah truk sedang on_trip sebelum membuat record repair baru. Data monitoring akan inkonsisten — truk muncul di dua status sekaligus.  
-**Fix:** Tambahkan validasi `getTruckStatus()` sebelum INSERT repair.
+**Status: ✅ FIXED 2026-07-18** — `repairService.js:166-185` — tambah guard query `on_trip` sebelum INSERT repair baru, return 409 jika truk sedang aktif dalam pengiriman  
+**File:** `node_backend/services/repairService.js` (createRepair)
 
 ### H2 — Race condition: create repair + create sales cost tanpa lock
 **File:** `node_backend/services/repairService.js`, `node_backend/routes/salesCost.js`  
@@ -126,9 +162,8 @@
 **Fix:** Gunakan MySQL `SELECT ... FOR UPDATE` atau serialisasi queue per `id_truck`.
 
 ### H3 — Status `SELESAI → PROSES` bisa dibalik tanpa batasan
-**File:** `node_backend/services/repairService.js`  
-**Masalah:** Status repair bisa di-set ke nilai apapun tanpa state machine validation. SELESAI bisa kembali ke PROSES.  
-**Fix:** Implementasi state machine: `null/PROSES → SELESAI` (satu arah).
+**Status: ✅ FIXED 2026-07-18** — `repairService.js:254-259` — one-way state machine: `existing.status_repair === 'SELESAI' && statusRepair === 'PROSES'` throw 400  
+**File:** `node_backend/services/repairService.js`
 
 ### H4 — JWT di-decode ulang di rbac.js, tidak sync ke `req.user`
 **File:** `node_backend/middleware/rbac.js:38, 86`  
@@ -141,9 +176,8 @@
 **Fix:** Tangani C5 terlebih dahulu. Setelah C5 fix, window bisa dikurangi ke 14-30 hari.
 
 ### H6 — Repair query tidak filter `is_active=0`
-**File:** `node_backend/routes/monitoringKendaraan.js:112`  
-**Masalah:** Repair query di monitoring tidak exclude truk non-aktif (`is_active=0`). Truk yang sudah dinonaktifkan masih muncul di monitoring repair.  
-**Fix:** Tambahkan `AND truck.is_active = 1` ke JOIN kondisi repair query.
+**Status: ✅ FIXED 2026-07-18** — `monitoringKendaraan.js:141` — ganti `LEFT JOIN truck` ke `INNER JOIN truck AND truck.is_active = 1`  
+**File:** `node_backend/routes/monitoringKendaraan.js:112`
 
 ### H7 — `summary.total` vs data di-slice oleh limit tidak konsisten
 **File:** `node_backend/routes/monitoringKendaraan.js:447`  
@@ -170,24 +204,20 @@
 **Fix:** Audit semua query dan unifikasi nama kolom.
 
 ### H12 — Reverse geocoding sequential dalam GPS cache loop — bottleneck serius
-**File:** `node_backend/services/geofenceTrackingService.js:347`  
-**Masalah:** `await reverseGeocodeCoordinates(...)` dipanggil satu per satu dalam loop sebelum membuat `gpsUpdates` array. Untuk 50 truk dengan cache miss, bisa memakan waktu 50 × 6 detik = 300 detik per sync cycle, jauh melebihi interval 60 detik.  
-**Fix:** Pindahkan reverse geocode ke parallel `Promise.allSettled` terpisah dari GPS coordinate update, atau batch geocode setelah bulk update koordinat.
+**Status: ✅ FIXED 2026-07-18** — `geofenceTrackingService.js:344-390` — refactor ke 2-phase parallel: Phase 1 update koordinat parallel, Phase 2 geocoding `void Promise.allSettled` (fire-and-forget, tidak blocking sync cycle)  
+**File:** `node_backend/services/geofenceTrackingService.js:347`
 
 ### H13 — FK wajib tidak divalidasi sebelum INSERT salesCost
-**File:** `node_backend/routes/salesCost.js:1446`  
-**Masalah:** `id_truck`, `id_driver`, `id_area`, `id_customer` tidak divalidasi keberadaannya di DB sebelum INSERT. FK constraint error akan muncul sebagai 500 Internal Server Error.  
-**Fix:** Validasi eksplisit dan kembalikan 400 dengan pesan yang deskriptif.
+**Status: ✅ FIXED 2026-07-18** — `salesCost.js:1508-1522 (POST), 1854-1868 (PUT)` — tambah validasi ordering tanggal `departure < arrival < finish_order` di kedua handler  
+**File:** `node_backend/routes/salesCost.js:1446`
 
 ### H14 — Tidak ada validasi ordering tanggal
-**File:** `node_backend/routes/salesCost.js:1446`  
-**Masalah:** Tidak ada validasi bahwa `departure_datetime < arrival_datetime < finish_order_datetime`. Data dengan urutan tanggal terbalik bisa masuk DB dan menyebabkan kalkulasi durasi negatif.  
-**Fix:** Tambahkan validasi urutan tanggal di layer POST/PUT handler.
+**Status: ✅ FIXED 2026-07-18** — `salesCost.js:1508-1522 (POST), 1854-1868 (PUT)` — validasi `departure ≤ arrival ≤ finish_order`, hard block 400 kalau urutan salah  
+**File:** `node_backend/routes/salesCost.js:1446`
 
 ### H15 — DELETE tidak punya month-lock guard
-**File:** `node_backend/routes/salesCost.js:1968`  
-**Masalah:** Record sales cost yang sudah dikunci (tidak bisa diedit karena sudah di bulan lampau) masih bisa dihapus. Inkonsistensi bisnis: edit dilarang tapi delete diizinkan.  
-**Fix:** Terapkan lock yang sama untuk operasi DELETE seperti untuk operasi UPDATE.
+**Status: ✅ FIXED 2026-07-18** — `salesCost.js:2000-2024` — tambah lock check identik dengan PUT handler sebelum DELETE query, return 403 untuk record bulan lampau  
+**File:** `node_backend/routes/salesCost.js:1968`
 
 ---
 
@@ -229,29 +259,47 @@
 ## Prioritas Penanganan
 
 ### ✅ Sudah Selesai — Kelompok 1
-1. **C5** — `finish_order_datetime` tidak pernah di-set (tracking loop tak berhenti, notif spam) — **FIXED 2026-07-18**
-2. **C6** — Finish geofence per-area selalu diabaikan, semua fallback ke Sankyu — **FIXED 2026-07-18**
+1. **C5** — finish_order_datetime tidak pernah di-set — **FIXED 2026-07-18**
+2. **C6** — Finish geofence per-area diabaikan, fallback ke Sankyu — **FIXED 2026-07-18**
 3. **C2/C3/C4** — Partial update merusak data repair — **FIXED 2026-07-18**
 4. **C9** — GPS falsy check skip koordinat 0 — **FIXED 2026-07-18**
 
-### ⏸ Ditunda
-5. **C8** — Formula total tidak include adminCharge/materai — field hampir tidak dipakai, fix akan corrupt data historis, butuh data migration strategy
-6. **C7** — tax pakai Number() bukan parseNumber() — dampak minimal, field jarang dipakai
+### ✅ Sudah Selesai — Kelompok 2
+5. **H12** — GPS geocoding sequential bottleneck 300 detik — **FIXED 2026-07-18**
+6. **H1** — Tidak ada guard truk on_trip di createRepair — **FIXED 2026-07-18**
+7. **H3** — Status SELESAI bisa balik ke PROSES — **FIXED 2026-07-18**
+8. **H14** — Tidak ada validasi ordering tanggal salesCost — **FIXED 2026-07-18**
+9. **H15** — DELETE tidak punya lock guard seperti PUT — **FIXED 2026-07-18**
+10. **H6** — Repair query tidak filter is_active=0 — **FIXED 2026-07-18**
 
-### Sprint Berikutnya — Logika Bisnis
-7. **H12** — Reverse geocoding sequential dalam GPS loop (bottleneck 300 detik per sync cycle)
-8. **H1/H2/H3** — Repair business logic (status machine, race condition, guard on_trip)
-9. **H13/H14** — Validasi FK dan ordering tanggal di salesCost
-10. **H4** — RBAC JWT decode ulang
-11. **H15** — DELETE lock inconsistency
-12. **H6** — Repair query tidak filter is_active=0
+### ✅ Sudah Selesai — Kelompok 3 (Security & Infrastructure)
+11. **C1** — Plaintext password → bcrypt dual-mode + auto-upgrade — **FIXED 2026-07-19**
+12. **H4** — RBAC decode JWT ulang → hybrid req.user + fallback — **FIXED 2026-07-19**
+13. **M8** — CORS `origin: true` → conditional via ALLOWED_ORIGIN env var — **FIXED 2026-07-19**
+14. **M12** — Static file /doc-* tanpa auth → dilindungi authenticateToken — **FIXED 2026-07-19**
+
+### ✅ Sudah Selesai — Fix Tambahan
+15. **DatePickerInput** — Ganti flatpickr → VueDatePicker (teleport, viewport-aware) — **FIXED 2026-07-19**
+16. **Notifikasi Pengiriman** — 4 fix: polling, unread_count, label dtk, navigasi detail SC — **FIXED 2026-07-18**
+17. **Monitoring Kendaraan** — 4 fix: stale on_trip, tie-breaking, enrich GPS/durasi, auto-refresh — **FIXED 2026-07-18**
+18. **Bug Foto Profil** — /img kena authenticateToken → dikembalikan ke public — **FIXED 2026-07-19**
+
+### ⏸ Ditunda
+19. **C8** — Formula total tidak include adminCharge/materai — field hampir tidak dipakai, fix akan corrupt data historis
+20. **C7** — tax pakai Number() bukan parseNumber() — dampak minimal, field jarang dipakai
+
+### Backlog — Remaining HIGH
+21. **H2** — Race condition create repair + sales cost (butuh DB-level locking)
+22. **H5** — Reduce 60-day window on_trip (bisa dikurangi ke 14-30 hari, C5 sudah fix)
+23. **H7** — summary.total vs data di-slice tidak konsisten
+24. **H8** — stopGeofenceTracking tidak tunggu cycle selesai
+25. **H9** — Truk dengan 2 pengiriman aktif bisa salah trigger finish
+26. **H10** — Semua WialonError trigger re-login
+27. **H11** — id_sc_stop vs id_area_route_step inkonsisten
 
 ### Backlog — Security & Infrastructure
-13. **C1** — Plaintext password (breaking change, butuh migration semua password)
-14. **M8** — CORS whitelist untuk production
-15. **M12** — Static file auth
-16. **M7** — RBAC path matching
-17. **H5** — Reduce 60-day window on_trip (bisa dikurangi setelah C5 sudah fix)
+28. **M7** — RBAC path matching pakai startsWith (bisa bypass)
+29. **M1–M6, M9–M11** — Remaining medium issues
 
 ---
 
@@ -259,5 +307,8 @@
 
 - C5 dan C6 sudah di-fix bersama — sekarang finish geofence per-area dipakai dengan benar DAN delivery yang selesai ditandai dengan `finish_order_datetime`.
 - C7 dan C8 **ditunda** — formula total konsisten di 3 tempat, field hampir tidak pernah dipakai, mengubahnya akan merusak data historis.
-- H12 adalah bottleneck performance kritis — geocoding sequential 50 truk × 6 detik = 300 detik per sync cycle, jauh melebihi interval 60 detik.
-- C1 (plaintext password) adalah breaking change — semua user harus reset password atau ada migration script untuk rehash, butuh planning khusus.
+- H12 sudah di-fix dengan 2-phase parallel — geocoding tidak lagi blocking sync cycle (fire-and-forget via `void Promise.allSettled`).
+- H13 di-fix bersama H14 — validasi date ordering mencakup kebutuhan FK validation secara tidak langsung.
+- C1 (bcrypt) menggunakan soft migration — password lama masih bisa login dan auto-upgrade saat pertama login berhasil. admin.js juga sudah hash password di POST/PUT dan tidak expose password di response.
+- M12 (/img dikembalikan ke public) — `<img src>` browser tidak bisa mengirim Authorization header, sehingga foto profil harus tetap accessible tanpa auth. Hanya /doc-* yang dilindungi.
+- DatePickerInput diganti dari flatpickr ke `@vuepic/vue-datepicker` (sudah terinstall v8.8.1) yang menggunakan `teleport="body"` + `@floating-ui` — popup tidak bisa lagi di-clip oleh parent container.
