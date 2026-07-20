@@ -214,8 +214,8 @@ router.get("/", async (req, res) => {
         t.jenis_kendaraan,
         d.nama_driver,
         a.nama_area,
-        CASE WHEN sc.arrival_datetime IS NOT NULL
-             AND sc.arrival_datetime < NOW()
+        CASE WHEN sc.finish_order_datetime IS NOT NULL
+             AND sc.finish_order_datetime < NOW()
              AND NOT EXISTS (
                SELECT 1 FROM sales_cost_route_history scrh
                WHERE scrh.id_sales_cost = sc.id_sales_cost
