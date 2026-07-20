@@ -400,10 +400,11 @@ const syncGeofenceRouteHistory = async () => {
     const gpsTime = toMySqlDateTime(position?.gps_time) || toMySqlDateTime(new Date());
     const finishGeofence = resolveFinishGeofenceForSalesCost(salesCost, fallbackFinishGeofence);
 
-    // Process delivery stops (is_departure=0, is_finish=0)
+    // Process all stops including departure (is_finish rows are excluded from `stops`)
+    // Departure stops are GPS-hit when the truck is inside their geofence; the
+    // `inferred_passed` fallback in the reporting layer still covers trucks that
+    // skip the departure point or depart before the sales cost is created.
     for (const stop of stops) {
-      if (Number(stop.is_departure) === 1) continue;
-
       const stepKey = `stop:${stop.id}`;
       const historyKey = `${salesCost.id_sales_cost}:${stepKey}`;
       if (existingHistoryKeys.has(historyKey)) continue;
@@ -659,9 +660,9 @@ const runBackfill = async (fromTs, toTs) => {
         const messages = await fetchRawMessagesForUnit({ sid, unitId, timeFrom: scFrom, timeTo: scTo });
         if (messages.length === 0) { summary.skipped += 1; continue; }
 
-        // Process delivery stops (excluding departure stops)
+        // Process all stops including departure — backfill replays raw GPS
+        // history so departure geofences are hit exactly like any other stop.
         for (const stop of stops) {
-          if (Number(stop.is_departure) === 1) continue;
           const stepKey = `stop:${stop.id}`;
           if (existingKeys.has(`${sc.id_sales_cost}:${stepKey}`)) continue;
           const resId = normalizePositiveIntString(stop.wialon_resource_id);

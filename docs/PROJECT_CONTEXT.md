@@ -197,11 +197,13 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 ### Geofence Tracking Flow
 
 1. Backend loads active Sales Cost candidates for trucks that already have `wialon_unit_id`.
-2. Backend loads route-step to geofence mappings from `area_route_step`.
-3. Backend polls Wialon zone membership on an interval.
-4. If the truck is currently inside a mapped geofence and that step has not been recorded yet, backend inserts one history row into `sales_cost_route_history`.
-5. After all planned steps are completed, backend also watches the finish geofence configured on the area to record the system step `Finish Order`.
-6. Re-entry to the same step is ignored in phase 1 to avoid noisy duplicate history rows.
+2. Backend loads per-delivery stop → geofence mappings from `sales_cost_step_schedule` (step key `stop:{scss.id}`). Note: `area_route_step` is no longer used for tracking — only for Surat Jalan printing.
+3. Backend polls Wialon zone membership on an interval (`GEOFENCE_TRACKING_INTERVAL_MS`, default 60s).
+4. If the truck is currently inside a mapped geofence and that step has not been recorded yet, backend inserts one history row into `sales_cost_route_history`. This applies to **all** stops including departure (`is_departure = 1`) and middle stops.
+5. After all middle (delivery, non-departure) stops are completed, backend also watches the finish geofence configured on the area to record the system step `Finish Order`. Departure is not required for finish.
+6. Re-entry to the same step is ignored (dedup via existing history keys) to avoid noisy duplicate history rows.
+7. On server startup, `detectAndRunStartupBackfill()` replays Wialon GPS history (point-in-polygon) to backfill any stop — including departure — that was missed while the server was down (gap ≥ 5 min, up to 7 days back). Manual replay is available via `POST /api/wialon/backfill`.
+8. Departure fallback: if a later stop is hit but departure has no history row (truck skipped the origin, or departed before the Sales Cost existed), the reporting layer marks departure as `inferred_passed` in Schedule Pengiriman / Detail Sales Cost.
 
 ### Wialon Response Notes
 
@@ -857,3 +859,17 @@ A truck is `on_trip` in Monitoring Kendaraan if ALL of:
 - `middleware/rbac.js` — hybrid `req.user` + `jwt.verify` fallback pattern.
 - `.env` cleaned and `.env.example` updated to match all required keys.
 - `bcrypt@5.1.1` added to dependencies.
+
+---
+
+## Updates (2026-07-20 — Departure Geofence Tracking)
+
+### Departure Stops Are Now GPS-Tracked
+- `geofenceTrackingService.js` — removed the `if (Number(stop.is_departure) === 1) continue;` guard from **both** tracking paths:
+  - `syncGeofenceRouteHistory()` (realtime sync loop, every `GEOFENCE_TRACKING_INTERVAL_MS`)
+  - `runBackfill()` (historical GPS replay from Wialon raw messages)
+- **Behavior:** a departure stop is now inserted into `sales_cost_route_history` (step key `stop:{scss.id}`) as soon as the truck is detected inside its geofence — exactly like any middle stop. Previously departure was always skipped and could only appear as "passed" via UI inference.
+- **Rationale:** restores the original design where departure is GPS-verifiable (proves the truck actually left the origin), not just inferred.
+- **`inferred_passed` fallback retained:** `schedulePengiriman.js` and `DetailSalesCost.vue` still mark departure as passed when a later stop is hit but departure has no history row — covering trucks that skip the departure point or depart before the Sales Cost is created.
+- **Finish guard unchanged:** `deliveryStops` used by the finish-order check still excludes departure (`stops.filter((s) => Number(s.is_departure) !== 1)`), so `system:finish_order` is only recorded after all middle (delivery) stops are visited. Departure never blocks finish.
+- **Verified:** SPK #43632 (departure geofence `Sankyu`) recorded its departure row immediately on the first sync cycle after the change.
