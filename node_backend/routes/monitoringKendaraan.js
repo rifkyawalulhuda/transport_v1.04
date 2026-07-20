@@ -147,16 +147,12 @@ router.get("/", async (req, res) => {
 
     const trxConditions = [
       `(
-        (sc.finish_order_datetime IS NOT NULL AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00' AND sc.finish_order_datetime > ?)
-        OR
-        (
-          (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
-          AND
-          (sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)
-        )
+        (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
+        AND
+        (sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)
       )`
     ];
-    const trxParams = [todayString, todayString];
+    const trxParams = [todayString];
     if (month && year) {
       trxConditions.push("MONTH(sc.departure_datetime) = ?");
       trxConditions.push("YEAR(sc.departure_datetime) = ?");

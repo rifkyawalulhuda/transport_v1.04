@@ -1000,7 +1000,7 @@ const geofenceLoading = ref(false)
 const geofenceSelectOptions = computed(() =>
   geofenceRows.value.map((row) => ({
     value: `${row.resource_id}:${row.zone_id}`,
-    label: `${row.zone_name} (${row.resource_name})`,
+    label: row.zone_name,
     resource_name: row.resource_name,
     zone_name: row.zone_name,
   }))
