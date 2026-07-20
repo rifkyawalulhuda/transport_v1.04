@@ -214,7 +214,14 @@ router.get("/", async (req, res) => {
         t.jenis_kendaraan,
         d.nama_driver,
         a.nama_area,
-        CASE WHEN sc.arrival_datetime IS NOT NULL AND sc.arrival_datetime < NOW() THEN 1 ELSE 0 END AS is_overdue
+        CASE WHEN sc.arrival_datetime IS NOT NULL
+             AND sc.arrival_datetime < NOW()
+             AND NOT EXISTS (
+               SELECT 1 FROM sales_cost_route_history scrh
+               WHERE scrh.id_sales_cost = sc.id_sales_cost
+                 AND scrh.step_key = 'system:finish_order'
+             )
+        THEN 1 ELSE 0 END AS is_overdue
       FROM sales_cost sc
       LEFT JOIN truck t ON sc.id_truck = t.id_truck
       LEFT JOIN driver d ON sc.id_driver = d.id_driver
@@ -222,11 +229,14 @@ router.get("/", async (req, res) => {
       WHERE t.is_active = 1
         AND sc.departure_datetime IS NOT NULL
         AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 60 DAY)
-        AND sc.finish_order_datetime IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM sales_cost_route_history scrh
           WHERE scrh.id_sales_cost = sc.id_sales_cost
             AND scrh.step_key = 'system:finish_order'
+        )
+        AND EXISTS (
+          SELECT 1 FROM sales_cost_step_schedule scss
+          WHERE scss.id_sales_cost = sc.id_sales_cost
         )
       ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
     `;

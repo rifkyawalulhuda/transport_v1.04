@@ -35,10 +35,16 @@ const parsePositiveInt = (value, fallback) => {
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishHit, visitedStops, totalStops }) => {
+const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishOrderDatetime, finishHit, visitedStops, totalStops }) => {
   const now = new Date();
   const departure = departureDatetime ? new Date(departureDatetime) : null;
   const arrival = arrivalDatetime ? new Date(arrivalDatetime) : null;
+
+  // Use finish_order_datetime as the overdue deadline if available,
+  // fallback to arrival_datetime for backwards compatibility
+  const overdueDeadline = finishOrderDatetime
+    ? new Date(finishOrderDatetime)
+    : arrival;
 
   const completed = finishHit && visitedStops >= totalStops && totalStops > 0;
   const incompleteFinish = finishHit && visitedStops < totalStops;
@@ -57,7 +63,8 @@ const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishHit, 
     };
   }
 
-  if (arrival && !Number.isNaN(arrival.getTime()) && arrival < now) {
+  // Only flag overdue if the finish deadline has passed AND delivery not finished yet
+  if (overdueDeadline && !Number.isNaN(overdueDeadline.getTime()) && overdueDeadline < now && !finishHit) {
     return {
       schedule_status: "overdue",
       has_incomplete_finish: false
@@ -439,6 +446,7 @@ router.get("/", authenticateToken, async (req, res) => {
       const statusSummary = resolveScheduleStatus({
         departureDatetime: row.departure_datetime,
         arrivalDatetime: row.arrival_datetime,
+        finishOrderDatetime: row.finish_order_datetime,
         finishHit: historySummary.finish_hit,
         visitedStops: historySummary.visited_stops,
         totalStops: stopSummary.total_stops

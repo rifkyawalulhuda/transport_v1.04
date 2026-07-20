@@ -1657,7 +1657,8 @@ router.post("/:id/check-in", authenticateToken, async (req, res) => {
          stop.wialon_resource_id,
          stop.wialon_zone_id,
          stop.wialon_zone_name,
-         stop.is_departure
+         stop.is_departure,
+         stop.is_finish
        FROM sales_cost_step_schedule stop
        INNER JOIN sales_cost sc ON sc.id_sales_cost = stop.id_sales_cost
        WHERE stop.id = ? AND stop.id_sales_cost = ?
@@ -1755,6 +1756,42 @@ router.post("/:id/check-in", authenticateToken, async (req, res) => {
         null
       ]
     );
+
+    // Jika stop ini adalah finish stop (is_finish=1), tulis system:finish_order
+    // sebagai sumber kebenaran tunggal untuk "pengiriman selesai" — konsisten dengan geofence tracking
+    if (Number(stop.is_finish) === 1) {
+      const [finishHistoryRows] = await db.query(
+        "SELECT 1 FROM sales_cost_route_history WHERE id_sales_cost = ? AND step_key = 'system:finish_order' LIMIT 1",
+        [idSalesCost]
+      );
+
+      if (finishHistoryRows.length === 0) {
+        // Tulis system:finish_order ke route_history (is_manual=1)
+        await db.query(
+          `INSERT INTO sales_cost_route_history
+            (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+             id_truck, step_order_snapshot, step_name_snapshot,
+             wialon_resource_id, wialon_zone_id, wialon_zone_name,
+             gps_time, is_manual, lat, lon)
+           VALUES (?, ?, NULL, 'system:finish_order', 'finish_order',
+                   ?, ?, 'Finish Order',
+                   NULL, NULL, NULL,
+                   ?, 1, NULL, NULL)`,
+          [idSalesCost, Number(stop.id_area), Number(stop.id_truck),
+           Number(stop.stop_order) + 1, arrivedAt]
+        );
+
+        // Update finish_order_datetime di sales_cost (idempotent — hanya jika belum ter-set)
+        await db.query(
+          `UPDATE sales_cost
+             SET finish_order_datetime = ?
+           WHERE id_sales_cost = ?
+             AND (finish_order_datetime IS NULL
+                  OR CAST(finish_order_datetime AS CHAR) = '0000-00-00 00:00:00')`,
+          [arrivedAt, idSalesCost]
+        );
+      }
+    }
 
     res.json({ message: "Check-in manual berhasil disimpan." });
   } catch (err) {
