@@ -667,7 +667,7 @@ npm run build-only
 
 ## Active Branch
 
-- `add-module-bbs` — contains all Juli 2026 features. 26+ commits ahead of `origin/add-module-bbs`. Not yet pushed to GitHub.
+- `add-module-bbs` — contains all Juli 2026 features. Not yet pushed to GitHub.
 
 ---
 
@@ -794,3 +794,66 @@ A truck is `on_trip` in Monitoring Kendaraan if ALL of:
 - Login: bcrypt dual-mode. New passwords hashed with bcrypt (12 rounds). Legacy plaintext passwords auto-upgrade on first successful login.
 - Admin CREATE/UPDATE: passwords always hashed before DB write.
 - Admin GET responses: `password` field never included in response payload.
+
+### Sales Cost step schedule (smart upsert)
+- PUT handler uses smart upsert — stops with existing `id` are UPDATEd (preserving ID), new stops are INSERTed, removed stops are DELETEd only if they have no `sales_cost_route_history` records.
+- This prevents `id_sc_stop` references in route_history from becoming orphaned when the user edits a Sales Cost with an active delivery timeline.
+
+### Schedule Pengiriman filter behavior
+- Date range filter is based on `departure_datetime` only — no hidden `arrival_datetime >= TODAY` restriction.
+- Default range: 7 days ago to 7 days ahead.
+- Client-side status filter (`filters.status`) is applied after server-side date/search results.
+- Only transactions with `sales_cost_step_schedule` configured appear with GPS-tracked status; others appear as `waiting` or `on_trip` based on dates only.
+
+---
+
+## Updates (2026-07-20 continued)
+
+### Sales Cost — Delivery Stop Smart Upsert
+- `salesCost.js` — PUT handler replaced DELETE-all + re-INSERT delivery stops with smart upsert:
+  - Steps with existing `id` are UPDATEd in place (preserves `id` so `sales_cost_route_history.id_sc_stop` remains valid)
+  - Steps removed from payload are DELETEd only if they have no route history records (safety guard)
+  - New steps (no `id`) are INSERTed with new IDs
+- This fixes the bug where editing & saving a Sales Cost would reset the delivery timeline (green visited stops turning back to pending).
+
+### Sales Cost — Import H14 Date Ordering Validation
+- `salesCost.js` Excel import handler — added date ordering validation after parsing all dates:
+  - `arrivalDate < deliveryDate` → reject with `INVALID_DATE_ORDER`
+  - `finishDate < arrivalDate` → reject with `INVALID_DATE_ORDER`
+  - `finishDate < deliveryDate` → reject with `INVALID_DATE_ORDER` (edge case: no arrival)
+- Consistent with POST/PUT handler validation added earlier.
+
+### Sales Cost — Manual Check-in Finish Stop
+- `salesCost.js POST /:id/check-in` — when `stop.is_finish = 1`, automatically writes:
+  - `system:finish_order` record to `sales_cost_route_history` (idempotent — only if not already present)
+  - Updates `finish_order_datetime` on `sales_cost` (idempotent guard)
+- Ensures manual Finish check-in has same effect as GPS-triggered finish for Monitoring Kendaraan consistency.
+
+### Database Migration — Nullable Wialon Fields
+- `20260720000009_nullable_wialon_fields_route_history.sql` — `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name` in `sales_cost_route_history` changed from `NOT NULL` to `NULL DEFAULT NULL`.
+- Required for manual check-in on stops without Wialon geofence configuration.
+
+### Schedule Pengiriman — Filter Improvements
+- `schedulePengiriman.js` — removed hardcoded `arrival_datetime >= TODAY` condition that was hiding all past transactions regardless of the date range filter the user selected.
+- `SchedulePengiriman.vue` — default date range changed from `today → +7 days` to `-7 days → +7 days` so active deliveries from the past week are visible by default.
+- `SchedulePengiriman.vue` — added **Status filter** dropdown (Semua / Menunggu / Dalam Perjalanan / Terlambat / Selesai / Belum Lengkap) as a client-side filter on top of server-side results.
+- `SchedulePengiriman.vue` — `filteredRows` computed property filters `rows` by `filters.status`; template uses `filteredRows` instead of `rows` for display.
+
+### Monitoring Kendaraan — on_trip Status Alignment
+- `monitoringKendaraan.js` — `onTripSql` no longer requires `finish_order_datetime IS NULL`. Single source of truth is `NOT EXISTS system:finish_order in route_history`.
+- `monitoringKendaraan.js` — added `AND EXISTS (SELECT 1 FROM sales_cost_step_schedule)` filter so only GPS-configured deliveries appear as `on_trip`; legacy transactions without step schedule remain in `transaksi`.
+- `monitoringKendaraan.js` — `is_overdue` now uses `finish_order_datetime < NOW()` (not `arrival_datetime`) and guards against completed trips (`NOT EXISTS system:finish_order`).
+
+### Schedule Pengiriman — Overdue Deadline Fix
+- `schedulePengiriman.js:resolveScheduleStatus` — uses `finish_order_datetime` as `overdueDeadline` when available; falls back to `arrival_datetime` for backwards compatibility.
+- Overdue condition now requires `!finishHit` — completed deliveries cannot be overdue.
+- Caller passes `finishOrderDatetime: row.finish_order_datetime` to `resolveScheduleStatus`.
+
+### Security Fixes (Kelompok 3)
+- `routes/auth.js` — bcrypt dual-mode login with auto-upgrade of legacy plaintext passwords.
+- `routes/admin.js` — passwords hashed on CREATE/UPDATE; `password` field excluded from all responses.
+- `server.js` — CORS conditional via `ALLOWED_ORIGIN` env var; CORS preflight uses same config.
+- `server.js` — `/doc-data-truck`, `/doc-data-chasis`, `/doc-supir` protected by `authenticateToken`; `/img` left public (browser `<img>` cannot send auth headers).
+- `middleware/rbac.js` — hybrid `req.user` + `jwt.verify` fallback pattern.
+- `.env` cleaned and `.env.example` updated to match all required keys.
+- `bcrypt@5.1.1` added to dependencies.
