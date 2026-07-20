@@ -102,13 +102,19 @@ GPS coordinates are reverse-geocoded to human-readable addresses via Geoapify (`
 
 ### Monitoring Kendaraan UI
 
-`MonitoringKendaraan.vue` is the primary fleet visibility page:
-- 3-panel layout: map (left) | vehicle detail (middle, shown only on selection) | fleet list (right)
-- Leaflet + OpenStreetMap, `leaflet.markercluster` for dense fleets
-- 30-second auto-refresh
-- Filter chips: `All`, `Moving`, `Idle`, `Offline`, `Belum Terhubung`
-- Custom truck marker icon embedded inline (no external image dependency)
-- Selection is synced between map marker, detail panel, and fleet list card
+Two distinct fleet visibility pages exist in the Monitoring domain:
+
+**`MonitoringKendaraan.vue`** (`/monitoring-kendaraan`) — fleet status summary board:
+- Shows all active trucks with current transaction, repair status, and last GPS position
+- Search + month/year filter; results capped at 200 via `resolveLimit`
+- `Buka Peta` button links to `TruckLocationMap.vue` for the live map view
+
+**`TruckLocationMap.vue`** (`/truck-locations`) — live GPS map (Lokasi Truk):
+- Full-page Leaflet + OpenStreetMap map with fleet inspector panel
+- Shows total armada count and last sync timestamp
+- 30-second auto-refresh badge; manual `Refresh Sekarang` button
+- Back-link to `/monitoring-kendaraan`
+- `leaflet.markercluster` for dense fleets; custom truck marker icon embedded inline
 
 ### Extension Points
 
@@ -130,6 +136,12 @@ GPS coordinates are reverse-geocoded to human-readable addresses via Geoapify (`
 - Backend provides a filtered, paginated delivery schedule via `GET /api/schedule-pengiriman`
 - Frontend `SchedulePengiriman.vue` renders the schedule with date-range filtering (uses `DatePickerInput.vue` component backed by `@vuepic/vue-datepicker`)
 - The `cs` role is explicitly allowed `GET /schedule-pengiriman` in `rbac.js` — this is the primary read-only view for CS users
+- Schedule status values computed by `resolveScheduleStatus` in `schedulePengiriman.js`:
+  - `waiting` — departure has not yet occurred
+  - `on_trip` — departure time has passed, delivery not yet finished
+  - `overdue` — finish deadline passed without a finish geofence hit; deadline is `finish_order_datetime` when set, falling back to `arrival_datetime`
+  - `completed` — finish geofence hit and all intermediate stops visited
+  - `incomplete_finish` — finish geofence hit but one or more intermediate stops were not visited
 
 ### Access Control
 

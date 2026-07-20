@@ -72,7 +72,7 @@ transport_v1.04/
 ├── node_backend/
 │   ├── server.js              # Express bootstrap, route registration, startup sequence
 │   ├── db.js                  # MySQL connection pool
-│   ├── db/migrations/         # 21 dbmate SQL migrations (schema history)
+│   ├── db/migrations/         # 22 dbmate SQL migrations (schema history)
 │   ├── routes/                # 23 route files — one per domain (see Architecture)
 │   ├── services/              # Business logic & external integrations
 │   ├── middleware/            # auth.js (JWT), rbac.js (role whitelist)

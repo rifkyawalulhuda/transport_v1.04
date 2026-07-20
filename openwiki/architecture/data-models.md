@@ -26,7 +26,8 @@ All transactional data lives in MySQL (`trucking` database). The schema is manag
 | `20260619120000_add_coordinates_to_bbs_incidents.sql` | `lat`/`lng` on BBS incidents |
 | `20260619130000_extend_bbs_incidents_location.sql` | Extended location fields on BBS incidents |
 | `20260619140000_add_coordinates_to_bbs_observations.sql` | `lat`/`lng` on BBS observations |
-| *(+11 more)* | GPS cache columns, route history nullable fields, Wialon unit ID on trucks, delivery notification read tracking — run `dbmate status` for the full list |
+| `20260720000011_extend_admin_password_column.sql` | Widens `admin.password` column from `VARCHAR(50)` to `VARCHAR(255)` — accommodates bcrypt hashes |
+| *(+10 more)* | GPS cache columns, route history nullable fields, Wialon unit ID on trucks, delivery notification read tracking — run `dbmate status` for the full list |
 
 ### Key Tables
 
