@@ -147,23 +147,14 @@
         </li>
       </ul>
 
-      <!-- Footer: close button -->
-      <button
+      <!-- Footer: view all notifications button -->
+      <router-link
+        to="/delivery-notifications"
         class="mt-3 flex justify-center rounded-lg border border-gray-300 bg-white p-3 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
         @click="closeDropdown"
       >
-        Tutup
-      </button>
-
-      <div class="mt-2 border-t border-gray-200 pt-2 dark:border-gray-700">
-        <router-link
-          to="/delivery-notifications"
-          class="block text-center text-xs text-brand-500 hover:text-brand-600 dark:text-brand-400"
-          @click="closeDropdown"
-        >
-          Lihat semua notifikasi
-        </router-link>
-      </div>
+        Lihat Semua Notifikasi
+      </router-link>
     </div>
   </div>
 </template>

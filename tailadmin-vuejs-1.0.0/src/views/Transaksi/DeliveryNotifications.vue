@@ -1,281 +1,244 @@
 <template>
   <AdminLayout>
     <PageBreadcrumb :pageTitle="pageTitle" />
-    <div class="space-y-5 sm:space-y-6">
 
-      <!-- -- Filter Section ----------------------------------------- -->
-      <ComponentCard title="Filter &amp; Pencarian">
-        <form class="space-y-4" @submit.prevent="applyFilter">
-          <div class="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Kata Kunci
-              </label>
-              <input
-                v-model="filters.search"
-                type="text"
-                placeholder="No. Polisi / Rute / Pesan..."
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              />
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                Status
-              </label>
-              <select
-                v-model="filters.status"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              >
-                <option value="">Semua</option>
-                <option value="unread">Belum Baca</option>
-                <option value="read">Sudah Baca</option>
-              </select>
-            </div>
-            <div class="flex items-end gap-2">
-              <button
-                type="submit"
-                class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
-              >
-                Tampilkan
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                @click="resetFilter"
-              >
-                Reset
-              </button>
-            </div>
+    <!-- Filter & Pencarian -->
+    <ComponentCard title="Filter & Pencarian">
+      <form class="space-y-4" @submit.prevent="applyFilter">
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Kata Kunci
+            </label>
+            <input
+              v-model="filters.search"
+              type="text"
+              placeholder="No. Polisi / Rute..."
+              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            />
           </div>
-        </form>
-      </ComponentCard>
-
-      <!-- -- Table Section ------------------------------------------ -->
-      <ComponentCard title="Notifikasi Pengiriman">
-        <!-- Toolbar -->
-        <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            <span class="font-semibold text-gray-700 dark:text-gray-200">{{ meta.totalItems }}</span>
-            notifikasi
-            <span v-if="meta.unreadCount > 0" class="text-amber-600 dark:text-amber-400">
-              (<span class="font-semibold">{{ meta.unreadCount }}</span> belum dibaca)
-            </span>
-          </p>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs transition hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-brand-500/10"
-              :disabled="loading || meta.unreadCount === 0"
-              @click="handleMarkAllRead"
-            >
-              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-              Tandai Semua Dibaca
-            </button>
-            <label class="text-sm text-gray-600 dark:text-gray-300">Rows</label>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Status
+            </label>
             <select
-              v-model.number="pageSize"
-              class="rounded-lg border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              @change="changePageSize"
+              v-model="filters.status"
+              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
             >
-              <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+              <option value="">Semua</option>
+              <option value="unread">Belum Baca</option>
+              <option value="read">Sudah Baca</option>
             </select>
           </div>
-        </div>
-
-        <!-- Loading -->
-        <div v-if="loading" class="space-y-3">
-          <div
-            v-for="n in 3"
-            :key="n"
-            class="animate-pulse rounded-xl border border-gray-200 p-5 dark:border-gray-700"
-          >
-            <div class="mb-3 h-4 w-48 rounded bg-gray-200 dark:bg-gray-700" />
-            <div class="mb-2 h-3 w-80 rounded bg-gray-200 dark:bg-gray-700" />
-            <div class="h-3 w-64 rounded bg-gray-100 dark:bg-gray-800" />
+          <div class="flex items-end gap-2">
+            <button
+              type="submit"
+              class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600"
+            >
+              Tampilkan
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              @click="resetFilter"
+            >
+              Reset
+            </button>
           </div>
         </div>
+      </form>
+    </ComponentCard>
 
-        <!-- Empty -->
-        <div
-          v-else-if="rows.length === 0"
-          class="flex flex-col items-center gap-2 py-12 text-center"
-        >
-          <svg
-            class="h-12 w-12 text-gray-300 dark:text-gray-600"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1"
-            viewBox="0 0 24 24"
+    <!-- Daftar Notifikasi -->
+    <ComponentCard title="Notifikasi Pengiriman">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          Total: {{ meta.totalItems }} notifikasi
+          <span v-if="meta.unreadCount > 0" class="ml-2 font-medium text-amber-500">({{ meta.unreadCount }} belum dibaca)</span>
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <label
+            v-if="notifications.length"
+            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+              :checked="allSelected"
+              @change="toggleSelectAll"
             />
-          </svg>
-          <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada notifikasi.</p>
+            Pilih semua
+          </label>
+          <button
+            v-if="notifications.length"
+            type="button"
+            class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            @click="handleMarkAll"
+          >
+            Tandai semua
+          </button>
+          <button
+            v-if="selectedIds.length"
+            type="button"
+            class="rounded-lg border border-error-200 px-3 py-2 text-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-400"
+            @click="handleDeleteSelected"
+          >
+            Hapus terpilih
+          </button>
+          <button
+            v-if="notifications.length"
+            type="button"
+            class="rounded-lg border border-error-200 px-3 py-2 text-sm font-medium text-error-600 shadow-theme-xs hover:bg-error-50 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-400"
+            @click="handleDeleteAll"
+          >
+            Hapus semua
+          </button>
         </div>
+      </div>
 
-        <!-- Table -->
-        <div v-else class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead>
-              <tr class="bg-gray-50 dark:bg-gray-800/50">
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  No. Polisi
-                </th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Rute
-                </th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Estimasi
-                </th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Waktu Notif
-                </th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Status
-                </th>
-                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Aksi
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-transparent">
-              <tr
-                v-for="row in rows"
-                :key="row.id"
-                class="transition hover:bg-gray-50 dark:hover:bg-gray-800/40"
-                :class="{ 'bg-amber-50/40 dark:bg-amber-500/5': !row.is_read }"
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="mt-4 space-y-3">
+        <div v-for="n in 3" :key="n" class="animate-pulse flex gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+          <div class="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700" />
+          <div class="flex-1 space-y-2">
+            <div class="h-4 w-48 rounded bg-gray-200 dark:bg-gray-700" />
+            <div class="h-3 w-80 rounded bg-gray-200 dark:bg-gray-700" />
+          </div>
+        </div>
+      </div>
+
+      <!-- List notifikasi -->
+      <div v-else class="mt-4 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+        <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+          <li
+            v-for="item in notifications"
+            :key="item._id"
+            class="flex gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-900"
+            :class="{ 'bg-amber-50/40 dark:bg-amber-500/5': !item.read }"
+          >
+            <div class="pt-1">
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                :value="item._id"
+                :checked="selectedMap[item._id]"
+                @change="toggleSelected(item._id)"
+              />
+            </div>
+
+            <!-- Avatar: truck icon -->
+            <div class="relative h-10 w-10 shrink-0">
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-full"
+                :class="!item.read
+                  ? 'bg-amber-100 dark:bg-amber-500/20'
+                  : 'bg-gray-100 dark:bg-gray-800'"
               >
-                <!-- No. Polisi + step -->
-                <td class="px-4 py-3">
-                  <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                    {{ row.truck_plate || '-' }}
-                  </div>
-                  <div v-if="row.step_name" class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ row.step_name }}
-                  </div>
-                </td>
+                <svg
+                  class="h-5 w-5"
+                  :class="!item.read
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-gray-500 dark:text-gray-400'"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"
+                  />
+                </svg>
+              </div>
+              <span
+                v-if="!item.read"
+                class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-[1.5px] border-white bg-brand-500 dark:border-gray-900"
+              ></span>
+            </div>
 
-                <!-- Rute -->
-                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                  {{ row.route_name || '-' }}
-                </td>
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-medium text-gray-800 dark:text-white/90 truncate">
+                  {{ item.title }}
+                </p>
+                <span class="text-xs text-gray-500 dark:text-gray-400 shrink-0">{{ item.timeAgo }}</span>
+              </div>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 leading-snug">
+                {{ item.message }}
+              </p>
+              <div class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                <button
+                  type="button"
+                  class="font-medium text-brand-500 hover:text-brand-600"
+                  @click="handleOpen(item)"
+                >
+                  Buka
+                </button>
+                <span class="h-1 w-1 rounded-full bg-gray-400"></span>
+                <span>{{ item.type }}</span>
+                <span class="h-1 w-1 rounded-full bg-gray-400"></span>
+                <span
+                  v-if="!item.read"
+                  class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                >Belum Baca</span>
+                <span
+                  v-else
+                  class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-green-700 dark:bg-green-500/20 dark:text-green-300"
+                >Sudah Baca</span>
+              </div>
+            </div>
+          </li>
+          <li
+            v-if="!notifications.length"
+            class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400"
+          >
+            Belum ada notifikasi pengiriman
+          </li>
+        </ul>
+      </div>
 
-                <!-- Estimasi -->
-                <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                  {{ formatDateTime(row.scheduled_arrival) }}
-                </td>
-
-                <!-- Waktu Notif -->
-                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                  {{ formatTimeAgo(row.created_at) }}
-                </td>
-
-                <!-- Status -->
-                <td class="px-4 py-3">
-                  <span
-                    v-if="!row.is_read"
-                    class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                  >
-                    Belum Baca
-                  </span>
-                  <span
-                    v-else
-                    class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-500/20 dark:text-green-300"
-                  >
-                    Sudah Baca
-                  </span>
-                </td>
-
-                <!-- Aksi -->
-                <td class="px-4 py-3">
-                  <div class="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      title="Lihat SPK"
-                      class="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-brand-50 hover:text-brand-600 dark:text-gray-400 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
-                      @click="handleViewSpk(row)"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="!row.is_read"
-                      type="button"
-                      title="Tandai Dibaca"
-                      class="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-green-50 hover:text-green-600 dark:text-gray-400 dark:hover:bg-green-500/10 dark:hover:text-green-400"
-                      @click="handleMarkRead(row)"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      title="Hapus Notifikasi"
-                      class="inline-flex items-center justify-center rounded-md p-1.5 text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                      @click="handleDismiss(row)"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination -->
-        <div
-          class="mt-4 flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800/30"
+      <!-- Pagination -->
+      <div
+        v-if="notifications.length > 0"
+        class="mt-4 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700"
+      >
+        <button
+          @click="goToPage(meta.page - 1)"
+          :disabled="meta.page <= 1"
+          class="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
         >
-          <div>
-            Halaman
-            <span class="font-medium text-gray-700 dark:text-gray-200">{{ currentPage }}</span>
-            dari
-            <span class="font-medium text-gray-700 dark:text-gray-200">{{ meta.totalPages }}</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-              :disabled="loading || currentPage === 1"
-              @click="goToPage(currentPage - 1)"
-            >
-              &larr; Sebelumnya
-            </button>
-            <button
-              type="button"
-              class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-              :disabled="loading || currentPage >= meta.totalPages"
-              @click="goToPage(currentPage + 1)"
-            >
-              Berikutnya &rarr;
-            </button>
-          </div>
-        </div>
-      </ComponentCard>
-    </div>
+          ← Sebelumnya
+        </button>
+        <span class="text-sm text-gray-500 dark:text-gray-400">
+          Halaman {{ meta.page }} dari {{ meta.totalPages }}
+        </span>
+        <button
+          @click="goToPage(meta.page + 1)"
+          :disabled="meta.page >= meta.totalPages"
+          class="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+        >
+          Berikutnya →
+        </button>
+      </div>
+    </ComponentCard>
   </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
-// @ts-ignore - service is plain JS
+// @ts-ignore — plain JS service
 import { deliveryNotificationService } from '@/services/deliveryNotificationService'
 import { useToast } from '@/composables/useToast'
+
+const pageTitle = 'Notifikasi Pengiriman'
+const router = useRouter()
+const toast = useToast()
 
 type DeliveryNotificationRow = {
   id: number
@@ -292,21 +255,25 @@ type DeliveryNotificationRow = {
   created_at: string
 }
 
-const pageTitle = 'Notifikasi Pengiriman'
-const router = useRouter()
-const toast = useToast()
+type NotificationItem = {
+  _id: number
+  id_sales_cost: number
+  title: string
+  message: string
+  type: string
+  read: boolean
+  timeAgo: string
+}
 
 const rows = ref<DeliveryNotificationRow[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
-const pageSizeOptions = [10, 20, 50, 100]
 
 const meta = reactive({
   totalItems: 0,
   totalPages: 1,
   page: 1,
-  pageSize: 20,
   unreadCount: 0
 })
 
@@ -314,66 +281,6 @@ const filters = reactive({
   search: '',
   status: ''
 })
-
-const fetchNotifications = async () => {
-  loading.value = true
-  try {
-    const data = await deliveryNotificationService.fetchList({
-      status: filters.status,
-      search: filters.search.trim(),
-      page: currentPage.value,
-      pageSize: pageSize.value
-    })
-    rows.value = data.rows || []
-    meta.totalItems = data.meta.totalItems
-    meta.totalPages = data.meta.totalPages
-    meta.page = data.meta.page
-    meta.pageSize = data.meta.pageSize
-    meta.unreadCount = data.meta.unread_count
-  } catch (error: any) {
-    toast.error(error?.message || 'Gagal memuat notifikasi.')
-  } finally {
-    loading.value = false
-  }
-}
-
-const applyFilter = () => {
-  currentPage.value = 1
-  void fetchNotifications()
-}
-
-const resetFilter = () => {
-  filters.search = ''
-  filters.status = ''
-  currentPage.value = 1
-  void fetchNotifications()
-}
-
-const goToPage = (p: number) => {
-  if (p >= 1 && p <= meta.totalPages) {
-    currentPage.value = p
-    void fetchNotifications()
-  }
-}
-
-const changePageSize = () => {
-  currentPage.value = 1
-  void fetchNotifications()
-}
-
-const formatDateTime = (value: string | null | undefined): string => {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (isNaN(d.getTime())) return '-'
-  return d.toLocaleString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
-}
 
 const formatTimeAgo = (value: string | null | undefined): string => {
   if (!value) return '-'
@@ -391,38 +298,127 @@ const formatTimeAgo = (value: string | null | undefined): string => {
   return `${days} hari lalu`
 }
 
-const handleViewSpk = (row: DeliveryNotificationRow) => {
-  if (!row.id_sales_cost) return
-  router.push(`/sales-cost/${row.id_sales_cost}`)
-}
+const notifications = computed<NotificationItem[]>(() =>
+  rows.value.map((item) => ({
+    _id: item.id,
+    id_sales_cost: item.id_sales_cost,
+    title: item.truck_plate + (item.route_name ? ` — ${item.route_name}` : ''),
+    message: item.message,
+    type: item.notification_type,
+    read: item.is_read === 1,
+    timeAgo: formatTimeAgo(item.created_at)
+  }))
+)
 
-const handleMarkRead = async (row: DeliveryNotificationRow) => {
-  try {
-    await deliveryNotificationService.markRead(row.id)
-    row.is_read = 1
-    meta.unreadCount = Math.max(0, meta.unreadCount - 1)
-  } catch (error: any) {
-    toast.error(error?.message || 'Gagal menandai notifikasi.')
+// ─── Selection ────────────────────────────────────────────────────────────────
+
+const selectedMap = ref<Record<number, boolean>>({})
+const selectedIds = computed(() => Object.keys(selectedMap.value).map(Number))
+const allSelected = computed(
+  () => notifications.value.length > 0 && selectedIds.value.length === notifications.value.length
+)
+
+const toggleSelected = (id: number) => {
+  if (selectedMap.value[id]) {
+    delete selectedMap.value[id]
+  } else {
+    selectedMap.value[id] = true
   }
 }
 
-const handleDismiss = async (row: DeliveryNotificationRow) => {
+const toggleSelectAll = () => {
+  if (allSelected.value) {
+    selectedMap.value = {}
+    return
+  }
+  const next: Record<number, boolean> = {}
+  notifications.value.forEach((item) => {
+    next[item._id] = true
+  })
+  selectedMap.value = next
+}
+
+// Clean up selectedMap when notifications change
+watch(notifications, (items) => {
+  const ids = new Set(items.map((item) => item._id))
+  Object.keys(selectedMap.value).forEach((id) => {
+    if (!ids.has(Number(id))) {
+      delete selectedMap.value[Number(id)]
+    }
+  })
+})
+
+// ─── Data fetching ────────────────────────────────────────────────────────────
+
+const fetchNotifications = async () => {
+  loading.value = true
   try {
-    await deliveryNotificationService.dismiss(row.id)
-    rows.value = rows.value.filter((r) => r.id !== row.id)
-    if (!row.is_read) meta.unreadCount = Math.max(0, meta.unreadCount - 1)
-    meta.totalItems = Math.max(0, meta.totalItems - 1)
+    const data = await deliveryNotificationService.fetchList({
+      status: filters.status,
+      search: filters.search.trim(),
+      page: currentPage.value,
+      pageSize: pageSize.value
+    })
+    rows.value = data.rows || []
+    meta.totalItems = data.meta.totalItems
+    meta.totalPages = data.meta.totalPages
+    meta.page = data.meta.page
+    meta.unreadCount = data.meta.unread_count
   } catch (error: any) {
-    toast.error(error?.message || 'Gagal menghapus notifikasi.')
+    toast.error(error?.message || 'Gagal memuat notifikasi.')
+  } finally {
+    loading.value = false
   }
 }
 
-const handleMarkAllRead = async () => {
+const applyFilter = () => { currentPage.value = 1; void fetchNotifications() }
+const resetFilter = () => { filters.search = ''; filters.status = ''; currentPage.value = 1; void fetchNotifications() }
+const goToPage = (p: number) => {
+  if (p >= 1 && p <= meta.totalPages) {
+    currentPage.value = p
+    void fetchNotifications()
+  }
+}
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+
+const handleOpen = async (item: NotificationItem) => {
+  try {
+    await deliveryNotificationService.markRead(item._id)
+  } catch {
+    // non-blocking — still navigate
+  }
+  if (item.id_sales_cost) {
+    router.push(`/sales-cost/${item.id_sales_cost}`)
+  }
+}
+
+const handleMarkAll = async () => {
   try {
     await deliveryNotificationService.markAllRead()
     void fetchNotifications()
   } catch (error: any) {
     toast.error(error?.message || 'Gagal menandai semua notifikasi.')
+  }
+}
+
+const handleDeleteSelected = async () => {
+  try {
+    await Promise.all(selectedIds.value.map((id) => deliveryNotificationService.dismiss(id)))
+    selectedMap.value = {}
+    void fetchNotifications()
+  } catch (error: any) {
+    toast.error(error?.message || 'Gagal menghapus notifikasi.')
+  }
+}
+
+const handleDeleteAll = async () => {
+  try {
+    await Promise.all(rows.value.map((row) => deliveryNotificationService.dismiss(row.id)))
+    selectedMap.value = {}
+    void fetchNotifications()
+  } catch (error: any) {
+    toast.error(error?.message || 'Gagal menghapus notifikasi.')
   }
 }
 

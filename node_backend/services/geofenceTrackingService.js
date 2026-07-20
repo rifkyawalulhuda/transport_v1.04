@@ -81,10 +81,10 @@ const getActiveSalesCostCandidates = async () => {
       AND t.wialon_unit_id <> ''
       AND t.is_active = 1
       AND scss.wialon_zone_id IS NOT NULL
-      AND (
-        sc.finish_order_datetime IS NULL
-        OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00 00:00:00'
-        OR sc.finish_order_datetime > NOW()
+      AND NOT EXISTS (
+        SELECT 1 FROM sales_cost_route_history scrh
+        WHERE scrh.id_sales_cost = sc.id_sales_cost
+          AND scrh.step_key = 'system:finish_order'
       )
     ORDER BY sc.id_truck ASC, sc.departure_datetime DESC, sc.id_sales_cost DESC
   `);
