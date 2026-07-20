@@ -195,12 +195,6 @@ router.get("/", authenticateToken, async (req, res) => {
     const conditions = [];
     const params = [];
 
-    const todayString = toLocalDateString(new Date());
-    if (todayString) {
-      conditions.push("sc.arrival_datetime >= ?");
-      params.push(todayString);
-    }
-
     if (startDate) {
       conditions.push("sc.departure_datetime >= ?");
       params.push(startDate);

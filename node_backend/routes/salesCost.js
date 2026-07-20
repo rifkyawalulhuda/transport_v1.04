@@ -598,6 +598,38 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
             }
           }
 
+          // H14: Validate date ordering — departure ≤ arrival ≤ finish_order
+          if (arrivalDate && deliveryDate && arrivalDate < deliveryDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_DATE_ORDER",
+              reason: "Tanggal tiba tidak boleh lebih awal dari tanggal berangkat."
+            });
+            continue;
+          }
+          if (arrivalDate && finishDate && finishDate < arrivalDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_DATE_ORDER",
+              reason: "Tanggal selesai order tidak boleh lebih awal dari tanggal tiba."
+            });
+            continue;
+          }
+          if (finishDate && deliveryDate && finishDate < deliveryDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_DATE_ORDER",
+              reason: "Tanggal selesai order tidak boleh lebih awal dari tanggal berangkat."
+            });
+            continue;
+          }
+
           // Parse IDs
           const idTruck = row.parsedTruckId;
           const idDriver = parseId(row.driverStr, `Row ${row.rowNumber} Driver`);

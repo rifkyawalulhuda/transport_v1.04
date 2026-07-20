@@ -33,7 +33,23 @@
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
               />
             </div>
-            <div class="sm:col-span-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Status
+              </label>
+              <select
+                v-model="filters.status"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              >
+                <option value="">Semua Status</option>
+                <option value="waiting">Menunggu</option>
+                <option value="on_trip">Dalam Perjalanan</option>
+                <option value="overdue">Terlambat</option>
+                <option value="completed">Selesai</option>
+                <option value="incomplete_finish">Belum Lengkap</option>
+              </select>
+            </div>
+            <div>
               <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
                 Kata Kunci
               </label>
@@ -104,7 +120,7 @@
         </div>
 
         <!-- Empty -->
-        <div v-else-if="rows.length === 0" class="flex flex-col items-center gap-2 py-12 text-center">
+        <div v-else-if="filteredRows.length === 0" class="flex flex-col items-center gap-2 py-12 text-center">
           <svg class="h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
           </svg>
@@ -114,7 +130,7 @@
         <!-- Cards -->
         <div v-else class="space-y-3">
           <div
-            v-for="row in rows"
+            v-for="row in filteredRows"
             :key="row.id_sales_cost"
             class="group rounded-xl border bg-white transition hover:border-brand-200 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500/40"
           >
@@ -602,8 +618,10 @@ const toDateInputValue = (date: Date) => {
 const getDefaultDateRange = () => {
   const start = new Date()
   start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 7)
+  start.setDate(start.getDate() - 7)  // 7 hari lalu
+  const end = new Date()
+  end.setHours(0, 0, 0, 0)
+  end.setDate(end.getDate() + 7)      // 7 hari ke depan
   return {
     startDate: toDateInputValue(start),
     endDate: toDateInputValue(end)
@@ -613,13 +631,20 @@ const getDefaultDateRange = () => {
 const filters = reactive({
   startDate: '',
   endDate: '',
-  search: ''
+  search: '',
+  status: ''
 })
 const filterError = ref('')
 const rows = ref<ScheduleRow[]>([])
 const loading = ref(false)
 const expanded = reactive<Record<number, boolean>>({})
 const expandedCards = reactive<Record<number, boolean>>({})
+
+// Client-side status filter applied on top of server-side date/search filter
+const filteredRows = computed(() => {
+  if (!filters.status) return rows.value
+  return rows.value.filter(row => row.schedule_status === filters.status)
+})
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -814,6 +839,7 @@ const resetFilter = () => {
   filters.startDate = defaults.startDate
   filters.endDate = defaults.endDate
   filters.search = ''
+  filters.status = ''
   filterError.value = ''
   currentPage.value = 1
   loadData()
