@@ -122,7 +122,6 @@ const checkArrivalDelays = async () => {
       INNER JOIN area a ON sc.id_area = a.id_area
       WHERE sc.arrival_datetime IS NOT NULL
         AND sc.arrival_datetime < NOW()
-        AND sc.finish_order_datetime IS NULL
         AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         AND NOT EXISTS (
           SELECT 1 FROM sales_cost_route_history scrh
@@ -168,8 +167,12 @@ const checkArrivalDelays = async () => {
       INNER JOIN area a ON sc.id_area = a.id_area
       WHERE scss.estimated_arrival < NOW()
         AND scss.is_finish = 0
-        AND sc.finish_order_datetime IS NULL
         AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_cost_route_history scrh2
+          WHERE scrh2.id_sales_cost = sc.id_sales_cost
+            AND scrh2.step_key = 'system:finish_order'
+        )
         AND NOT EXISTS (
           SELECT 1 FROM sales_cost_route_history scrh
           WHERE scrh.id_sales_cost = scss.id_sales_cost
