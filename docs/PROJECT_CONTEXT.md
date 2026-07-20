@@ -668,3 +668,129 @@ npm run build-only
 ## Active Branch
 
 - `add-module-bbs` — contains all Juli 2026 features. 26+ commits ahead of `origin/add-module-bbs`. Not yet pushed to GitHub.
+
+---
+
+## Updates (2026-07-18 to 2026-07-20)
+
+### Monitoring Kendaraan — Enhancements & Bug Fixes
+
+- `monitoringKendaraan.js` — enriched `truckRows` query to include `last_lat`, `last_lng`, `last_gps_time`, `last_address` from `truck` table.
+- `monitoringKendaraan.js` — fixed stale `on_trip` window: added `departure_datetime >= DATE_SUB(NOW(), INTERVAL 60 DAY)` to `onTripSql`.
+- `monitoringKendaraan.js` — fixed `lastSql` tie-breaking: double subquery with `MAX(id_sales_cost)` as tiebreaker for non-deterministic `last_transaction`.
+- `monitoringKendaraan.js` — added `status_duration_minutes` to `on_trip` and `transaksi` items (minutes since departure).
+- `monitoringKendaraan.js` — `on_trip` status now only applies to trucks with `sales_cost_step_schedule` configured (GPS-tracked deliveries). Older transactions without step schedule fall into `transaksi` instead of polluting `on_trip` with 500+ stale entries.
+- `monitoringKendaraan.js` — `is_overdue` badge now uses `finish_order_datetime < NOW()` (not `arrival_datetime`) as overdue deadline, and also checks `NOT EXISTS system:finish_order` to avoid false overdue on completed trips.
+- `MonitoringKendaraan.vue` — auto-refresh every 60 seconds + manual refresh button with "X menit lalu" display.
+- `MonitoringKendaraan.vue` — filter bulan/tahun now exposed to user (was wired in backend but never sent from frontend).
+- `MonitoringKendaraan.vue` — truck cards now show: driver name, duration in status, last GPS coordinates/address, Sales Cost number.
+- `MonitoringKendaraan.vue` — fixed broken `<div>` tag on transaksi section that caused entire page to not respond.
+
+### GPS Cache — Truck Table
+
+- Migration `20260717000008` — added `last_lat`, `last_lng`, `last_address`, `last_gps_time` columns to `truck` table.
+- `geofenceTrackingService.js` — GPS cache now 2-phase: Phase 1 updates coordinates in parallel, Phase 2 runs reverse geocoding as fire-and-forget (`void Promise.allSettled`) — no longer blocks sync cycle.
+- `geofenceTrackingService.js` — GPS `null` coordinate check changed from falsy (`!position?.lon`) to explicit null check (`position?.lon == null`) to allow coordinate `0`.
+- `monitoringKendaraan.js` — `last_address` column now included in `truckRows` SELECT query so reverse-geocoded address is served in monitoring response.
+
+### Delivery Notifications — Bug Fixes & Improvements
+
+- `deliveryNotifications.js` — `unread_count` now uses a separate `SELECT COUNT(*)` query (not counted from LIMIT-50 rows, which gave wrong count when >50 unread).
+- `deliveryNotifications.js` — GET handler now runs both queries (rows + count) in parallel with `Promise.all`.
+- `DeliveryNotificationBell.vue` — `formatTimeAgo` bug fixed: seconds label was `"${diff}d lalu"` (showing "5d lalu"), now `"${diff} dtk lalu"`.
+- `DeliveryNotificationBell.vue` — click on notification now navigates to `/sales-cost/${item.id_sales_cost}` (detail page) instead of generic `/sales-cost` list.
+- `DeliveryNotificationBell.vue` — polling interval was `30000ms`; updated to `60_000ms` with proper `clearInterval` on unmount.
+
+### DatePickerInput — Replaced flatpickr with VueDatePicker
+
+- `DatePickerInput.vue` — `flat-pickr` component replaced with `@vuepic/vue-datepicker` (v8.8.1, already installed).
+- VueDatePicker uses `teleport="body"` + internal `@floating-ui` for viewport-aware popup positioning — fixes calendar popup being clipped on right-column inputs in forms.
+- Output format unchanged: `YYYY-MM-DD HH:MM` string. All callers (`SalesCostForm.vue`, etc.) unaffected.
+- CSS imported via `import '@vuepic/vue-datepicker/dist/main.css'` inside the component; flatpickr CSS import in `main.ts` preserved (still used by `DefaultInputs.vue` demo page).
+
+### Security & Infrastructure (Kelompok 3)
+
+- `routes/auth.js` — password login now uses bcrypt dual-mode: tries `bcrypt.compare()` first; falls back to plaintext for legacy passwords and auto-upgrades to bcrypt hash on successful login (12 rounds, non-blocking).
+- `routes/admin.js` — admin CREATE and UPDATE now hash password with `bcrypt.hash(password, 12)` before INSERT/UPDATE. Password column removed from all GET/POST/PUT response SELECT queries.
+- `server.js` — CORS `origin` now reads from `process.env.ALLOWED_ORIGIN`; falls back to `true` (all origins) when unset (dev mode).
+- `server.js` — CORS preflight `app.options("*", cors())` now passes same config as main cors middleware (previously bypassed restrictions).
+- `server.js` — static routes `/doc-data-truck`, `/doc-data-chasis`, `/doc-supir` now protected with `authenticateToken` middleware.
+- `server.js` — `/img` static route left public (browser `<img>` tags cannot send Authorization headers; profile photos must be accessible without auth).
+- `middleware/rbac.js` — `restrictCsAccess` and `restrictPatcherAccess` now use hybrid pattern: reads `req.user` if already decoded by `authenticateToken`, falls back to `jwt.verify` if not.
+- `.env` — cleaned: removed duplicate `MONGO_URI`, added missing `DB_PORT`, `WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS`, `GEOFENCE_TRACKING_INTERVAL_MS`, `DEFAULT_FINISH_GEOFENCE_NAME`, `ALLOWED_ORIGIN`.
+- `.env.example` — updated to match all keys now used in `.env`.
+- `bcrypt@5.1.1` added to `node_backend/package.json`.
+- `ALLOWED_ORIGIN` env var — new variable for CORS production restriction. Set to production domain (e.g. `https://app.example.com`) in production `.env`. Leave empty for dev.
+
+### Geofence Tracking — Critical Bug Fixes
+
+- `geofenceTrackingService.js` — C5: `finish_order_datetime` is now set to `NOW()` via `UPDATE sales_cost` after inserting `system:finish_order` to `sales_cost_route_history`. Uses idempotency guard (`finish_order_datetime IS NULL OR = '0000-00-00 00:00:00'`).
+- `geofenceTrackingService.js` — C6: `finish_geofence_resource_id`, `finish_geofence_zone_id`, `finish_geofence_zone_name` are now included in the `pickedByTruck` map object (were previously dropped), so per-area finish geofence is used correctly instead of always falling back to `DEFAULT_FINISH_GEOFENCE_NAME` ("Sankyu").
+
+### Repair Business Logic Fixes
+
+- `repairService.js` — C2/C3/C4: `updateRepair` now uses `payload.field !== undefined ? payload.field : existing.field` pattern for all 12 fields — prevents partial update from overwriting existing data with empty strings or null. `id_truck` and `nik_admin` (both NOT NULL in DB) use additional `!= null` guard.
+- `repairService.js` — H1: `createRepair` now checks if the truck is currently on an active trip (`system:finish_order` not yet recorded, within 60 days) before inserting. Returns 409 if truck is on trip.
+- `repairService.js` — H3: `updateRepair` enforces one-way state machine: `SELESAI → PROSES` transition is now blocked with a 400 error.
+
+### Sales Cost — Validation & Lock Fixes
+
+- `salesCost.js` — H14: date ordering validation added to both POST and PUT handlers: `departure ≤ arrival ≤ finish_order`. Returns 400 with Indonesian message if order is wrong.
+- `salesCost.js` — H15: DELETE handler now has same month-lock check as PUT handler: records from past months cannot be deleted (returns 403 "Data terkunci. Tidak bisa dihapus.").
+- `salesCost.js` — `POST /:id/check-in` handler now selects `stop.is_finish` from `sales_cost_step_schedule` and, if `is_finish = 1`, automatically inserts a `system:finish_order` record into `sales_cost_route_history` and updates `finish_order_datetime` on the `sales_cost` row (idempotent). This ensures manual check-in of the Finish stop has the same effect as GPS-triggered finish, making Monitoring Kendaraan status consistent with Schedule Pengiriman.
+
+### Database Migrations
+
+- `20260717000008_add_gps_cache_to_truck.sql` — added `last_lat`, `last_lng`, `last_address`, `last_gps_time` to `truck`.
+- `20260720000009_nullable_wialon_fields_route_history.sql` — changed `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name` in `sales_cost_route_history` from `NOT NULL` to `NULL DEFAULT NULL`. Required so manual check-in (without Wialon GPS config) can insert route history without error.
+
+### Monitoring Kendaraan — Status Logic Alignment with Schedule Pengiriman
+
+**Problem:** `on_trip` status in Monitoring used `finish_order_datetime IS NULL` as primary gate, but `finish_order_datetime` is also set manually as an estimated schedule — causing trucks to appear as "Transaksi" even while physically en route.
+
+**Fix:** Removed `finish_order_datetime IS NULL` from `onTripSql`. The single source of truth for "delivery finished" is now `system:finish_order` in `sales_cost_route_history` — consistent with Schedule Pengiriman's `resolveScheduleStatus` logic.
+
+- `monitoringKendaraan.js` — `onTripSql` no longer requires `finish_order_datetime IS NULL`; only requires `NOT EXISTS (system:finish_order in route_history)` AND `EXISTS (sales_cost_step_schedule)`.
+
+### Schedule Pengiriman — Overdue Logic Fix
+
+**Problem:** `resolveScheduleStatus` in `schedulePengiriman.js` used `arrival_datetime` (estimated stop 1 arrival time) as the overdue deadline. This caused "Estimasi arrival sudah lewat" text to appear even when the truck was ahead of schedule, because `arrival_datetime` is the stop 1 ETA, not the overall delivery deadline.
+
+**Fix:** `resolveScheduleStatus` now uses `finish_order_datetime` as the overdue deadline (fallback to `arrival_datetime` for backwards compatibility). The overdue condition also now requires `!finishHit` — completed deliveries cannot be overdue.
+
+- `schedulePengiriman.js` — `resolveScheduleStatus` accepts new parameter `finishOrderDatetime`; uses it as `overdueDeadline` when available.
+- `schedulePengiriman.js` — caller at line ~449 now passes `finishOrderDatetime: row.finish_order_datetime`.
+
+### Monitoring Kendaraan — Repair Query Fix
+
+- `monitoringKendaraan.js` — repair query changed from `LEFT JOIN truck` to `INNER JOIN truck AND truck.is_active = 1` so inactive trucks no longer appear in monitoring repair list.
+
+### Schedule Pengiriman — Text Fix
+
+- `SchedulePengiriman.vue` — fixed garbled separator characters in date range display. Was `{{ filters.startDate }} → {{ filters.endDate }}` (broken encoding); now uses HTML entities `&mdash;` and `&bull;` for clean display.
+
+## Key Business Logic Rules (post-2026-07-20)
+
+### "Dalam Perjalanan" (on_trip) definition
+A truck is `on_trip` in Monitoring Kendaraan if ALL of:
+1. `truck.is_active = 1`
+2. `sales_cost.departure_datetime IS NOT NULL` and within 60 days
+3. `NOT EXISTS (system:finish_order in sales_cost_route_history)` — delivery not yet finished
+4. `EXISTS (sales_cost_step_schedule for this sales_cost)` — GPS tracking configured
+
+### "system:finish_order" as single source of truth
+`system:finish_order` in `sales_cost_route_history` is the authoritative signal that a delivery is complete. It is written by:
+- `geofenceTrackingService.js` — when truck enters finish geofence (GPS-triggered)
+- `salesCost.js POST /:id/check-in` — when user manually check-ins a stop with `is_finish = 1` (manual trigger)
+
+`finish_order_datetime` in `sales_cost` is set at the same time as a convenience field, but is NOT used as the primary gate for on_trip classification.
+
+### Overdue deadline
+- Monitoring Kendaraan `is_overdue`: `finish_order_datetime < NOW()` AND `NOT EXISTS system:finish_order`
+- Schedule Pengiriman `overdue` status: `finish_order_datetime < NOW()` AND `finishHit = false`
+- Per-stop overdue in Schedule timeline: `estimated_arrival < NOW()` AND stop not yet hit in route_history
+
+### Password security
+- Login: bcrypt dual-mode. New passwords hashed with bcrypt (12 rounds). Legacy plaintext passwords auto-upgrade on first successful login.
+- Admin CREATE/UPDATE: passwords always hashed before DB write.
+- Admin GET responses: `password` field never included in response payload.
