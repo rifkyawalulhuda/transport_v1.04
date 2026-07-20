@@ -177,6 +177,15 @@
                 </div>
                 <div class="flex flex-col items-end gap-1">
                   <Badge color="warning" size="sm">Dalam Perjalanan</Badge>
+                  <button
+                    v-if="item.active_spk_count >= 1"
+                    type="button"
+                    class="inline-flex cursor-pointer items-center rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-semibold text-warning-700 transition hover:bg-warning-200 dark:bg-warning-500/15 dark:text-warning-400 dark:hover:bg-warning-500/25"
+                    :title="`Lihat ${item.active_spk_count} SPK aktif di Schedule Pengiriman`"
+                    @click.stop="navigateToSpk(item)"
+                  >
+                    {{ item.active_spk_count }} SPK aktif →
+                  </button>
                   <span
                     v-if="item.is_overdue === true"
                     class="text-xs font-medium text-error-500"
@@ -281,7 +290,18 @@
                     {{ resolveVehicleName(item) }}
                   </p>
                 </div>
-                <Badge color="success" size="sm">Transaksi</Badge>
+                <div class="flex flex-col items-end gap-1">
+                  <Badge color="success" size="sm">Transaksi</Badge>
+                  <button
+                    v-if="item.active_spk_count >= 1"
+                    type="button"
+                    class="inline-flex cursor-pointer items-center rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-semibold text-warning-700 transition hover:bg-warning-200 dark:bg-warning-500/15 dark:text-warning-400 dark:hover:bg-warning-500/25"
+                    :title="`Lihat ${item.active_spk_count} SPK aktif di Schedule Pengiriman`"
+                    @click.stop="navigateToSpk(item)"
+                  >
+                    {{ item.active_spk_count }} SPK aktif →
+                  </button>
+                </div>
               </div>
               <div class="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
                 <p>
@@ -529,6 +549,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -538,6 +559,13 @@ import { useToast } from '@/composables/useToast'
 
 const pageTitle = 'Monitoring Kendaraan'
 const toast = useToast()
+const router = useRouter()
+
+const navigateToSpk = (item: any) => {
+  const ids = item.active_spk_ids?.join(',')
+  if (!ids) return
+  router.push({ path: '/schedule-pengiriman', query: { spk_ids: ids } })
+}
 
 const monitoringData = ref({
   summary: {

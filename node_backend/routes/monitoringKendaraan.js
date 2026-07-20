@@ -297,22 +297,24 @@ router.get("/", async (req, res) => {
       repairsByTruck.set(key, row);
     });
 
-    const transaksiByTruck = new Map();
+    const transaksiByTruck = new Map(); // Map<truck_key, row[]>
     trxRows.forEach((row) => {
       const key = String(row.id_truck || "");
-      if (!key || transaksiByTruck.has(key)) {
-        return;
+      if (!key) return;
+      if (!transaksiByTruck.has(key)) {
+        transaksiByTruck.set(key, []);
       }
-      transaksiByTruck.set(key, row);
+      transaksiByTruck.get(key).push(row);
     });
 
-    const onTripByTruck = new Map();
+    const onTripByTruck = new Map(); // Map<truck_key, row[]>
     onTripRows.forEach((row) => {
       const key = String(row.id_truck || "");
-      if (!key || onTripByTruck.has(key)) {
-        return;
+      if (!key) return;
+      if (!onTripByTruck.has(key)) {
+        onTripByTruck.set(key, []);
       }
-      onTripByTruck.set(key, row);
+      onTripByTruck.get(key).push(row);
     });
 
     const lastByTruck = new Map();
@@ -366,10 +368,15 @@ router.get("/", async (req, res) => {
       }
 
       if (onTripByTruck.has(key)) {
-        const onTripTrx = onTripByTruck.get(key);
+        const onTripList_rows = onTripByTruck.get(key);
+        const onTripTrx = onTripList_rows[0]; // primary = most recent (already sorted DESC)
+        const activeSpkCount = onTripList_rows.length;
+        const activeSpkIds = onTripList_rows.map(t => t.id_sales_cost);
         onTripList.push({
           ...base,
           status: 'on_trip',
+          active_spk_count: activeSpkCount,
+          active_spk_ids: activeSpkIds,
           driver_name: onTripTrx.nama_driver || null,
           is_overdue: Boolean(onTripTrx.is_overdue),
           status_duration_minutes: onTripTrx.departure_datetime
@@ -390,10 +397,15 @@ router.get("/", async (req, res) => {
       }
 
       if (transaksiByTruck.has(key)) {
-        const trx = transaksiByTruck.get(key);
+        const trxList = transaksiByTruck.get(key);
+        const trx = trxList[0]; // primary = most recent (already sorted DESC)
+        const activeSpkCount = trxList.length;
+        const activeSpkIds = trxList.map(t => t.id_sales_cost);
         transaksiList.push({
           ...base,
           status: "transaksi",
+          active_spk_count: activeSpkCount,
+          active_spk_ids: activeSpkIds,
           driver_name: trx.nama_driver || null,
           status_duration_minutes: trx.departure_datetime
             ? Math.floor((Date.now() - new Date(trx.departure_datetime).getTime()) / 60000)

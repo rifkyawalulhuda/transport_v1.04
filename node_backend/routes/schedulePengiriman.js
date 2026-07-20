@@ -187,6 +187,12 @@ router.get("/", authenticateToken, async (req, res) => {
     const sortColumn = sortableColumns[sortBy] || sortableColumns.departure_datetime;
 
     const search = String(req.query.search || "").trim();
+    // Parse spk_ids param — comma-separated list of sales cost IDs from Monitoring Kendaraan
+    const spkIds = req.query.spk_ids
+      ? String(req.query.spk_ids).split(',')
+          .map(id => parseInt(id.trim(), 10))
+          .filter(id => Number.isFinite(id) && id > 0)
+      : [];
     const { startDate, endDate } = resolveDateRange(
       req.query.start_date,
       req.query.end_date
@@ -195,14 +201,22 @@ router.get("/", authenticateToken, async (req, res) => {
     const conditions = [];
     const params = [];
 
-    if (startDate) {
-      conditions.push("sc.departure_datetime >= ?");
-      params.push(startDate);
+    if (spkIds.length === 0) {
+      if (startDate) {
+        conditions.push("sc.departure_datetime >= ?");
+        params.push(startDate);
+      }
+
+      if (endDate) {
+        conditions.push("sc.departure_datetime <= ?");
+        params.push(`${endDate} 23:59:59`);
+      }
     }
 
-    if (endDate) {
-      conditions.push("sc.departure_datetime <= ?");
-      params.push(`${endDate} 23:59:59`);
+    if (spkIds.length > 0) {
+      const placeholders = spkIds.map(() => '?').join(',');
+      conditions.push(`sc.id_sales_cost IN (${placeholders})`);
+      params.push(...spkIds);
     }
 
     if (search) {

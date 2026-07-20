@@ -85,6 +85,28 @@
         </form>
       </ComponentCard>
 
+      <!-- SPK filter banner from Monitoring Kendaraan -->
+      <div
+        v-if="spkIdsActive"
+        class="flex items-center justify-between rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm dark:border-warning-500/30 dark:bg-warning-500/10"
+      >
+        <div class="flex items-center gap-2 text-warning-700 dark:text-warning-300">
+          <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+          </svg>
+          <span>
+            Menampilkan <strong>{{ spkIdsActive.split(',').length }} SPK</strong> aktif dari Monitoring Kendaraan
+          </span>
+        </div>
+        <button
+          type="button"
+          class="ml-4 text-xs font-medium text-warning-600 hover:text-warning-800 dark:text-warning-400 dark:hover:text-warning-200"
+          @click="spkIdsActive = ''; loadData()"
+        >
+          × Hapus filter
+        </button>
+      </div>
+
       <!-- -- Schedule Cards ---------------------------------------- -->
       <div class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
         <!-- Toolbar -->
@@ -507,7 +529,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
@@ -601,6 +623,8 @@ type PaginationItem =
 
 const currentPageTitle = ref('Schedule Pengiriman')
 const router = useRouter()
+const route = useRoute()
+const spkIdsActive = ref<string>('')  // comma-separated spk_ids from URL, empty = normal mode
 const toast = useToast()
 const authUser = useAuthUser()
 const isDetailDisabled = computed(() => {
@@ -860,6 +884,9 @@ const buildParams = () => {
   if (filters.search.trim()) {
     params.append('search', filters.search.trim())
   }
+  if (spkIdsActive.value) {
+    params.append('spk_ids', spkIdsActive.value)
+  }
   return params
 }
 
@@ -957,9 +984,15 @@ const changePageSize = () => {
 }
 
 onMounted(() => {
-  const defaults = getDefaultDateRange()
-  filters.startDate = defaults.startDate
-  filters.endDate = defaults.endDate
+  if (route.query.spk_ids) {
+    // Navigate from Monitoring Kendaraan badge — filter by specific SPK IDs
+    spkIdsActive.value = String(route.query.spk_ids)
+    // Don't set date range defaults — spk_ids mode bypasses date filter
+  } else {
+    const defaults = getDefaultDateRange()
+    filters.startDate = defaults.startDate
+    filters.endDate = defaults.endDate
+  }
   loadData()
 })
 </script>
