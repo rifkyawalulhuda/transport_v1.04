@@ -444,7 +444,7 @@
                     <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ item.qty || '-' }} {{ item.pkg || '' }}</span>
                   </div>
                   <p class="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 truncate">
-                    {{ item.almt_pickup || '-' }} ? {{ item.almt_drop || '-' }}
+                    {{ item.almt_pickup || '-' }} → {{ item.almt_drop || '-' }}
                   </p>
                   <div v-if="item.gw || item.no_container" class="mt-1 flex gap-2 text-[10px] text-gray-400 dark:text-gray-500">
                     <span v-if="item.gw">GW: {{ item.gw }}</span>
