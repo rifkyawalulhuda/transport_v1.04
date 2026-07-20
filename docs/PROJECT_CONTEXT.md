@@ -873,3 +873,71 @@ A truck is `on_trip` in Monitoring Kendaraan if ALL of:
 - **`inferred_passed` fallback retained:** `schedulePengiriman.js` and `DetailSalesCost.vue` still mark departure as passed when a later stop is hit but departure has no history row — covering trucks that skip the departure point or depart before the Sales Cost is created.
 - **Finish guard unchanged:** `deliveryStops` used by the finish-order check still excludes departure (`stops.filter((s) => Number(s.is_departure) !== 1)`), so `system:finish_order` is only recorded after all middle (delivery) stops are visited. Departure never blocks finish.
 - **Verified:** SPK #43632 (departure geofence `Sankyu`) recorded its departure row immediately on the first sync cycle after the change.
+
+---
+
+## Updates (2026-07-20 — Session Fixes & UI Enhancements)
+
+### Bug Fixes
+
+#### Geofence Dropdown — Hapus Suffix Resource Name
+- `AreaMaster.vue` (line 573) dan `SalesCostForm.vue` (line 1003) — label dropdown geofence diubah dari `` `${row.zone_name} (${row.resource_name})` `` menjadi `row.zone_name` saja. Field `resource_name` tetap ada di object option untuk keperluan search, hanya teks tampilan yang dipersingkat.
+
+#### Monitoring Kendaraan — Status "Idle" setelah Finish Order
+- `monitoringKendaraan.js` — `trxConditions` bug fix: kondisi `finish_order_datetime > todayString` menyebabkan truk yang sudah selesai (dengan `finish_order_datetime` di hari yang sama tapi jam berbeda) masih muncul sebagai "Transaksi". Root cause: perbandingan `DATETIME > DATE` di MySQL cast `DATE` ke `YYYY-MM-DD 00:00:00`, sehingga jam 20:49 masih dianggap "masa depan".
+- **Fix:** `trxConditions` sekarang hanya memasukkan truk sebagai "Transaksi" jika `finish_order_datetime IS NULL OR = '0000-00-00'`. Jika `finish_order_datetime` sudah diisi (apapun nilainya), truk dianggap selesai dan masuk "Idle".
+
+#### Master Admin — Ganti Password Internal Server Error
+- `admin` table — kolom `password` diperlebar dari `VARCHAR(50)` ke `VARCHAR(255)` via migration `20260720000011_extend_admin_password_column.sql`. bcrypt hash (60 karakter) tidak bisa disimpan di `VARCHAR(50)`.
+- Migration dijalankan langsung via Node.js karena `dbmate` tidak tersedia di PATH.
+
+#### Schedule Pengiriman — Karakter "?" pada DN Text
+- `SchedulePengiriman.vue` (line 447) — separator antara `almt_pickup` dan `almt_drop` di expanded DN card diubah dari literal `?` menjadi `→`. Karakter `→` mengalami encoding corruption saat disimpan.
+
+### Monitoring Kendaraan — Multi-SPK Aktif per Truk
+
+**Problem:** 1 truk bisa memiliki 2–4 SPK aktif dalam 1 hari. Map `transaksiByTruck` dan `onTripByTruck` hanya menyimpan 1 row per truk (first-wins), sehingga SPK lainnya hilang diam-diam.
+
+**Fix:**
+- `monitoringKendaraan.js` — `transaksiByTruck` dan `onTripByTruck` diubah dari `Map<key, row>` menjadi `Map<key, row[]>`. Semua SPK aktif per truk dikumpulkan, primary row = `array[0]` (paling baru, karena query `ORDER BY departure_datetime DESC`).
+- Dua field baru ditambahkan ke setiap item `transaksi` dan `on_trip`:
+  - `active_spk_count: number` — jumlah SPK aktif untuk truk tersebut
+  - `active_spk_ids: number[]` — array ID semua SPK aktif
+- `MonitoringKendaraan.vue` — badge warning `"N SPK aktif →"` ditambahkan di card header `on_trip` dan `transaksi`. Badge ditampilkan jika `active_spk_count >= 1` (berlaku untuk 1 SPK maupun lebih).
+- Badge adalah `<button>` dengan `@click.stop="navigateToSpk(item)"` yang navigate ke `/schedule-pengiriman?spk_ids=43633,43634` dengan filter otomatis.
+
+### Schedule Pengiriman — Navigasi dari Badge SPK
+
+**Feature:** Klik badge "N SPK aktif" di Monitoring Kendaraan langsung membuka Schedule Pengiriman dengan filter otomatis menampilkan semua SPK terkait.
+
+- `schedulePengiriman.js` — param baru `?spk_ids=43633,43634,43635`: parse comma-separated list, filter `WHERE sc.id_sales_cost IN (...)` dengan parameterized query (SQL injection safe). Saat `spk_ids` diisi, date range filter di-skip.
+- `SchedulePengiriman.vue` — baca `route.query.spk_ids` saat `onMounted`. Jika ada: `spkIdsActive` ref di-set, date range default di-skip. Jika tidak ada: perilaku normal tidak berubah.
+- `SchedulePengiriman.vue` — `buildParams()` include `spk_ids` ke API call saat `spkIdsActive` non-empty.
+- `SchedulePengiriman.vue` — dismissable banner warning kuning muncul saat filter aktif: "Menampilkan N SPK aktif dari Monitoring Kendaraan". Tombol "× Hapus filter" clear `spkIdsActive` dan reload data normal.
+- `MonitoringKendaraan.vue` — `useRouter` import + fungsi `navigateToSpk(item)` menggunakan `item.active_spk_ids?.join(',')`.
+
+### Lokasi Truk — UI/UX Enhancements
+
+6 perubahan di `TruckLocationMap.vue`:
+
+1. **Animasi detail panel** — `<Transition>` slide+fade 220ms masuk / 160ms keluar saat panel Vehicle Detail muncul/hilang.
+2. **Kartu truk redesign** — status bar vertikal 3px di sisi kiri kartu (warna solid per GPS status), 3 baris info: plat+badge, driver+rute, speed (jika moving)+waktu GPS terakhir. Fungsi `statusBarClass` ditambahkan.
+3. **Loading address skeleton** — saat `selectedTruckAddressLoading = true`, tampilkan skeleton shimmer `animate-pulse` bukan teks + koordinat mentah. Koordinat hanya tampil di branch error fallback (`selectedTruckAddressError`).
+4. **Debounce search** — `watch([searchInput, gpsFilter])` dipecah menjadi dua watcher: `gpsFilter` instant, `searchInput` debounced 250ms via `useDebounceFn` dari `@vueuse/core`.
+5. **Legend GPS interaktif** — 4 badge (Moving/Idle/Offline/Belum Terhubung) diubah dari `<span>` dekoratif menjadi `<button>` yang toggle `gpsFilter`. Klik lagi reset ke `'all'`. Active state solid color.
+6. **Moving truck pulse** — CSS `@keyframes status-pulse` pada `.status-bar--moving` (opacity 1→0.45, 2s loop). `@media (prefers-reduced-motion: reduce)` menonaktifkan animasi.
+- `@vueuse/core` ditambahkan ke `package.json` secara resmi via `npm install`.
+
+### Database Migrations
+- `20260720000011_extend_admin_password_column.sql` — `ALTER TABLE admin MODIFY COLUMN password VARCHAR(255) NOT NULL`.
+
+### Key Business Logic Rules (tambahan)
+
+#### Multi-SPK per Truk
+- Jika 1 truk memiliki beberapa SPK aktif (`finish_order_datetime IS NULL`) dalam waktu bersamaan, Monitoring Kendaraan menampilkan SPK paling baru sebagai primary di card. Count total SPK aktif tersedia via `active_spk_count`, semua ID via `active_spk_ids`.
+- Badge `"N SPK aktif →"` tampil di semua card yang punya `active_spk_count >= 1`.
+
+#### Schedule Pengiriman spk_ids Mode
+- Saat URL mengandung `?spk_ids=`, filter date range default di-skip. Backend query menggunakan `WHERE sc.id_sales_cost IN (...)`.
+- Dismiss banner → clear `spkIdsActive` → reload data → kembali ke filter date range normal.
+- URL param name: `spk_ids` (konsisten dari `router.push` → `route.query` → `buildParams` → `req.query`).
