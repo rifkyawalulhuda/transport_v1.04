@@ -154,6 +154,16 @@
       >
         Tutup
       </button>
+
+      <div class="mt-2 border-t border-gray-200 pt-2 dark:border-gray-700">
+        <router-link
+          to="/delivery-notifications"
+          class="block text-center text-xs text-brand-500 hover:text-brand-600 dark:text-brand-400"
+          @click="closeDropdown"
+        >
+          Lihat semua notifikasi
+        </router-link>
+      </div>
     </div>
   </div>
 </template>

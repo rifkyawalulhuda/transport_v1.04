@@ -26,6 +26,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/delivery-notifications',
+      name: 'delivery-notifications',
+      component: () => import('../views/Transaksi/DeliveryNotifications.vue'),
+      meta: {
+        title: 'Notifikasi Pengiriman',
+      },
+    },
+    {
       path: '/calendar',
       name: 'Calendar',
       component: () => import('../views/Others/Calendar.vue'),
