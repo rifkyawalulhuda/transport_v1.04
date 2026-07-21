@@ -97,6 +97,16 @@ const normalizeDateOnly = (value) => {
   if (value === null || value === undefined || value === "") {
     return null;
   }
+  const trimmed = String(value).trim();
+  // Parse YYYY-MM-DD as local date parts to avoid UTC midnight timezone shift (M6 fix)
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = String(parseInt(match[2], 10)).padStart(2, "0");
+    const day = String(parseInt(match[3], 10)).padStart(2, "0");
+    if (year && month && day) return `${year}-${month}-${day}`;
+  }
+  // Fallback for other date formats (non-YYYY-MM-DD)
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;

@@ -49,6 +49,11 @@ function isValidIsoDate(value) {
   );
 }
 
+// Escape special LIKE wildcard chars to prevent wildcard injection (M4 fix)
+function escapeLikeParam(value) {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
 function isValidIsoDateTime(value) {
   if (typeof value !== 'string') return false;
   // Accept YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM or YYYY-MM-DD HH:MM
@@ -856,7 +861,7 @@ router.get("/", async (req, res) => {
     }
 
     if (keyword) {
-      const likeKeyword = `%${keyword}%`;
+      const likeKeyword = `%${escapeLikeParam(keyword)}%`;
       if (column !== "all" && searchableColumns[column]) {
         conditions.push(`${searchableColumns[column]} LIKE ?`);
         params.push(likeKeyword);
@@ -932,7 +937,7 @@ router.get("/export", authenticateToken, async (req, res) => {
     }
 
     if (keyword) {
-      const likeKeyword = `%${keyword}%`;
+      const likeKeyword = `%${escapeLikeParam(keyword)}%`;
       if (column !== "all" && searchableColumns[column]) {
         conditions.push(`${searchableColumns[column]} LIKE ?`);
         params.push(likeKeyword);
@@ -2014,74 +2019,87 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     // Smart upsert delivery stops — preserve existing IDs to avoid orphaning sales_cost_route_history
+    // Wrapped in a transaction so partial failure doesn't leave stops in an inconsistent state (M1 fix)
     const deliveryStopsPut = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
 
-    // Step 1: Fetch existing stop IDs from DB
-    const [existingStopRows] = await db.query(
-      'SELECT id FROM sales_cost_step_schedule WHERE id_sales_cost = ?',
-      [id]
-    );
-    const existingIds = new Set(existingStopRows.map(s => Number(s.id)));
-    const incomingIds = new Set(
-      deliveryStopsPut.filter(s => s.id).map(s => Number(s.id))
-    );
+    const stopsConn = await db.getConnection();
+    try {
+      await stopsConn.beginTransaction();
 
-    // Step 2: DELETE stops removed from payload, but only if they have no route_history
-    const toDelete = [...existingIds].filter(eid => !incomingIds.has(eid));
-    if (toDelete.length > 0) {
-      // Guard: skip deleting stops that already have route_history records
-      const placeholders = toDelete.map(() => '?').join(',');
-      const [historyCheck] = await db.query(
-        `SELECT DISTINCT id_sc_stop FROM sales_cost_route_history WHERE id_sc_stop IN (${placeholders})`,
-        toDelete
+      // Step 1: Fetch existing stop IDs from DB
+      const [existingStopRows] = await stopsConn.query(
+        'SELECT id FROM sales_cost_step_schedule WHERE id_sales_cost = ?',
+        [id]
       );
-      const idsWithHistory = new Set(historyCheck.map(r => Number(r.id_sc_stop)));
-      const safeToDelete = toDelete.filter(eid => !idsWithHistory.has(eid));
-      if (safeToDelete.length > 0) {
-        await db.query(
-          `DELETE FROM sales_cost_step_schedule WHERE id IN (${safeToDelete.map(() => '?').join(',')})`,
-          safeToDelete
+      const existingIds = new Set(existingStopRows.map(s => Number(s.id)));
+      const incomingIds = new Set(
+        deliveryStopsPut.filter(s => s.id).map(s => Number(s.id))
+      );
+
+      // Step 2: DELETE stops removed from payload, but only if they have no route_history
+      const toDelete = [...existingIds].filter(eid => !incomingIds.has(eid));
+      if (toDelete.length > 0) {
+        // Guard: skip deleting stops that already have route_history records
+        const placeholders = toDelete.map(() => '?').join(',');
+        const [historyCheck] = await stopsConn.query(
+          `SELECT DISTINCT id_sc_stop FROM sales_cost_route_history WHERE id_sc_stop IN (${placeholders})`,
+          toDelete
         );
+        const idsWithHistory = new Set(historyCheck.map(r => Number(r.id_sc_stop)));
+        const safeToDelete = toDelete.filter(eid => !idsWithHistory.has(eid));
+        if (safeToDelete.length > 0) {
+          await stopsConn.query(
+            `DELETE FROM sales_cost_step_schedule WHERE id IN (${safeToDelete.map(() => '?').join(',')})`,
+            safeToDelete
+          );
+        }
       }
-    }
 
-    // Step 3: UPDATE or INSERT each stop from payload
-    for (const stop of deliveryStopsPut) {
-      if (stop.stop_order === undefined || stop.stop_order === null) continue;
-      const estimatedArrival = stop.estimated_arrival || null;
-      if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
+      // Step 3: UPDATE or INSERT each stop from payload
+      for (const stop of deliveryStopsPut) {
+        if (stop.stop_order === undefined || stop.stop_order === null) continue;
+        const estimatedArrival = stop.estimated_arrival || null;
+        if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
 
-      const stopValues = [
-        Number(stop.stop_order),
-        String(stop.stop_name || ''),
-        stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
-        stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
-        stop.wialon_zone_name || null,
-        stop.is_departure ? 1 : 0,
-        stop.is_finish ? 1 : 0,
-        estimatedArrival || null
-      ];
+        const stopValues = [
+          Number(stop.stop_order),
+          String(stop.stop_name || ''),
+          stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+          stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+          stop.wialon_zone_name || null,
+          stop.is_departure ? 1 : 0,
+          stop.is_finish ? 1 : 0,
+          estimatedArrival || null
+        ];
 
-      if (stop.id && existingIds.has(Number(stop.id))) {
-        // UPDATE existing stop — preserves ID so route_history references remain valid
-        await db.query(
-          `UPDATE sales_cost_step_schedule
-             SET stop_order=?, stop_name=?, wialon_resource_id=?,
-                 wialon_zone_id=?, wialon_zone_name=?, is_departure=?,
-                 is_finish=?, estimated_arrival=?
-           WHERE id = ? AND id_sales_cost = ?`,
-          [...stopValues, Number(stop.id), Number(id)]
-        );
-      } else {
-        // INSERT new stop
-        await db.query(
-          `INSERT INTO sales_cost_step_schedule
-             (id_sales_cost, stop_order, stop_name, wialon_resource_id,
-              wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [Number(id), ...stopValues]
-        );
+        if (stop.id && existingIds.has(Number(stop.id))) {
+          // UPDATE existing stop — preserves ID so route_history references remain valid
+          await stopsConn.query(
+            `UPDATE sales_cost_step_schedule
+               SET stop_order=?, stop_name=?, wialon_resource_id=?,
+                   wialon_zone_id=?, wialon_zone_name=?, is_departure=?,
+                   is_finish=?, estimated_arrival=?
+             WHERE id = ? AND id_sales_cost = ?`,
+            [...stopValues, Number(stop.id), Number(id)]
+          );
+        } else {
+          // INSERT new stop
+          await stopsConn.query(
+            `INSERT INTO sales_cost_step_schedule
+               (id_sales_cost, stop_order, stop_name, wialon_resource_id,
+                wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [Number(id), ...stopValues]
+          );
+        }
       }
+
+      await stopsConn.commit();
+    } catch (stopsErr) {
+      await stopsConn.rollback();
+      throw stopsErr;
+    } finally {
+      stopsConn.release();
     }
 
     logAuditEvent("sales_cost_update", {
@@ -2184,6 +2202,27 @@ router.put("/:id/dn", authenticateToken, async (req, res) => {
 
     if (!Array.isArray(items)) {
       return res.status(400).json({ message: "Items must be an array" });
+    }
+
+    // M5 fix: verify sales cost exists and apply month-lock check
+    const [scRows] = await db.query(
+      "SELECT departure_datetime FROM sales_cost WHERE id_sales_cost = ?",
+      [Number(id)]
+    );
+    if (scRows.length === 0) {
+      return res.status(404).json({ message: "Sales cost not found" });
+    }
+    const depDateRaw = scRows[0].departure_datetime;
+    if (depDateRaw) {
+      const dep = new Date(depDateRaw);
+      if (!Number.isNaN(dep.getTime())) {
+        const now = new Date();
+        const depYear = dep.getFullYear();
+        const depMonth = dep.getMonth();
+        if (depYear < now.getFullYear() || (depYear === now.getFullYear() && depMonth < now.getMonth())) {
+          return res.status(403).json({ message: "Data terkunci. Tidak bisa mengubah DN bulan lalu." });
+        }
+      }
     }
 
     const dnDoc = await SalesCostDN.findOneAndUpdate(

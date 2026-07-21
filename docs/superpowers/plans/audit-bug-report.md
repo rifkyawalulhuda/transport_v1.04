@@ -43,9 +43,18 @@
 ### MEDIUM
 | ID | File | Status | Tanggal Fix |
 |---|---|---|---|
+| M1 | `salesCost.js` PUT delivery_stops upsert tanpa transaksi DB | ✅ FIXED | 2026-07-21 — Wrap dalam `db.getConnection()` + `BEGIN/COMMIT` transaction |
+| M2 | `salesCost.js` datetime format tidak divalidasi | ✅ RESOLVED | `isValidIsoDateTime()` sudah ada dan dipakai di POST/PUT handler |
+| M3 | Excel import inkonsistensi arrivalOrder vs finishOrder | ⏸ LOW | Scope sudah berubah dengan stop schedule; severity turun |
+| M4 | `salesCost.js` LIKE `%keyword%` wildcard injection | ✅ FIXED | 2026-07-21 — Tambah `escapeLikeParam()` helper, pakai di 2 lokasi search |
+| M5 | `salesCost.js` `PUT /:id/dn` tanpa ownership/lock check | ✅ FIXED | 2026-07-21 — Tambah sales cost existence check + month-lock guard |
+| M6 | `repairService.js` `new Date(string)` timezone shift WIB | ✅ FIXED | 2026-07-21 — `normalizeDateOnly` pakai manual YYYY-MM-DD parse, bypass UTC |
+| M7 | `rbac.js` `path.startsWith(route.path)` bypass risk | ✅ FIXED | 2026-07-21 — Ganti ke `path === route.path \|\| path.startsWith(route.path + '/')` |
 | M8 | CORS `origin: true` perlu whitelist production | ✅ FIXED | 2026-07-19 |
+| M9 | History key collision `step_key` + `id_sc_stop` NULL | ✅ RESOLVED | `.filter(k => k !== ':')` sudah mitigasi, rows NULL+NULL di-drop |
+| M10 | Backfill tidak pakai DEFAULT finish geofence fallback | ✅ RESOLVED | Fixed by C6 fix — `finish_geofence_*` fields dari area table sudah di-pass |
+| M11 | `geofenceTrackingService.js` `toMySqlDateTime(null)` return epoch | ✅ FIXED | 2026-07-21 — Tambah null/undefined guard di baris pertama |
 | M12 | Static file endpoint bisa diakses tanpa auth | ✅ FIXED | 2026-07-19 |
-| M1–M7, M9–M11 | Berbagai medium issues | 🔴 BELUM | |
 
 ### Fix di luar audit ini
 | Modul | Deskripsi | Status | Tanggal |
@@ -78,10 +87,10 @@
 | Tingkat | Jumlah | Sudah Fix | Tersisa |
 |---|---|---|---|
 | CRITICAL | 9 | 7 | 2 (C7⏸, C8⏸) |
-| HIGH | 15 | 7 | 8 |
-| MEDIUM | 12 | 2 (M8, M12) | 10 |
+| HIGH | 15 | 15 | 0 |
+| MEDIUM | 12 | 11 | 1 (M3⏸ turun ke LOW) |
 | LOW | 9 | 0 | 9 |
-| **Total** | **45** | **16** | **29** |
+| **Total** | **45** | **33** | **12** |
 
 ---
 

@@ -463,7 +463,7 @@
                   :disabled="completingIds.has(row.id_sales_cost)"
                   class="inline-flex items-center gap-1 rounded-lg border border-success-300 bg-success-50 px-3 py-1.5 text-xs font-medium text-success-700 shadow-theme-xs transition hover:bg-success-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300 dark:hover:bg-success-500/20"
                   :title="`Selesaikan semua stop pengiriman SPK #${row.id_sales_cost}`"
-                  @click.stop="handleCompleteAll(row)"
+                  @click.stop="confirmCompleteRow = row"
                 >
                   <svg v-if="completingIds.has(row.id_sales_cost)" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -645,6 +645,61 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Confirm Complete All Modal -->
+    <Teleport to="body">
+      <Transition name="fade-export">
+        <div v-if="confirmCompleteRow" class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="confirmCompleteRow = null"></div>
+          <div class="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-base font-semibold text-gray-800 dark:text-white/90">Selesaikan Semua Stop?</h3>
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/10 dark:hover:text-gray-200 transition-colors"
+                @click="confirmCompleteRow = null"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <!-- Info SPK -->
+            <div class="mb-5 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 dark:border-warning-500/30 dark:bg-warning-500/10">
+              <p class="text-sm text-warning-700 dark:text-warning-300">
+                Semua stop yang belum diselesaikan akan ditandai <strong>selesai secara manual</strong> menggunakan waktu estimasi pengiriman.
+              </p>
+              <div class="mt-2.5 space-y-1 text-xs text-warning-600 dark:text-warning-400">
+                <p><span class="font-medium">SPK:</span> #{{ confirmCompleteRow?.id_sales_cost }}</p>
+                <p><span class="font-medium">Truk:</span> {{ confirmCompleteRow?.truck?.no_police || '-' }}</p>
+                <p><span class="font-medium">Driver:</span> {{ confirmCompleteRow?.driver?.name || '-' }}</p>
+                <p><span class="font-medium">Rute:</span> {{ confirmCompleteRow?.route?.name || '-' }}</p>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <button
+                type="button"
+                class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5 transition-colors"
+                @click="confirmCompleteRow = null"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                :disabled="completingIds.has(confirmCompleteRow?.id_sales_cost)"
+                class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-success-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-success-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                @click="handleCompleteAll(confirmCompleteRow); confirmCompleteRow = null"
+              >
+                <svg v-if="completingIds.has(confirmCompleteRow?.id_sales_cost)" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                Ya, Selesaikan Semua
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </AdminLayout>
 </template>
 <script setup lang="ts">
@@ -766,6 +821,7 @@ const isDetailDisabled = computed(() => {
 
 const isAdmin = computed(() => authUser.value?.level === 'admin')
 const completingIds = ref<Set<number>>(new Set())
+const confirmCompleteRow = ref<any>(null)
 
 const hasPendingStops = (row: any): boolean => {
   const stops = row.delivery_stops_summary || []

@@ -18,7 +18,7 @@ const isAllowedForCs = (req) => {
   ];
 
   return allowedRoutes.some(
-    (route) => route.method === method && path.startsWith(route.path)
+    (route) => route.method === method && (path === route.path || path.startsWith(route.path + '/'))
   );
 };
 
@@ -69,7 +69,7 @@ const isAllowedForPatcher = (req) => {
   ];
 
   return allowedRoutes.some(
-    (route) => route.method === method && path.startsWith(route.path)
+    (route) => route.method === method && (path === route.path || path.startsWith(route.path + '/'))
   );
 };
 

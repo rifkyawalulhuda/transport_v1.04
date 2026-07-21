@@ -40,6 +40,7 @@ const toDateString = (value) => {
 };
 
 const toMySqlDateTime = (value) => {
+  if (value === null || value === undefined) return null;
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return null;
