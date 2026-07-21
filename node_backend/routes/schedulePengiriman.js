@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("../db");
+const ExcelJS = require("exceljs");
 const SalesCostDN = require("../models/SalesCostDN");
 const { authenticateToken } = require("../middleware/auth");
 
@@ -163,6 +164,255 @@ const resolveDateRange = (startParam, endParam) => {
     endDate: toLocalDateString(endDate)
   };
 };
+
+router.get("/export", authenticateToken, async (req, res) => {
+  try {
+    const startDate = req.query.start_date || null;
+    const endDate = req.query.end_date || null;
+
+    // Build WHERE conditions
+    const conditions = [];
+    const params = [];
+    if (startDate) {
+      conditions.push("sc.departure_datetime >= ?");
+      params.push(startDate);
+    }
+    if (endDate) {
+      conditions.push("sc.departure_datetime <= ?");
+      params.push(`${endDate} 23:59:59`);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // Fetch all matching sales cost rows (no pagination)
+    const sql = `
+      SELECT
+        sc.id_sales_cost, sc.departure_datetime, sc.arrival_datetime,
+        sc.finish_order_datetime, sc.no_po, sc.jenis_trip, sc.trip,
+        t.no_police, d.nama_driver, c.nama_customer, a.nama_area
+      FROM sales_cost sc
+      LEFT JOIN truck t ON sc.id_truck = t.id_truck
+      LEFT JOIN driver d ON sc.id_driver = d.id_driver
+      LEFT JOIN customer c ON sc.id_customer = c.id_customer
+      LEFT JOIN area a ON sc.id_area = a.id_area
+      ${whereClause}
+      ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
+    `;
+    const [rows] = await db.query(sql, params);
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Tidak ada data untuk periode ini." });
+    }
+
+    // Fetch delivery stops and route history for all matching IDs
+    const ids = rows.map((r) => r.id_sales_cost);
+    const placeholders = ids.map(() => "?").join(",");
+
+    const [stopRows] = await db.query(
+      `SELECT id, id_sales_cost, stop_order, stop_name,
+              wialon_zone_name, is_departure, is_finish, estimated_arrival
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost IN (${placeholders})
+       ORDER BY id_sales_cost ASC, stop_order ASC`,
+      ids
+    );
+
+    const [historyRows] = await db.query(
+      `SELECT id_sc_stop, id_sales_cost, gps_time, recorded_at, is_manual
+       FROM sales_cost_route_history
+       WHERE id_sales_cost IN (${placeholders})
+       ORDER BY id_sales_cost ASC, recorded_at ASC`,
+      ids
+    );
+
+    // Group stops and history by sales_cost id
+    const stopsBySC = new Map();
+    for (const stop of stopRows) {
+      const key = Number(stop.id_sales_cost);
+      if (!stopsBySC.has(key)) stopsBySC.set(key, []);
+      stopsBySC.get(key).push(stop);
+    }
+
+    const historyBySC = new Map();
+    for (const h of historyRows) {
+      const key = Number(h.id_sales_cost);
+      if (!historyBySC.has(key)) historyBySC.set(key, []);
+      historyBySC.get(key).push(h);
+    }
+
+    // Format datetime helper
+    const fmtDt = (val) => {
+      if (!val) return "-";
+      const d = val instanceof Date ? val : new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    // Build Excel workbook
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Schedule Pengiriman");
+
+    sheet.columns = [
+      { header: "No.", key: "no", width: 6 },
+      { header: "No. SPK", key: "spk", width: 12 },
+      { header: "No. Polisi", key: "nopol", width: 14 },
+      { header: "Driver", key: "driver", width: 22 },
+      { header: "Customer", key: "customer", width: 24 },
+      { header: "Rute", key: "rute", width: 24 },
+      { header: "Trip", key: "trip", width: 10 },
+      { header: "Jenis Trip", key: "jenis_trip", width: 14 },
+      { header: "No. PO", key: "no_po", width: 16 },
+      { header: "Status SPK", key: "status_spk", width: 16 },
+      { header: "Stop", key: "stop_name", width: 20 },
+      { header: "Estimasi Tiba", key: "est_arrival", width: 20 },
+      { header: "Aktual Tiba", key: "actual_arrival", width: 20 },
+      { header: "Status Stop", key: "stop_status", width: 14 },
+      { header: "Sumber Aktual", key: "source", width: 16 },
+    ];
+
+    // Style header row
+    const headerRow = sheet.getRow(1);
+    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+    headerRow.alignment = { vertical: "middle", horizontal: "center" };
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+    const statusLabel = (s) => {
+      if (s === "completed") return "Selesai";
+      if (s === "overdue") return "Terlambat";
+      if (s === "on_trip") return "Dalam Perjalanan";
+      if (s === "waiting") return "Menunggu";
+      if (s === "incomplete_finish") return "Belum Lengkap";
+      return s || "-";
+    };
+
+    let rowNo = 1;
+    let excelRow = 2; // Excel row index (1=header)
+    let groupIndex = 0; // alternating group color counter
+    const mergeGroups = []; // { startRow, endRow } per SPK dengan >1 stop
+
+    // Two alternating group colors: white and light blue-gray
+    const GROUP_COLORS = ["FFFFFFFF", "FFEBF3FB"];
+
+    for (const sc of rows) {
+      const scId = Number(sc.id_sales_cost);
+      const stops = stopsBySC.get(scId) || [];
+      const history = historyBySC.get(scId) || [];
+
+      // Compute schedule_status using resolveStopTimelineSummary
+      const timeline = resolveStopTimelineSummary({ deliveryStops: stops, historyRows: history });
+      const finishHit = timeline.some((s) => s.is_finish && s.hit);
+      const visitedStops = timeline.filter((s) => !s.is_departure && !s.is_finish && s.hit).length;
+      const totalStops = timeline.filter((s) => !s.is_departure && !s.is_finish).length;
+      const { schedule_status } = resolveScheduleStatus({
+        departureDatetime: sc.departure_datetime,
+        arrivalDatetime: sc.arrival_datetime,
+        finishOrderDatetime: sc.finish_order_datetime,
+        finishHit,
+        visitedStops,
+        totalStops,
+      });
+
+      const groupColor = GROUP_COLORS[groupIndex % 2];
+      groupIndex++;
+
+      if (stops.length === 0) {
+        // No stops — one row only
+        const r = sheet.addRow({
+          no: rowNo++,
+          spk: scId,
+          nopol: sc.no_police || "-",
+          driver: sc.nama_driver || "-",
+          customer: sc.nama_customer || "-",
+          rute: sc.nama_area || "-",
+          trip: sc.trip || "-",
+          jenis_trip: sc.jenis_trip || "-",
+          no_po: sc.no_po || "-",
+          status_spk: statusLabel(schedule_status),
+          stop_name: "-",
+          est_arrival: "-",
+          actual_arrival: "-",
+          stop_status: "-",
+          source: "-",
+        });
+        r.fill = { type: "pattern", pattern: "solid", fgColor: { argb: groupColor } };
+        r.alignment = { vertical: "middle" };
+        excelRow++;
+      } else {
+        const groupStartRow = excelRow;
+        const stopCount = timeline.length;
+
+        for (let si = 0; si < timeline.length; si++) {
+          const stop = timeline[si];
+          const stopStatus = stop.hit
+            ? "Tercapai"
+            : stop.inferred_passed
+              ? "Terlewati (Otomatis)"
+              : stop.overdue
+                ? "Terlambat"
+                : "Pending";
+          const source = stop.hit
+            ? (stop.is_manual ? "Manual" : "GPS")
+            : "-";
+
+          const rowData = {
+            // Only fill SPK info on the first stop row; leave blank for subsequent rows
+            no: si === 0 ? rowNo : "",
+            spk: si === 0 ? scId : "",
+            nopol: si === 0 ? (sc.no_police || "-") : "",
+            driver: si === 0 ? (sc.nama_driver || "-") : "",
+            customer: si === 0 ? (sc.nama_customer || "-") : "",
+            rute: si === 0 ? (sc.nama_area || "-") : "",
+            trip: si === 0 ? (sc.trip || "-") : "",
+            jenis_trip: si === 0 ? (sc.jenis_trip || "-") : "",
+            no_po: si === 0 ? (sc.no_po || "-") : "",
+            status_spk: si === 0 ? statusLabel(schedule_status) : "",
+            // Stop-specific columns always filled
+            stop_name: stop.stop_name || "-",
+            est_arrival: fmtDt(stop.estimated_arrival),
+            actual_arrival: fmtDt(stop.actual_arrival),
+            stop_status: stopStatus,
+            source,
+          };
+
+          const r = sheet.addRow(rowData);
+          r.fill = { type: "pattern", pattern: "solid", fgColor: { argb: groupColor } };
+          // First row of group: align top so merged cell text appears at top
+          r.alignment = { vertical: si === 0 ? "top" : "middle" };
+          excelRow++;
+        }
+
+        rowNo++;
+
+        // Track groups with >1 stop for merging
+        if (stopCount > 1) {
+          mergeGroups.push({ startRow: groupStartRow, endRow: groupStartRow + stopCount - 1 });
+        }
+      }
+    }
+
+    // Apply cell merging for columns 1–10 on multi-stop groups
+    // Must be done AFTER all rows are written and fills applied
+    for (const { startRow, endRow } of mergeGroups) {
+      for (let col = 1; col <= 10; col++) {
+        sheet.mergeCells(startRow, col, endRow, col);
+        // Re-apply alignment on merged cell (merge resets it)
+        const cell = sheet.getCell(startRow, col);
+        cell.alignment = { vertical: "top", wrapText: false };
+      }
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = `schedule-pengiriman_${today}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error("Export schedule pengiriman error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 router.get("/", authenticateToken, async (req, res) => {
   try {
