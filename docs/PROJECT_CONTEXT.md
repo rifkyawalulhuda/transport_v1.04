@@ -1117,3 +1117,59 @@ npm run migrate:status        # verifikasi Applied: 22, Pending: 0
 ```
 
 **Catatan penting:** `npm run migrate:adopt-existing` (script lama) TIDAK disarankan lagi untuk skenario "import dump production lama" karena menandai migration sebagai selesai tanpa verifikasi efek aktual di DB. `migrate:fix-missing` adalah pendekatan yang lebih aman — tiap operasi dicoba secara langsung dan hanya di-skip jika benar-benar sudah ada.
+
+---
+
+## Updates (2026-07-21 — Bug Fixes, HIGH/MEDIUM Audit Fixes, Confirm Dialog)
+
+### Notifikasi Pengiriman — Auto-delete >30 Hari
+
+- `geofenceTrackingService.js` — fungsi baru `purgeOldDeliveryNotifications()` dijalankan di dalam `runSyncCycle()` (throttle 1x per jam via `lastPurgeAt`).
+- Hard-delete `delivery_notifications WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`.
+- Sekaligus cleanup orphan rows di `delivery_notification_read` yang referensinya sudah dihapus.
+- Error di langkah purge hanya di-log sebagai warning — tidak menghentikan sync cycle utama.
+
+### Schedule Pengiriman — Konfirmasi "Selesaikan Semua"
+
+- `SchedulePengiriman.vue` — tombol "Selesaikan Semua" kini membuka modal konfirmasi sebelum eksekusi.
+- State baru: `confirmCompleteRow = ref<any>(null)` — menyimpan row yang menunggu konfirmasi.
+- Klik tombol → set `confirmCompleteRow = row` (bukan langsung eksekusi).
+- Modal `<Teleport to="body">` dengan info SPK (No. SPK, Truk, Driver, Rute), warning banner kuning, tombol Batal dan "Ya, Selesaikan Semua".
+- Klik "Ya" → `handleCompleteAll(confirmCompleteRow)` + reset `confirmCompleteRow = null`.
+- Memakai `fade-export` transition yang sudah ada.
+
+### Audit Bug Fixes — HIGH (7 issues)
+
+Semua HIGH bugs dari `docs/superpowers/plans/audit-bug-report.md` diselesaikan:
+
+- **H2** — `repairService.js:createRepair` — MySQL `SELECT ... FOR UPDATE` + `BEGIN/COMMIT` untuk cegah race condition dua request assign truk yang sama ke repair/sales cost bersamaan.
+- **H5** — `monitoringKendaraan.js` — window on_trip dikurangi dari `INTERVAL 60 DAY` ke `INTERVAL 14 DAY` (C5 sudah stable).
+- **H7** — `monitoringKendaraan.js` — tambah `meta.has_more` per kategori (`on_trip`, `transaksi`, `repair`, `idle`) agar frontend tahu data lebih banyak dari yang ditampilkan.
+- **H8** — `geofenceTrackingService.js:stopGeofenceTracking` — diubah menjadi async, polling `syncInProgress` sampai false atau timeout 5s sebelum return.
+- **H9** — `geofenceTrackingService.js:getActiveSalesCostCandidates` — hapus dedup `pickedByTruck`, semua SPK aktif per truk kini di-track (bukan hanya yang paling baru). Fix salah trigger finish untuk truk multi-pengiriman aktif.
+- **H10** — `wialonService.js:wialonRequest` — re-login hanya untuk error code 1/401/403 (session-related); kode lain di-log dan re-throw tanpa login storm.
+- **H11** — `geofenceTrackingService.js` — tandai RESOLVED: tracking sudah konsisten pakai `id_sc_stop` sejak refactor Juli 2026.
+
+### Audit Bug Fixes — MEDIUM (6 issues)
+
+- **M1** — `salesCost.js` — delivery_stops upsert (PUT handler) dibungkus dalam `db.getConnection()` + `BEGIN/COMMIT` transaction agar partial failure tidak korup stops.
+- **M4** — `salesCost.js` — tambah helper `escapeLikeParam(value)` yang escape `%`, `_`, `\` dari input user sebelum dipakai di `LIKE` clause (dua lokasi search handler).
+- **M5** — `salesCost.js:PUT /:id/dn` — tambah guard: verifikasi sales cost exists + month-lock check sebelum overwrite DN list.
+- **M6** — `repairService.js:normalizeDateOnly` — ganti `new Date(string)` ke manual parse `YYYY-MM-DD` via regex untuk hindari UTC midnight timezone shift WIB (off-by-one-day bug).
+- **M7** — `rbac.js` — ganti `path.startsWith(route.path)` ke `path === route.path || path.startsWith(route.path + '/')` di kedua checker (CS dan Patcher) untuk cegah prefix bypass.
+- **M11** — `geofenceTrackingService.js:toMySqlDateTime` — tambah guard `if (value === null || value === undefined) return null` di baris pertama. Sebelumnya `new Date(null)` = epoch `1970-01-01`, bukan null.
+
+### Audit Bug Fixes — MEDIUM yang di-Resolve (bukan bug aktif)
+
+- **M2** — `isValidIsoDateTime()` sudah ada dan dipakai di POST/PUT handler — resolved.
+- **M9** — `.filter(k => k !== ':')` sudah mitigasi key collision NULL+NULL — resolved.
+- **M10** — Fixed by C6 fix (finish_geofence_* di-pass dari area table) — resolved.
+
+### Important Usage Rules (tambahan)
+
+#### Delivery Stop Upsert (Sales Cost PUT)
+- Smart upsert sekarang dibungkus transaction — kegagalan di tengah loop rollback semua perubahan stops agar tidak partial.
+- `escapeLikeParam()` wajib dipakai untuk semua input user yang masuk ke `LIKE` clause.
+
+#### RBAC Path Matching
+- Gunakan `path === route.path || path.startsWith(route.path + '/')` — **bukan** bare `startsWith(route.path)` — untuk whitelist RBAC. Pola lama bisa di-bypass dengan path yang diawali nama route yang sama.
