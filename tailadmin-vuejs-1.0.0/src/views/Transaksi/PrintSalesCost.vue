@@ -65,6 +65,12 @@
         <div class="print-colon colon-trip">:</div>
         <div class="print-value value-trip">{{ detail.trip || '-' }}</div>
 
+        <div class="print-label label-destination">Tiba di Tujuan</div>
+        <div class="print-colon colon-destination">:</div>
+        <div class="print-value value-destination">
+          {{ formatIndonesianDateTime(getFirstDestination(detail)?.estimated_arrival) }}
+        </div>
+
         <table class="cost-table">
           <colgroup>
             <col class="cost-col-label" />
@@ -134,6 +140,15 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { salesCostService } from '@/services/salesCostService'
 
+type DeliveryStopPrint = {
+  id: number
+  stop_order: number
+  stop_name: string | null
+  is_departure: number
+  is_finish: number
+  estimated_arrival: string | null
+}
+
 type SalesCostPrintDetail = {
   id_sales_cost: number
   departure_datetime: string | null
@@ -155,6 +170,7 @@ type SalesCostPrintDetail = {
   almt_pickup?: string | null
   almt_drop?: string | null
   no_dn?: string | null
+  delivery_stops?: DeliveryStopPrint[]
 }
 
 const route = useRoute()
@@ -209,6 +225,25 @@ const formatLegacyDate = (value?: string | null) => {
   const month = date.toLocaleString('en-US', { month: 'long' })
   const year = date.getFullYear()
   return `${day}-${month}-${year}`
+}
+
+const formatIndonesianDateTime = (value?: string | null): string => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  const months = ['Januari','Februari','Maret','April','Mei','Juni',
+                  'Juli','Agustus','September','Oktober','November','Desember']
+  const day = date.getDate()
+  const month = months[date.getMonth()]
+  const year = date.getFullYear()
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}.${minutes} (${day} ${month} ${year})`
+}
+
+const getFirstDestination = (detail: SalesCostPrintDetail): DeliveryStopPrint | null => {
+  const stops = detail.delivery_stops || []
+  return stops.find(s => s.is_departure === 0 && s.is_finish === 0) ?? null
 }
 
 const formatShortDate = (date: Date) => {
@@ -579,6 +614,21 @@ body {
 .value-trip {
   left: 65mm;
   top: 105mm;
+}
+
+.label-destination {
+  left: 10mm;
+  top: 112mm;
+}
+
+.colon-destination {
+  left: 60mm;
+  top: 112mm;
+}
+
+.value-destination {
+  left: 65mm;
+  top: 112mm;
 }
 
 .cost-table {
