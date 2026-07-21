@@ -941,3 +941,82 @@ A truck is `on_trip` in Monitoring Kendaraan if ALL of:
 - Saat URL mengandung `?spk_ids=`, filter date range default di-skip. Backend query menggunakan `WHERE sc.id_sales_cost IN (...)`.
 - Dismiss banner → clear `spkIdsActive` → reload data → kembali ke filter date range normal.
 - URL param name: `spk_ids` (konsisten dari `router.push` → `route.query` → `buildParams` → `req.query`).
+
+---
+
+## Updates (2026-07-21 — Print SPK, Export Excel, Bug Fixes)
+
+### Print Sales Cost — Label "Tiba di Tujuan"
+- `PrintSalesCost.vue` — tambah label `"Tiba di Tujuan"` tepat di bawah `"Total Trip"` di print SPK.
+- Data diambil dari stop pertama yang bukan departure dan bukan finish (`delivery_stops` → first middle stop).
+- Format: `HH.MM (D Bulan YYYY)` — contoh: `10.25 (21 Juli 2026)`.
+- Perubahan: `DeliveryStopPrint` type, `formatIndonesianDateTime()` helper, `getFirstDestination()` helper, CSS positioning `top: 112mm` (7mm di bawah `label-trip`).
+- `SalesCostPrintDetail` type ditambahkan field `delivery_stops?: DeliveryStopPrint[]` — API sudah return field ini, hanya belum dipakai di print.
+
+### Sales Cost — Mode Manual Fallback Jadwal Pengiriman
+- `SalesCostForm.vue` — toggle `"Mode Manual"` di header section Jadwal Pengiriman sebagai fallback saat server GPS Wialon error/offline.
+- State: `useManualMode = ref(false)`, reset ke `false` setiap form dibuka via `applyInitialData`.
+- Saat mode manual aktif: geofence picker (`SearchableSelect`) disembunyikan di semua stop (Departure, Middle, Finish), diganti teks italic abu-abu `"Geofence tidak dikonfigurasi (mode manual)"`.
+- Validasi: guard `!useManualMode.value` ditambahkan pada validasi `wialon_zone_id` — geofence tidak wajib di mode manual. `stop_name` dan `estimated_arrival` tetap wajib.
+- Backend tidak perlu diubah — `wialon_zone_id/resource_id/zone_name` sudah nullable di `sales_cost_step_schedule`.
+- Info banner warning kuning muncul saat mode manual aktif.
+
+#### Flow Bisnis Mode Manual
+- Sales Cost dengan mode manual tetap bisa disimpan dan tampil di Schedule Pengiriman dengan timeline stops (status semua "Pending").
+- Status `on_trip` di Monitoring Kendaraan tetap aktif (karena cek `EXISTS sales_cost_step_schedule`, tidak peduli geofence NULL).
+- GPS tracking otomatis tidak berjalan (Wialon tidak mengenal zone-nya).
+- Progression status harus dilakukan manual via check-in di Schedule Pengiriman.
+- `system:finish_order` hanya masuk via manual Finish check-in.
+
+### Notifikasi Pengiriman — Scrollable Fix
+- `DeliveryNotificationBell.vue` — `<ul>` list notifikasi diubah dari `h-auto overflow-y-auto` menjadi `flex-1 min-h-0 overflow-y-auto`. `flex-1` mengisi sisa tinggi dropdown (480px - header - footer), `min-h-0` memungkinkan flex child shrink sehingga `overflow-y-auto` aktif.
+
+### Schedule Pengiriman — Export Excel
+**Backend:**
+- `schedulePengiriman.js` — tambah `ExcelJS = require('exceljs')` dan endpoint `GET /export` **sebelum** `GET /` (penting: harus sebelum agar tidak konflik route).
+- Params: `start_date` (YYYY-MM-DD), `end_date` (YYYY-MM-DD). Tanpa param = export semua data.
+- SQL parameterized, safe dari SQL injection. `delivery_stops` dan `route_history` di-fetch dengan `IN (placeholders)`.
+- Per-stop data menggunakan `resolveStopTimelineSummary` yang sudah ada — tidak duplikat kode.
+- Excel: 15 kolom, satu baris per stop, cell merge kolom 1–10 (No, No. SPK, No. Polisi, Driver, Customer, Rute, Trip, Jenis Trip, No. PO, Status SPK) untuk SPK dengan >1 stop.
+- Alternating group colors: putih (`FFFFFFFF`) dan biru-abu muda (`FFEBF3FB`) per grup SPK, bukan per-baris.
+- Merged cells di-align `vertical: "top"`.
+- Bug fix: query route_history yang salah pakai `step_name` dan `step_order` (tidak ada di tabel) → diperbaiki ke kolom yang benar (`id_sc_stop`, `gps_time`, `recorded_at`, `is_manual`, `recorded_at ASC`).
+
+**Frontend:**
+- `SchedulePengiriman.vue` — tambah button "Export Excel" emerald di toolbar (setelah Reset button).
+- Modal `<Teleport to="body">` dengan `<Transition name="fade-export">`, 3 opsi: Per Bulan / Per Tahun / Semua Data.
+- Handler `doExportSP` — builds date params, calls `${API_BASE}/schedule-pengiriman/export`, downloads blob.
+- CSS `fade-export` transition di `<style scoped>`.
+
+**Kolom Excel:**
+
+| # | Kolom | Source |
+|---|---|---|
+| 1 | No. | auto-increment per grup SPK |
+| 2 | No. SPK | `id_sales_cost` |
+| 3 | No. Polisi | `no_police` |
+| 4 | Driver | `nama_driver` |
+| 5 | Customer | `nama_customer` |
+| 6 | Rute | `nama_area` |
+| 7 | Trip | `trip` |
+| 8 | Jenis Trip | `jenis_trip` |
+| 9 | No. PO | `no_po` |
+| 10 | Status SPK | `schedule_status` |
+| 11 | Stop | `stop_name` |
+| 12 | Estimasi Tiba | `estimated_arrival` |
+| 13 | Aktual Tiba | `actual_arrival` (GPS atau Manual) |
+| 14 | Status Stop | Tercapai / Terlewati (Otomatis) / Terlambat / Pending |
+| 15 | Sumber Aktual | GPS / Manual / - |
+
+**Status Stop labels:**
+- `"Tercapai"` — `stop.hit = true`
+- `"Terlewati (Otomatis)"` — `stop.inferred_passed = true` (departure di-skip tapi stop berikutnya hit)
+- `"Terlambat"` — `stop.overdue = true`
+- `"Pending"` — belum hit, belum overdue
+
+### Important Routes (tambahan)
+- `GET /api/schedule-pengiriman/export?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+  - Export Schedule Pengiriman ke `.xlsx` dengan data per-stop (estimasi + aktual)
+  - Tanpa params = export semua data
+  - Cell merge untuk kolom info SPK pada SPK dengan >1 stop
+  - Alternating group colors per SPK
