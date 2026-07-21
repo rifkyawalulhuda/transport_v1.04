@@ -1020,3 +1020,100 @@ A truck is `on_trip` in Monitoring Kendaraan if ALL of:
   - Tanpa params = export semua data
   - Cell merge untuk kolom info SPK pada SPK dengan >1 stop
   - Alternating group colors per SPK
+
+---
+
+## Updates (2026-07-21 continued — Export Enhancements, DB Deployment, Status Filter, Selesaikan Semua)
+
+### Schedule Pengiriman Export — Kolom Tambahan
+
+- `schedulePengiriman.js` (`GET /export`) — history query kini juga men-select `lat`, `lon` dari `sales_cost_route_history`.
+- `resolveStopTimelineSummary` — expose dua field baru per stop: `gps_lat`, `gps_lon` (diambil dari `historyEntry.lat/lon`, `null` jika stop belum `hit`).
+- Excel sekarang punya **17 kolom** (sebelumnya 15) — dua kolom baru ditambahkan:
+  - **"Nama Geofence"** (kolom 12, setelah "Stop") — dari `stop.wialon_zone_name` (nama zone yang dipilih saat input SPK, `sales_cost_step_schedule.wialon_zone_name`).
+  - **"Koordinat GPS"** (kolom 17, terakhir) — format `lat, lon` dengan 6 desimal dari `sales_cost_route_history.lat/lon`; hanya terisi jika stop sudah `hit` via GPS, `-` untuk stop Pending/Manual/Inferred.
+- Kedua kolom baru **tidak** termasuk dalam cell-merge group (hanya kolom 1–10 yang di-merge) karena nilainya berbeda per stop.
+- Label status stop "Inferred" diubah menjadi **"Terlewati (Otomatis)"** — lebih jelas dalam Bahasa Indonesia untuk end user.
+
+### Schedule Pengiriman — Status Filter: Client-Side → Server-Side
+
+**Problem:** Filter status (`filters.status`) sebelumnya murni client-side (`filteredRows` computed) — hanya menyaring data yang sudah ter-load di halaman aktif. Jika transaksi dengan status "Selesai" tidak ada di rentang tanggal/halaman yang sedang ditampilkan, filter tidak menemukannya sama sekali.
+
+**Fix — Opsi A (server-side dengan in-memory pagination saat status filter aktif):**
+- `schedulePengiriman.js` (`GET /`) — terima param `?status=` (valid: `waiting`, `on_trip`, `overdue`, `completed`, `incomplete_finish`).
+- Response mapping logic diekstrak ke helper `buildResponseRows(rows)` agar reusable oleh kedua path.
+- **Tanpa `status`**: perilaku lama tidak berubah — SQL `LIMIT/OFFSET` pagination di level database.
+- **Dengan `status`**: fetch SEMUA rows yang match date/search/spk_ids (tanpa `LIMIT`), hitung `schedule_status` per row via `resolveScheduleStatus`, filter in-memory, baru paginate hasil filter tersebut.
+- `meta.status` selalu disertakan di response (null jika tidak difilter).
+- `SchedulePengiriman.vue` — `filteredRows` computed disederhanakan menjadi `computed(() => rows.value)` (tidak filter lagi di client). `buildParams()` kini mengirim `status` ke API. Status dropdown mendapat `@change="applyFilter"` agar memilih status langsung memicu reload data dari page 1.
+
+**Trade-off:** saat status filter aktif, backend fetch seluruh dataset tanpa limit — bisa lebih berat untuk dataset sangat besar, tapi memastikan akurasi penuh (tidak ada status yang "hilang" karena berada di luar halaman aktif).
+
+### Sales Cost — Fitur "Selesaikan Semua" (Admin Only)
+
+**Fitur:** Admin bisa menekan satu tombol di card Schedule Pengiriman untuk menyelesaikan seluruh timeline pengiriman suatu SPK sekaligus (semua stop yang belum `hit` di-check-in otomatis), tanpa perlu check-in satu-per-satu secara manual.
+
+**Backend — `POST /api/sales-costs/:id/complete-all`:**
+- Role guard: hanya `req.user.level === 'admin'` (403 untuk role lain).
+- Fetch semua `sales_cost_step_schedule` untuk SPK terkait, filter stop yang **bukan departure** dan **belum ada di `sales_cost_route_history`**.
+- Untuk tiap pending stop (urut `stop_order`): `arrived_at` = `estimated_arrival` jika di masa lalu, atau `now` jika `estimated_arrival` di masa depan (tidak boleh > sekarang, sesuai constraint check-in manual).
+- Timestamp dijaga **monoton naik** — jika `arrived_at` hasil hitung ≤ stop sebelumnya, ditambah 1 menit, agar tidak melanggar validasi "arrived_at tidak boleh kurang dari stop sebelumnya".
+- Stop Finish: menulis `system:finish_order` (idempotent, skip jika sudah ada) dan update `finish_order_datetime` (idempotent guard) — **dibungkus try/catch terpisah** dari INSERT stop utama, sehingga kegagalan di langkah finish (mis. `system:finish_order` sudah ada dari GPS trigger sebelumnya) tidak membuat stop tersebut ikut masuk daftar `errors` meski INSERT stop utamanya sudah berhasil.
+- Response: `{ message, completed, errors? }` — jika sebagian stop gagal, `errors` berisi detail per stop yang gagal.
+
+**Bug ditemukan & diperbaiki saat testing:** Awalnya INSERT `system:finish_order` berada di dalam try block yang sama dengan INSERT stop biasa — jika finish_order INSERT gagal (duplicate karena sudah pernah tercatat via GPS), exception tertangkap oleh catch yang sama dan **seluruh stop Finish dianggap gagal** meski INSERT utamanya sukses, menghasilkan pesan salah seperti "1 sukses, 1 gagal" padahal proses sebenarnya berhasil penuh. Diperbaiki dengan memisahkan try/catch untuk bagian finish-order (kegagalan di situ hanya di-log sebagai warning, tidak membatalkan status sukses stop).
+
+**Frontend:**
+- `salesCostService.js` — method baru `completeAll(id)` → `POST /api/sales-costs/:id/complete-all`.
+- `SchedulePengiriman.vue`:
+  - `isAdmin = computed(() => authUser.value?.level === 'admin')`
+  - `completingIds = ref<Set<number>>(new Set())` — tracking loading state per card (mendukung multiple card diproses independen)
+  - `hasPendingStops(row)` — true jika ada stop non-departure yang belum `hit` di `delivery_stops_summary`
+  - `handleCompleteAll(row)` — call service, toast feedback, `loadData()` untuk refresh
+  - Tombol **"Selesaikan Semua"** (hijau/success, dengan spinner saat loading) di card footer, sebelah kiri tombol "Detail" — `v-if="isAdmin && row.schedule_status !== 'completed' && hasPendingStops(row)"`, `@click.stop` agar tidak trigger expand/collapse card.
+
+### Local Production Deployment — PM2 Autorun
+
+**Problem:** Autorun PM2 yang ada (`autorun.bat` + `ecosystem.config.js`) hanya untuk development mode (backend `NODE_ENV=development` + Vite dev server terpisah di `:5173`). Dibutuhkan mode production untuk infra lokal yang serve frontend build sebagai static file dari backend Express (`:3000` saja, sesuai desain `server.js` yang sudah serve `dist/`).
+
+**File baru:**
+- `ecosystem.prod.config.js` — PM2 config khusus production, hanya 1 app (`transport-backend-prod`), `NODE_ENV=production`. Tidak ada proses Vite — frontend sudah di-compile ke static files.
+- `autorun-prod.bat` — 3 langkah: (1) build frontend dengan `npm run build-only -- --mode local-prod`, (2) sinkronisasi DB via `node scripts/fix-missing-tables.js`, (3) `pm2 startOrRestart ecosystem.prod.config.js` + `pm2 save`.
+- `tailadmin-vuejs-1.0.0/.env.local-prod` — env file baru khusus mode lokal, **tidak** men-set `VITE_API_URL` sehingga `api.js` fallback ke `window.location.origin` (bekerja untuk akses via `localhost:3000` ATAU IP LAN seperti `192.168.x.x:3000`).
+
+**Root cause bug yang ditemukan:** `npm run build-only` default membaca `.env.production`, yang berisi `VITE_API_URL=https://sankyu-transport.fun` (untuk deploy Cloudflare Tunnel). Saat dipakai untuk build infra lokal, semua API call ter-hardcode ke domain Cloudflare — menyebabkan CORS error `blocked by CORS policy` saat akses via IP lokal (origin mismatch: browser di `192.168.x.x:3000` tapi fetch ke `sankyu-transport.fun`).
+
+**Solusi:** Dua env file terpisah, tidak saling mempengaruhi:
+| Mode | Build command | Env file dibaca | API URL hasil |
+|---|---|---|---|
+| Local infra | `npm run build-only -- --mode local-prod` | `.env.local-prod` | `window.location.origin` (dinamis) |
+| Cloudflare deploy | `npm run build-only` (default) | `.env.production` | `https://sankyu-transport.fun` (statis) |
+
+`.env.production` tidak disentuh — build untuk Cloudflare Tunnel tetap berjalan seperti sebelumnya, kompatibel dengan akses `sankyu-transport.fun` maupun jika suatu saat tunnel tersebut mem-forward ke backend lokal yang sama.
+
+**Catatan:** `npm run build` (dengan `type-check` via `vue-tsc`) gagal dengan 133 TypeScript errors pre-existing (module declaration issues di banyak file `.js` service). `autorun-prod.bat` sengaja memakai `build-only` untuk skip type-check di deployment lokal — bukan untuk CI/CD publik, jadi trade-off ini diterima untuk saat ini.
+
+### Database Deployment — Sync dari Production Dump
+
+**Problem:** Skenario umum — drop database lokal, import dump database dari server production yang **belum punya perubahan skema** yang sudah dilakukan di repo ini (kolom rename, tabel baru, dll). Menjalankan `npm run migrate` langsung gagal karena dbmate mendeteksi tabel `schema_migrations` kosong/tidak ada dan mencoba re-run SEMUA migration dari awal — termasuk migration rename kolom yang sudah pernah dijalankan di lingkungan lain, menyebabkan `ER_BAD_FIELD_ERROR` (`Unknown column 'delivery_order'` dst.) atau `ER_NO_DEFAULT_FOR_FIELD`.
+
+**Investigasi bertahap yang dilakukan:**
+1. `npm run migrate:adopt-existing` (script lama) — menandai SEMUA migration pending sebagai "applied" tanpa verifikasi aktual, sehingga migration yang membuat tabel baru (`delivery_notifications`, `sales_cost_step_schedule`, `delivery_notification_read`) ditandai selesai padahal tabelnya belum pernah dibuat.
+2. Ditemukan bug case-sensitivity: `information_schema.tables` di Windows MySQL mengembalikan kolom `TABLE_NAME` (uppercase), bukan `table_name` — `adopt-existing-migrations.js` sempat salah membaca ini sebagai `undefined` untuk semua row, membuat `matchesLatestTrackedSchema` selalu return `false`. **Fix:** case-insensitive lookup via `row.table_name ?? row.TABLE_NAME ?? Object.values(row)[0]`.
+3. MySQL 8.4 `STRICT_TRANS_TABLES` mode memblokir `ALTER TABLE ... CHANGE COLUMN` pada `sales_cost` karena ada data ENUM tidak valid di kolom lain (`jenis_trip` dengan value `''` duplikat) — solusi: `SET SESSION sql_mode` tanpa `STRICT_TRANS_TABLES` sebelum ALTER.
+4. `id_area_route_step` di `sales_cost_step_schedule` (kolom lama, sisa dari struktur sebelum restructure) tidak bisa di-`DROP COLUMN` karena terikat foreign key constraint — solusi: biarkan kolom itu ada tapi ubah jadi `NULL DEFAULT NULL` agar INSERT baru (yang tidak menyertakan kolom ini) tidak gagal dengan `ER_NO_DEFAULT_FOR_FIELD`.
+
+**Solusi final — script baru `node_backend/scripts/fix-missing-tables.js`** (`npm run migrate:fix-missing`):
+- Idempotent — aman dijalankan berkali-kali, setiap step di-`try/catch` dan `[SKIP]` jika sudah ada (`ER_TABLE_EXISTS_ERROR`, `ER_DUP_FIELDNAME`, `ER_DUP_KEYNAME`, atau pesan "Duplicate column/key").
+- Set `sql_mode` tanpa strict mode di awal.
+- Urutan operasi mengikuti urutan migration: rename `delivery_order/arrival_order/finish_order` → `departure_datetime/arrival_datetime/finish_order_datetime`; create `delivery_notifications`; create+restructure `sales_cost_step_schedule` (drop kolom lama, tambah kolom baru, buat `id_area_route_step` nullable); tambah `id_sc_stop`/`is_manual` ke `sales_cost_route_history`; tambah GPS cache columns ke `truck`; nullable wialon fields; create `delivery_notification_read`; extend `admin.password` ke `VARCHAR(255)`.
+- Setiap step yang berhasil juga `INSERT IGNORE` versi migration terkait ke `schema_migrations` agar status konsisten dengan `npm run migrate:status`.
+
+**Flow deploy DB yang benar (dicatat untuk referensi ke depan):**
+```bash
+cd node_backend
+npm run migrate:fix-missing   # idempotent, aman dijalankan berkali-kali
+npm run migrate:status        # verifikasi Applied: 22, Pending: 0
+```
+
+**Catatan penting:** `npm run migrate:adopt-existing` (script lama) TIDAK disarankan lagi untuk skenario "import dump production lama" karena menandai migration sebagai selesai tanpa verifikasi efek aktual di DB. `migrate:fix-missing` adalah pendekatan yang lebih aman — tiap operasi dicoba secara langsung dan hanya di-skip jika benar-benar sudah ada.
