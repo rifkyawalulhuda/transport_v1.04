@@ -73,6 +73,29 @@ dbmate new <short_description>
 
 Write your `-- migrate:up` and `-- migrate:down` SQL, then `dbmate up` to apply.
 
+### Importing a Production Dump
+
+When bootstrapping a dev environment from a production DB dump, `dbmate up` alone is not enough because a raw dump won’t have the `schema_migrations` tracking rows. Two scripts in `node_backend/scripts/` handle this:
+
+**`sync-from-production.js`** — run this immediately after importing the dump. It inspects each migration file, checks whether its effect already exists in the DB (table present, column present, correct type), and marks matching migrations as applied in `schema_migrations` without re-running their SQL. Migrations whose effects are absent are left unmarked so `dbmate up` will apply them on the next run.
+
+```bash
+cd node_backend
+node scripts/sync-from-production.js
+npm run migrate          # applies only genuinely new migrations
+npm run migrate:status   # verify Pending: 0
+```
+
+**`fix-missing-tables.js`** — an idempotent script that directly runs the `ALTER TABLE` / `RENAME COLUMN` statements needed to bring an older production dump up to the current schema (e.g. renaming `delivery_order` → `departure_datetime`). It skips silently if the target already exists (`ER_DUP_FIELDNAME`, `ER_TABLE_EXISTS_ERROR`). Run it when `sync-from-production.js` + `dbmate up` leaves columns missing, or use `autorun-prod.bat` which calls it automatically on every production deploy.
+
+```bash
+cd node_backend
+node scripts/fix-missing-tables.js
+```
+
+Both scripts read DB credentials from `node_backend/.env`.
+
+
 ## Starting the Server
 
 ```bash
@@ -87,7 +110,27 @@ Startup sequence:
 4. `detectAndRunStartupBackfill()` — fills geofence gaps from the overnight window
 5. `startGeofenceTracking()` — begins 60s Wialon polling loop
 
-For production: use a process manager (PM2, systemd) to keep the server alive. The frontend build must exist at `tailadmin-vuejs-1.0.0/dist/` before starting.
+For production on Windows, use `autorun-prod.bat` (repo root) instead of running these steps manually. It runs three steps in sequence:
+
+1. Builds the frontend with `npm run build-only -- --mode local-prod`
+2. Runs `node scripts/fix-missing-tables.js` to sync the schema
+3. Starts (or restarts) the backend via PM2 using `ecosystem.prod.config.js`
+
+```bat
+REM From the repo root:
+autorun-prod.bat
+```
+
+The PM2 process is named `transport-backend-prod`. Useful commands after starting:
+
+```bash
+pm2 status
+pm2 logs transport-backend-prod
+pm2 stop transport-backend-prod
+pm2 restart transport-backend-prod
+```
+
+`ecosystem.prod.config.js` configures PM2 with `watch: false`, `autorestart: true`, and `max_memory_restart: 512M`. On non-Windows environments, use a systemd service or equivalent process manager pointing at `node_backend/server.js`.
 
 ## Building the Frontend
 
