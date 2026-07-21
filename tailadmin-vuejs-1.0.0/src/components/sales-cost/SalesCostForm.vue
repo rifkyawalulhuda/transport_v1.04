@@ -201,6 +201,37 @@
                 <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ deliveryStops.length - 2 + 2 }} titik perjalanan</p>
               </div>
             </div>
+            <!-- Toggle Mode Manual / GPS -->
+            <button
+              type="button"
+              :title="useManualMode ? 'Klik untuk kembali ke mode GPS Wialon' : 'Klik untuk input manual (tanpa GPS Wialon)'"
+              class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition"
+              :class="useManualMode
+                ? 'border-warning-300 bg-warning-50 text-warning-700 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-300'
+                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'"
+              @click="useManualMode = !useManualMode"
+            >
+              <!-- GPS icon -->
+              <svg v-if="!useManualMode" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+              </svg>
+              <!-- Pencil icon -->
+              <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+              </svg>
+              {{ useManualMode ? 'Mode Manual' : 'Mode GPS' }}
+            </button>
+          </div>
+
+          <!-- Info banner saat mode manual aktif -->
+          <div
+            v-if="useManualMode"
+            class="mb-4 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
+          >
+            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <span>Mode Manual aktif — geofence Wialon tidak diperlukan. Nama stop dan estimasi waktu tetap wajib diisi.</span>
           </div>
 
           <!-- Timeline container -->
@@ -224,17 +255,24 @@
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <span class="mr-1">📍</span>Geofence Keberangkatan
-                    </label>
-                    <SearchableSelect
-                      :model-value="getStopGeofenceValue(departureStop)"
-                      :options="geofenceSelectOptions"
-                      value-key="value"
-                      placeholder="Pilih zona keberangkatan..."
-                      :disabled="isDisabled"
-                      @update:model-value="(v: string) => onStopGeofenceChange(departureStop, v)"
-                    />
+                    <!-- GPS mode: tampilkan geofence picker -->
+                    <template v-if="!useManualMode">
+                      <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <span class="mr-1">📍</span>Geofence Keberangkatan
+                      </label>
+                      <SearchableSelect
+                        :model-value="getStopGeofenceValue(departureStop)"
+                        :options="geofenceSelectOptions"
+                        value-key="value"
+                        placeholder="Pilih zona keberangkatan..."
+                        :disabled="isDisabled"
+                        @update:model-value="(v: string) => onStopGeofenceChange(departureStop, v)"
+                      />
+                    </template>
+                    <!-- Manual mode: placeholder -->
+                    <p v-else class="mt-1 text-xs italic text-gray-400 dark:text-gray-500">
+                      Geofence tidak dikonfigurasi (mode manual)
+                    </p>
                   </div>
                   <div>
                     <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -286,17 +324,24 @@
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <span class="mr-1">📍</span>Geofence Tujuan
-                    </label>
-                    <SearchableSelect
-                      :model-value="getStopGeofenceValue(stop)"
-                      :options="geofenceSelectOptions"
-                      value-key="value"
-                      placeholder="Pilih zona tujuan..."
-                      :disabled="isDisabled"
-                      @update:model-value="(v: string) => onStopGeofenceChange(stop, v)"
-                    />
+                    <!-- GPS mode: tampilkan geofence picker -->
+                    <template v-if="!useManualMode">
+                      <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <span class="mr-1">📍</span>Geofence Tujuan
+                      </label>
+                      <SearchableSelect
+                        :model-value="getStopGeofenceValue(stop)"
+                        :options="geofenceSelectOptions"
+                        value-key="value"
+                        placeholder="Pilih zona tujuan..."
+                        :disabled="isDisabled"
+                        @update:model-value="(v: string) => onStopGeofenceChange(stop, v)"
+                      />
+                    </template>
+                    <!-- Manual mode: placeholder -->
+                    <p v-else class="mt-1 text-xs italic text-gray-400 dark:text-gray-500">
+                      Geofence tidak dikonfigurasi (mode manual)
+                    </p>
                   </div>
                   <div>
                     <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -360,17 +405,24 @@
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <span class="mr-1">🏁</span>Geofence Finish
-                    </label>
-                    <SearchableSelect
-                      :model-value="getStopGeofenceValue(finishStop)"
-                      :options="geofenceSelectOptions"
-                      value-key="value"
-                      placeholder="Pilih zona finish..."
-                      :disabled="isDisabled"
-                      @update:model-value="(v: string) => onStopGeofenceChange(finishStop, v)"
-                    />
+                    <!-- GPS mode: tampilkan geofence picker -->
+                    <template v-if="!useManualMode">
+                      <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <span class="mr-1">🏁</span>Geofence Finish
+                      </label>
+                      <SearchableSelect
+                        :model-value="getStopGeofenceValue(finishStop)"
+                        :options="geofenceSelectOptions"
+                        value-key="value"
+                        placeholder="Pilih zona finish..."
+                        :disabled="isDisabled"
+                        @update:model-value="(v: string) => onStopGeofenceChange(finishStop, v)"
+                      />
+                    </template>
+                    <!-- Manual mode: placeholder -->
+                    <p v-else class="mt-1 text-xs italic text-gray-400 dark:text-gray-500">
+                      Geofence tidak dikonfigurasi (mode manual)
+                    </p>
                   </div>
                   <div>
                     <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -1043,6 +1095,10 @@ const deliveryStops = ref<DeliveryStop[]>([
   }
 ])
 
+// Mode manual: geofence picker disembunyikan, hanya stop_name + estimated_arrival wajib diisi
+// Digunakan saat server GPS Wialon error/offline — reset ke false setiap kali form dibuka
+const useManualMode = ref(false)
+
 const departureStop = computed(() => deliveryStops.value.find(s => s.is_departure === 1)!)
 const finishStop = computed(() => deliveryStops.value.find(s => s.is_finish === 1)!)
 const middleStops = computed(() => deliveryStops.value.filter(s => s.is_departure === 0 && s.is_finish === 0))
@@ -1399,8 +1455,8 @@ const validateForm = () => {
       : stop.is_finish ? 'Finish'
       : `Tujuan ${i}` // i = index in sorted array (0=departure, 1..N=middle, last=finish)
 
-    // Wajib pilih geofence
-    if (!stop.wialon_zone_id) {
+    // Wajib pilih geofence — hanya di mode GPS
+    if (!useManualMode.value && !stop.wialon_zone_id) {
       errors[`stop_geofence_${i}`] = `Geofence ${label} wajib dipilih.`
     }
 
@@ -1490,6 +1546,7 @@ const resetForm = () => {
 }
 
 const applyInitialData = (data: Partial<SalesCostFormData>) => {
+  useManualMode.value = false // reset ke GPS mode setiap kali form dibuka
   form.id_truck = data.id_truck ? String(data.id_truck) : ''
   form.id_driver = data.id_driver ? String(data.id_driver) : ''
   form.id_customer = data.id_customer ? String(data.id_customer) : ''

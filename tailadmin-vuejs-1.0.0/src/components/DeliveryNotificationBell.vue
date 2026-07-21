@@ -70,7 +70,7 @@
       </div>
 
       <!-- Notification list -->
-      <ul class="flex flex-col h-auto overflow-y-auto custom-scrollbar">
+      <ul class="flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
         <li
           v-for="item in notifications"
           :key="item.id"
