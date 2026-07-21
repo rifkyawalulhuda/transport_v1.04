@@ -40,6 +40,7 @@
               <select
                 v-model="filters.status"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                @change="applyFilter"
               >
                 <option value="">Semua Status</option>
                 <option value="waiting">Menunggu</option>
@@ -776,11 +777,8 @@ const loading = ref(false)
 const expanded = reactive<Record<number, boolean>>({})
 const expandedCards = reactive<Record<number, boolean>>({})
 
-// Client-side status filter applied on top of server-side date/search filter
-const filteredRows = computed(() => {
-  if (!filters.status) return rows.value
-  return rows.value.filter(row => row.schedule_status === filters.status)
-})
+// Status filtering is now server-side — rows already filtered by API
+const filteredRows = computed(() => rows.value)
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -1036,6 +1034,9 @@ const buildParams = () => {
   }
   if (filters.search.trim()) {
     params.append('search', filters.search.trim())
+  }
+  if (filters.status) {
+    params.append('status', filters.status)
   }
   if (spkIdsActive.value) {
     params.append('spk_ids', spkIdsActive.value)

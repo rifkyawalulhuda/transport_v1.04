@@ -39,6 +39,26 @@ node migrate-production.js --dry-run
 # Jalankan migration sesungguhnya
 node migrate-production.js
 
+# 1. Import dump dari production ke MySQL lokal
+# (dilakukan manual via MySQL client)
+
+# 2. Adopt existing — tandai migration lama sebagai done tanpa re-run SQL
+npm run migrate:adopt-existing
+
+# 3. Apply migration baru yang belum ada di production
+npm run migrate
+
+# 4. Verifikasi semua applied
+npm run migrate:status
+
+cd node_backend
+
+# Step 1: Jalankan fix-missing-tables (idempotent, aman dijalankan berkali-kali)
+npm run migrate:fix-missing
+
+# Step 2: Verifikasi
+npm run migrate:status
+
 
 Stop semua proses:
 pm2 stop all

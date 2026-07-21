@@ -395,7 +395,13 @@ const matchesLatestTrackedSchema = async (connection) => {
     [database]
   );
 
-  const tableNames = new Set(tableRows.map((row) => String(row.table_name)));
+  const tableNames = new Set(
+    tableRows.map((row) => {
+      // Windows MySQL returns TABLE_NAME (uppercase) instead of table_name
+      const val = row.table_name ?? row.TABLE_NAME ?? Object.values(row)[0];
+      return String(val).toLowerCase();
+    })
+  );
   const requiredTables = [
     "admin",
     "area",

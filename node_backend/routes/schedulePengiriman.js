@@ -437,6 +437,9 @@ router.get("/", authenticateToken, async (req, res) => {
     const sortColumn = sortableColumns[sortBy] || sortableColumns.departure_datetime;
 
     const search = String(req.query.search || "").trim();
+    const statusFilter = String(req.query.status || "").trim().toLowerCase();
+    const validStatuses = ["waiting", "on_trip", "overdue", "completed", "incomplete_finish"];
+    const useStatusFilter = validStatuses.includes(statusFilter);
     // Parse spk_ids param — comma-separated list of sales cost IDs from Monitoring Kendaraan
     const spkIds = req.query.spk_ids
       ? String(req.query.spk_ids).split(',')
@@ -508,22 +511,209 @@ router.get("/", authenticateToken, async (req, res) => {
 
     const whereSql = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    const countSql = `
-      SELECT COUNT(*) AS totalItems
-      FROM sales_cost sc
-      LEFT JOIN truck t ON sc.id_truck = t.id_truck
-      LEFT JOIN driver d ON sc.id_driver = d.id_driver
-      LEFT JOIN customer c ON sc.id_customer = c.id_customer
-      LEFT JOIN area a ON sc.id_area = a.id_area
-      ${whereSql}
-    `;
+    // Shared helper: given a set of DB rows, fetch all related data and build response objects
+    const buildResponseRows = async (rows) => {
+      const ids = rows
+        .map((row) => Number(row.id_sales_cost))
+        .filter((id) => Number.isFinite(id));
+      let dnDocs = [];
+      if (ids.length > 0) {
+        dnDocs = await SalesCostDN.find({ salesCostId: { $in: ids } }).lean();
+      }
 
-    const [countRows] = await db.query(countSql, params);
-    const totalItems = Number(countRows?.[0]?.totalItems || 0);
-    const totalPages = totalItems === 0 ? 1 : Math.ceil(totalItems / pageSize);
-    const offset = (page - 1) * pageSize;
+      const dnMap = new Map();
+      dnDocs.forEach((doc) => {
+        const items = Array.isArray(doc.items) ? doc.items : [];
+        dnMap.set(Number(doc.salesCostId), items);
+      });
 
-    const dataSql = `
+      const stopSummaryMap = new Map();
+      if (ids.length > 0) {
+        const placeholders = ids.map(() => "?").join(",");
+        const [stopRows] = await db.query(
+          `
+            SELECT
+              id_sales_cost,
+              SUM(CASE WHEN is_departure = 0 AND is_finish = 0 THEN 1 ELSE 0 END) AS total_stops,
+              SUM(CASE WHEN is_finish = 1 THEN 1 ELSE 0 END) AS finish_defined
+            FROM sales_cost_step_schedule
+            WHERE id_sales_cost IN (${placeholders})
+            GROUP BY id_sales_cost
+          `,
+          ids
+        );
+
+        stopRows.forEach((row) => {
+          stopSummaryMap.set(Number(row.id_sales_cost), {
+            total_stops: Number(row.total_stops || 0),
+            finish_defined: Number(row.finish_defined || 0) > 0
+          });
+        });
+      }
+
+      const historySummaryMap = new Map();
+      if (ids.length > 0) {
+        const placeholders = ids.map(() => "?").join(",");
+        const [historyRows] = await db.query(
+          `
+            SELECT
+              id_sales_cost,
+              SUM(CASE WHEN id_sc_stop IS NOT NULL THEN 1 ELSE 0 END) AS visited_stops,
+              SUM(CASE WHEN step_key = 'system:finish_order' THEN 1 ELSE 0 END) AS finish_hit
+            FROM sales_cost_route_history
+            WHERE id_sales_cost IN (${placeholders})
+            GROUP BY id_sales_cost
+          `,
+          ids
+        );
+
+        historyRows.forEach((row) => {
+          historySummaryMap.set(Number(row.id_sales_cost), {
+            visited_stops: Number(row.visited_stops || 0),
+            finish_hit: Number(row.finish_hit || 0) > 0
+          });
+        });
+      }
+
+      const deliveryStopsMap = new Map();
+      if (ids.length > 0) {
+        const placeholders = ids.map(() => "?").join(",");
+        const [deliveryStopRows] = await db.query(
+          `
+            SELECT
+              id,
+              id_sales_cost,
+              stop_order,
+              stop_name,
+              wialon_zone_name,
+              estimated_arrival,
+              is_departure,
+              is_finish
+            FROM sales_cost_step_schedule
+            WHERE id_sales_cost IN (${placeholders})
+            ORDER BY id_sales_cost ASC, stop_order ASC
+          `,
+          ids
+        );
+
+        deliveryStopRows.forEach((row) => {
+          const salesCostId = Number(row.id_sales_cost);
+          if (!deliveryStopsMap.has(salesCostId)) {
+            deliveryStopsMap.set(salesCostId, []);
+          }
+          deliveryStopsMap.get(salesCostId).push(row);
+        });
+      }
+
+      const routeHistoryMap = new Map();
+      if (ids.length > 0) {
+        const placeholders = ids.map(() => "?").join(",");
+        const [routeHistoryRows] = await db.query(
+          `
+            SELECT
+              id_sales_cost,
+              id_sc_stop,
+              gps_time,
+              is_manual,
+              step_key
+            FROM sales_cost_route_history
+            WHERE id_sales_cost IN (${placeholders})
+            ORDER BY gps_time ASC, id_sales_cost_route_history ASC
+          `,
+          ids
+        );
+
+        routeHistoryRows.forEach((row) => {
+          const salesCostId = Number(row.id_sales_cost);
+          if (!routeHistoryMap.has(salesCostId)) {
+            routeHistoryMap.set(salesCostId, []);
+          }
+          routeHistoryMap.get(salesCostId).push(row);
+        });
+      }
+
+      return rows.map((row) => {
+        const salesCostId = Number(row.id_sales_cost);
+        const dnItemsRaw = dnMap.get(salesCostId) || [];
+        const dnItems = dnItemsRaw.map((item) => ({
+          _id: item?._id ? String(item._id) : "",
+          no_dn: item?.no_dn ?? null,
+          almt_pickup: item?.pickup_alamat ?? null,
+          almt_drop: item?.drop_alamat ?? null,
+          qty: item?.qty ?? null,
+          pkg: item?.pkg ?? null,
+          gw: item?.gw ?? null,
+          no_container: item?.no_container ?? null,
+          no_aju: item?.no_aju ?? null,
+          remarks: item?.remarks ?? null
+        }));
+
+        const stopSummary = stopSummaryMap.get(salesCostId) || {
+          total_stops: 0,
+          finish_defined: false
+        };
+
+        const historySummary = historySummaryMap.get(salesCostId) || {
+          visited_stops: 0,
+          finish_hit: false
+        };
+
+        const deliveryStops = deliveryStopsMap.get(salesCostId) || [];
+        const routeHistory = routeHistoryMap.get(salesCostId) || [];
+
+        const statusSummary = resolveScheduleStatus({
+          departureDatetime: row.departure_datetime,
+          arrivalDatetime: row.arrival_datetime,
+          finishOrderDatetime: row.finish_order_datetime,
+          finishHit: historySummary.finish_hit,
+          visitedStops: historySummary.visited_stops,
+          totalStops: stopSummary.total_stops
+        });
+
+        return {
+          id_sales_cost: salesCostId,
+          departure_datetime: formatDateValue(row.departure_datetime),
+          arrival: formatDateValue(row.arrival_datetime),
+          finish_order_datetime: formatDateValue(row.finish_order_datetime),
+          no_spk: row.no_spk || salesCostId,
+          no_po: row.no_po || null,
+          jenis_pengiriman: row.jenis_trip || null,
+          trip: row.trip || null,
+          truck: {
+            id: row.id_truck ?? null,
+            no_police: row.no_police ?? null,
+            jenis_kendaraan: row.jenis_kendaraan ?? null
+          },
+          driver: {
+            id: row.id_driver ?? null,
+            name: row.nama_driver ?? null
+          },
+          customer: {
+            id: row.id_customer ?? null,
+            name: row.nama_customer ?? null
+          },
+          route: {
+            id: row.id_area ?? null,
+            name: row.nama_area ?? null
+          },
+          dnCount: dnItems.length,
+          dnItems,
+          detailUrl: `/sales-cost/${salesCostId}`,
+
+          schedule_status: statusSummary.schedule_status,
+          visited_stops: historySummary.visited_stops,
+          total_stops: stopSummary.total_stops,
+          finish_hit: historySummary.finish_hit,
+          has_incomplete_finish: statusSummary.has_incomplete_finish,
+          delivery_stops_summary: resolveStopTimelineSummary({
+            deliveryStops,
+            historyRows: routeHistory
+          })
+        };
+      });
+    };
+
+    const baseDataSql = `
       SELECT
         sc.id_sales_cost,
         sc.departure_datetime,
@@ -548,209 +738,39 @@ router.get("/", authenticateToken, async (req, res) => {
       LEFT JOIN area a ON sc.id_area = a.id_area
       ${whereSql}
       ORDER BY ${sortColumn} ${sortDir}, sc.id_sales_cost ASC
-      LIMIT ? OFFSET ?
     `;
 
-    const [rows] = await db.query(dataSql, [...params, pageSize, offset]);
+    let totalItems, totalPages, responseRows;
 
-    const ids = rows
-      .map((row) => Number(row.id_sales_cost))
-      .filter((id) => Number.isFinite(id));
-    let dnDocs = [];
-    if (ids.length > 0) {
-      dnDocs = await SalesCostDN.find({ salesCostId: { $in: ids } }).lean();
+    if (!useStatusFilter) {
+      // Original path: SQL-level pagination
+      const countSql = `
+        SELECT COUNT(*) AS totalItems
+        FROM sales_cost sc
+        LEFT JOIN truck t ON sc.id_truck = t.id_truck
+        LEFT JOIN driver d ON sc.id_driver = d.id_driver
+        LEFT JOIN customer c ON sc.id_customer = c.id_customer
+        LEFT JOIN area a ON sc.id_area = a.id_area
+        ${whereSql}
+      `;
+      const [countRows] = await db.query(countSql, params);
+      totalItems = Number(countRows?.[0]?.totalItems || 0);
+      totalPages = totalItems === 0 ? 1 : Math.ceil(totalItems / pageSize);
+      const offset = (page - 1) * pageSize;
+
+      const [rows] = await db.query(`${baseDataSql} LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+      responseRows = await buildResponseRows(rows);
+    } else {
+      // Status-filter path: fetch ALL rows, compute status, filter, then paginate in-memory
+      const [allRows] = await db.query(baseDataSql, params);
+      const allResponseRows = await buildResponseRows(allRows);
+      const filtered = allResponseRows.filter((r) => r.schedule_status === statusFilter);
+
+      totalItems = filtered.length;
+      totalPages = totalItems === 0 ? 1 : Math.ceil(totalItems / pageSize);
+      const offset = (page - 1) * pageSize;
+      responseRows = filtered.slice(offset, offset + pageSize);
     }
-
-    const dnMap = new Map();
-    dnDocs.forEach((doc) => {
-      const items = Array.isArray(doc.items) ? doc.items : [];
-      dnMap.set(Number(doc.salesCostId), items);
-    });
-
-    const stopSummaryMap = new Map();
-    if (ids.length > 0) {
-      const placeholders = ids.map(() => "?").join(",");
-      const [stopRows] = await db.query(
-        `
-          SELECT
-            id_sales_cost,
-            SUM(CASE WHEN is_departure = 0 AND is_finish = 0 THEN 1 ELSE 0 END) AS total_stops,
-            SUM(CASE WHEN is_finish = 1 THEN 1 ELSE 0 END) AS finish_defined
-          FROM sales_cost_step_schedule
-          WHERE id_sales_cost IN (${placeholders})
-          GROUP BY id_sales_cost
-        `,
-        ids
-      );
-
-      stopRows.forEach((row) => {
-        stopSummaryMap.set(Number(row.id_sales_cost), {
-          total_stops: Number(row.total_stops || 0),
-          finish_defined: Number(row.finish_defined || 0) > 0
-        });
-      });
-    }
-
-    const historySummaryMap = new Map();
-    if (ids.length > 0) {
-      const placeholders = ids.map(() => "?").join(",");
-      const [historyRows] = await db.query(
-        `
-          SELECT
-            id_sales_cost,
-            SUM(CASE WHEN id_sc_stop IS NOT NULL THEN 1 ELSE 0 END) AS visited_stops,
-            SUM(CASE WHEN step_key = 'system:finish_order' THEN 1 ELSE 0 END) AS finish_hit
-          FROM sales_cost_route_history
-          WHERE id_sales_cost IN (${placeholders})
-          GROUP BY id_sales_cost
-        `,
-        ids
-      );
-
-      historyRows.forEach((row) => {
-        historySummaryMap.set(Number(row.id_sales_cost), {
-          visited_stops: Number(row.visited_stops || 0),
-          finish_hit: Number(row.finish_hit || 0) > 0
-        });
-      });
-    }
-
-    const deliveryStopsMap = new Map();
-    if (ids.length > 0) {
-      const placeholders = ids.map(() => "?").join(",");
-      const [deliveryStopRows] = await db.query(
-        `
-          SELECT
-            id,
-            id_sales_cost,
-            stop_order,
-            stop_name,
-            wialon_zone_name,
-            estimated_arrival,
-            is_departure,
-            is_finish
-          FROM sales_cost_step_schedule
-          WHERE id_sales_cost IN (${placeholders})
-          ORDER BY id_sales_cost ASC, stop_order ASC
-        `,
-        ids
-      );
-
-      deliveryStopRows.forEach((row) => {
-        const salesCostId = Number(row.id_sales_cost);
-        if (!deliveryStopsMap.has(salesCostId)) {
-          deliveryStopsMap.set(salesCostId, []);
-        }
-        deliveryStopsMap.get(salesCostId).push(row);
-      });
-    }
-
-    const routeHistoryMap = new Map();
-    if (ids.length > 0) {
-      const placeholders = ids.map(() => "?").join(",");
-      const [routeHistoryRows] = await db.query(
-        `
-          SELECT
-            id_sales_cost,
-            id_sc_stop,
-            gps_time,
-            is_manual,
-            step_key
-          FROM sales_cost_route_history
-          WHERE id_sales_cost IN (${placeholders})
-          ORDER BY gps_time ASC, id_sales_cost_route_history ASC
-        `,
-        ids
-      );
-
-      routeHistoryRows.forEach((row) => {
-        const salesCostId = Number(row.id_sales_cost);
-        if (!routeHistoryMap.has(salesCostId)) {
-          routeHistoryMap.set(salesCostId, []);
-        }
-        routeHistoryMap.get(salesCostId).push(row);
-      });
-    }
-
-    const responseRows = rows.map((row) => {
-      const salesCostId = Number(row.id_sales_cost);
-      const dnItemsRaw = dnMap.get(salesCostId) || [];
-      const dnItems = dnItemsRaw.map((item) => ({
-        _id: item?._id ? String(item._id) : "",
-        no_dn: item?.no_dn ?? null,
-        almt_pickup: item?.pickup_alamat ?? null,
-        almt_drop: item?.drop_alamat ?? null,
-        qty: item?.qty ?? null,
-        pkg: item?.pkg ?? null,
-        gw: item?.gw ?? null,
-        no_container: item?.no_container ?? null,
-        no_aju: item?.no_aju ?? null,
-        remarks: item?.remarks ?? null
-      }));
-
-      const stopSummary = stopSummaryMap.get(salesCostId) || {
-        total_stops: 0,
-        finish_defined: false
-      };
-
-      const historySummary = historySummaryMap.get(salesCostId) || {
-        visited_stops: 0,
-        finish_hit: false
-      };
-
-      const deliveryStops = deliveryStopsMap.get(salesCostId) || [];
-      const routeHistory = routeHistoryMap.get(salesCostId) || [];
-
-      const statusSummary = resolveScheduleStatus({
-        departureDatetime: row.departure_datetime,
-        arrivalDatetime: row.arrival_datetime,
-        finishOrderDatetime: row.finish_order_datetime,
-        finishHit: historySummary.finish_hit,
-        visitedStops: historySummary.visited_stops,
-        totalStops: stopSummary.total_stops
-      });
-
-      return {
-        id_sales_cost: salesCostId,
-        departure_datetime: formatDateValue(row.departure_datetime),
-        arrival: formatDateValue(row.arrival_datetime),
-        finish_order_datetime: formatDateValue(row.finish_order_datetime),
-        no_spk: row.no_spk || salesCostId,
-        no_po: row.no_po || null,
-        jenis_pengiriman: row.jenis_trip || null,
-        trip: row.trip || null,
-        truck: {
-          id: row.id_truck ?? null,
-          no_police: row.no_police ?? null,
-          jenis_kendaraan: row.jenis_kendaraan ?? null
-        },
-        driver: {
-          id: row.id_driver ?? null,
-          name: row.nama_driver ?? null
-        },
-        customer: {
-          id: row.id_customer ?? null,
-          name: row.nama_customer ?? null
-        },
-        route: {
-          id: row.id_area ?? null,
-          name: row.nama_area ?? null
-        },
-        dnCount: dnItems.length,
-        dnItems,
-        detailUrl: `/sales-cost/${salesCostId}`,
-
-        schedule_status: statusSummary.schedule_status,
-        visited_stops: historySummary.visited_stops,
-        total_stops: stopSummary.total_stops,
-        finish_hit: historySummary.finish_hit,
-        has_incomplete_finish: statusSummary.has_incomplete_finish,
-        delivery_stops_summary: resolveStopTimelineSummary({
-          deliveryStops,
-          historyRows: routeHistory
-        })
-      };
-    });
 
     res.json({
       meta: {
@@ -760,7 +780,8 @@ router.get("/", authenticateToken, async (req, res) => {
         totalPages,
         start_date: startDate,
         end_date: endDate,
-        search
+        search,
+        status: statusFilter || null
       },
       rows: responseRows
     });
