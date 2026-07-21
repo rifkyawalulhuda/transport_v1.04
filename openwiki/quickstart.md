@@ -89,6 +89,8 @@ transport_v1.04/
 │   │   └── services/          # Frontend API wrappers (axios)
 │   └── dist/                  # Production build (served by Express)
 └── docs/
+├── trucking.sql               # Full phpMyAdmin dump of trucking DB (reference/setup snapshot)
+└── docs/
     └── PROJECT_CONTEXT.md     # Authoritative feature & design notes
 ```
 
