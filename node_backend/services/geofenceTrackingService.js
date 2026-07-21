@@ -89,11 +89,12 @@ const getActiveSalesCostCandidates = async () => {
     ORDER BY sc.id_truck ASC, sc.departure_datetime DESC, sc.id_sales_cost DESC
   `);
 
-  const pickedByTruck = new Map();
-  rows.forEach((row) => {
-    const truckKey = String(row.id_truck || '');
-    if (!truckKey || pickedByTruck.has(truckKey)) return;
-    pickedByTruck.set(truckKey, {
+  // Return ALL active sales costs (one per SPK, not one per truck).
+  // Previously this deduplicated to 1 SPK per truck, causing trucks with
+  // multiple active deliveries to only track the most recent one. (H9 fix)
+  return rows
+    .filter((row) => row.id_sales_cost && row.id_area && row.id_truck && row.wialon_unit_id)
+    .map((row) => ({
       id_sales_cost: Number(row.id_sales_cost),
       id_area: Number(row.id_area),
       id_truck: Number(row.id_truck),
@@ -101,12 +102,7 @@ const getActiveSalesCostCandidates = async () => {
       finish_geofence_resource_id: row.finish_geofence_resource_id ?? null,
       finish_geofence_zone_id: row.finish_geofence_zone_id ?? null,
       finish_geofence_zone_name: row.finish_geofence_zone_name ?? null
-    });
-  });
-
-  return Array.from(pickedByTruck.values()).filter(
-    (item) => item.id_sales_cost && item.id_area && item.id_truck && item.wialon_unit_id
-  );
+    }));
 };
 
 const checkArrivalDelays = async () => {
@@ -506,6 +502,37 @@ const syncGeofenceRouteHistory = async () => {
   };
 };
 
+let lastPurgeAt = 0;
+const PURGE_INTERVAL_MS = 60 * 60 * 1000; // run at most once per hour
+
+const purgeOldDeliveryNotifications = async () => {
+  const now = Date.now();
+  if (now - lastPurgeAt < PURGE_INTERVAL_MS) return;
+  lastPurgeAt = now;
+
+  try {
+    // Hard-delete delivery_notifications older than 30 days
+    const [result] = await db.query(
+      `DELETE FROM delivery_notifications
+       WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`
+    );
+    if (result.affectedRows > 0) {
+      console.log(
+        `[geofence-tracking] purged ${result.affectedRows} old delivery notification(s) (>30 days)`
+      );
+    }
+
+    // Clean up orphaned delivery_notification_read rows
+    await db.query(
+      `DELETE dnr FROM delivery_notification_read dnr
+       LEFT JOIN delivery_notifications dn ON dn.id = dnr.id_delivery_notification
+       WHERE dn.id IS NULL`
+    );
+  } catch (err) {
+    console.warn("[geofence-tracking] purge failed:", err.message);
+  }
+};
+
 const runSyncCycle = async () => {
   if (syncInProgress) {
     return;
@@ -520,6 +547,7 @@ const runSyncCycle = async () => {
       );
     }
     await checkArrivalDelays();
+    await purgeOldDeliveryNotifications();
   } catch (error) {
     console.warn("[geofence-tracking] sync failed", error);
   } finally {
@@ -542,12 +570,23 @@ const startGeofenceTracking = () => {
   );
 };
 
-const stopGeofenceTracking = () => {
+const stopGeofenceTracking = async (timeoutMs = 5000) => {
   if (intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
   started = false;
+
+  // Wait for any in-progress sync cycle to finish before returning
+  if (syncInProgress) {
+    const deadline = Date.now() + timeoutMs;
+    while (syncInProgress && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (syncInProgress) {
+      console.warn("[geofence-tracking] stop timeout — cycle still running after", timeoutMs, "ms");
+    }
+  }
 };
 
 

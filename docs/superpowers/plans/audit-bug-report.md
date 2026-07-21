@@ -1,6 +1,6 @@
 # Audit Bug Report — transport_v1.04
 **Tanggal audit:** 2026-07-18  
-**Terakhir diupdate:** 2026-07-19  
+**Terakhir diupdate:** 2026-07-21  
 **Branch:** add-module-bbs  
 **Scope:** Backend penuh (auth, salesCost, repair, monitoring, geofenceTracking, wialonService, deliveryNotifications, server)
 
@@ -25,16 +25,16 @@
 | ID | Deskripsi Singkat | Status | Tanggal Fix |
 |---|---|---|---|
 | H1 | Tidak ada guard truk on_trip di createRepair | ✅ FIXED | 2026-07-18 |
-| H2 | Race condition create repair + sales cost | 🔴 BELUM | Butuh DB-level locking |
+| H2 | Race condition create repair + sales cost | ✅ FIXED | 2026-07-21 — MySQL SELECT FOR UPDATE in repairService.createRepair |
 | H3 | Status SELESAI bisa kembali ke PROSES | ✅ FIXED | 2026-07-18 |
 | H4 | RBAC decode JWT ulang, tidak sync req.user | ✅ FIXED | 2026-07-19 |
-| H5 | 60-day window on_trip terlalu panjang | 🔴 BELUM | Tunggu C5 stable dulu |
+| H5 | 60-day window on_trip terlalu panjang | ✅ FIXED | 2026-07-21 — Dikurangi ke 14 hari (C5 sudah stable) |
 | H6 | Repair query tidak filter is_active=0 | ✅ FIXED | 2026-07-18 |
-| H7 | summary.total vs data di-slice tidak konsisten | 🔴 BELUM | |
-| H8 | stopGeofenceTracking tidak tunggu cycle selesai | 🔴 BELUM | |
-| H9 | Truk 2 pengiriman aktif bisa salah trigger finish | 🔴 BELUM | |
-| H10 | Semua WialonError trigger re-login | 🔴 BELUM | |
-| H11 | id_sc_stop vs id_area_route_step inkonsisten | 🔴 BELUM | |
+| H7 | summary.total vs data di-slice tidak konsisten | ✅ FIXED | 2026-07-21 — Tambah has_more per kategori di meta response |
+| H8 | stopGeofenceTracking tidak tunggu cycle selesai | ✅ FIXED | 2026-07-21 — stopGeofenceTracking jadi async, polling syncInProgress sampai false atau timeout 5s |
+| H9 | Truk 2 pengiriman aktif bisa salah trigger finish | ✅ FIXED | 2026-07-21 — Hapus dedup pickedByTruck, tracking semua SPK aktif per truk |
+| H10 | Semua WialonError trigger re-login | ✅ FIXED | 2026-07-21 — Hanya error code 1/401/403 yang trigger relogin; kode lain di-log dan re-throw |
+| H11 | id_sc_stop vs id_area_route_step inkonsisten | ✅ RESOLVED | Tracking sudah konsisten pakai id_sc_stop sejak refactor Juli 2026. id_area_route_step hanya tersisa di legacy notification dedup (hardcode NULL) dan areaRouteService untuk Surat Jalan printing (beda konteks, bukan bug) |
 | H12 | Reverse geocoding sequential bottleneck 300 detik | ✅ FIXED | 2026-07-18 |
 | H13 | FK wajib tidak divalidasi sebelum INSERT salesCost | ✅ FIXED | 2026-07-18 (H14) |
 | H14 | Tidak ada validasi ordering tanggal salesCost | ✅ FIXED | 2026-07-18 |

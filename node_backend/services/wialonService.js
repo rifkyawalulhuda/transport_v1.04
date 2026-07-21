@@ -392,9 +392,24 @@ const wialonRequest = async (svc, params) => {
     return await requestWialon(svc, params, sid);
   } catch (error) {
     if (error instanceof WialonError) {
-      clearSession();
-      const retrySid = await getSessionId();
-      return requestWialon(svc, params, retrySid);
+      // Only retry with re-login for session-related errors:
+      // Wialon error code 1 = invalid/expired session
+      // HTTP 401/403 = auth failure
+      const code = error.code;
+      const isSessionError =
+        code === 1 ||         // Wialon: invalid session
+        code === 401 ||       // HTTP: Unauthorized
+        code === 403;         // HTTP: Forbidden
+
+      if (isSessionError) {
+        clearSession();
+        const retrySid = await getSessionId();
+        return requestWialon(svc, params, retrySid);
+      }
+
+      // Non-session WialonError (rate limit, server error, bad request, etc.)
+      // Log and re-throw without triggering a re-login storm
+      console.warn(`[wialon] non-session error (code=${code}), not retrying login`);
     }
     throw error;
   }

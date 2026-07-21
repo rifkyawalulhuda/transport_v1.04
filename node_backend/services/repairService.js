@@ -163,27 +163,6 @@ const createRepair = async (payload = {}) => {
     throw error;
   }
 
-  // Guard: block if truck is currently on_trip
-  if (payload.id_truck) {
-    const [onTripRows] = await db.query(
-      `SELECT sc.id_sales_cost FROM sales_cost sc
-       WHERE sc.id_truck = ?
-         AND sc.finish_order_datetime IS NULL
-         AND NOT EXISTS (
-           SELECT 1 FROM sales_cost_route_history scrh
-           WHERE scrh.id_sales_cost = sc.id_sales_cost
-             AND scrh.step_key = 'system:finish_order'
-         )
-       LIMIT 1`,
-      [payload.id_truck]
-    );
-    if (onTripRows.length > 0) {
-      const error = new Error("Kendaraan sedang dalam perjalanan. Tidak bisa membuat repair.");
-      error.status = 409;
-      throw error;
-    }
-  }
-
   if (statusRepair === "SELESAI") {
     if (!tglSelesaiValue) {
       const error = new Error("Tanggal selesai wajib diisi");
@@ -211,28 +190,66 @@ const createRepair = async (payload = {}) => {
     tgl_selesai: statusRepair === "PROSES" ? null : resolvedTglSelesai
   };
 
-  const [result] = await db.query(
-    "INSERT INTO repair (kategori_repair, id_truck, tgl_input, tgl_kerusakan, no_spk_perbaikan, kilometer, jenis_kerusakan, spare_part, jadwal_berkala, keterangan, biaya_perbaikan, nik_admin, status_repair, tgl_proses, tgl_selesai) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-      data.kategori_repair,
-      data.id_truck,
-      data.tgl_input,
-      data.tgl_kerusakan,
-      data.no_spk_perbaikan,
-      data.kilometer,
-      data.jenis_kerusakan,
-      data.spare_part,
-      data.jadwal_berkala,
-      data.keterangan,
-      data.biaya_perbaikan,
-      data.nik_admin,
-      data.status_repair,
-      data.tgl_proses,
-      data.tgl_selesai
-    ]
-  );
+  // Use a dedicated connection + transaction with SELECT FOR UPDATE to prevent
+  // race conditions where two concurrent requests both pass the on_trip check
+  // and both INSERT a repair for the same truck. (H2 fix)
+  const conn = await db.getConnection();
+  let insertId;
+  try {
+    await conn.beginTransaction();
 
-  return fetchRepairById(result.insertId);
+    if (payload.id_truck) {
+      // Lock the truck's active sales cost rows during this transaction
+      const [onTripRows] = await conn.query(
+        `SELECT sc.id_sales_cost FROM sales_cost sc
+         WHERE sc.id_truck = ?
+           AND sc.finish_order_datetime IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM sales_cost_route_history scrh
+             WHERE scrh.id_sales_cost = sc.id_sales_cost
+               AND scrh.step_key = 'system:finish_order'
+           )
+         LIMIT 1
+         FOR UPDATE`,
+        [payload.id_truck]
+      );
+      if (onTripRows.length > 0) {
+        const error = new Error("Kendaraan sedang dalam perjalanan. Tidak bisa membuat repair.");
+        error.status = 409;
+        throw error;
+      }
+    }
+
+    const [result] = await conn.query(
+      "INSERT INTO repair (kategori_repair, id_truck, tgl_input, tgl_kerusakan, no_spk_perbaikan, kilometer, jenis_kerusakan, spare_part, jadwal_berkala, keterangan, biaya_perbaikan, nik_admin, status_repair, tgl_proses, tgl_selesai) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        data.kategori_repair,
+        data.id_truck,
+        data.tgl_input,
+        data.tgl_kerusakan,
+        data.no_spk_perbaikan,
+        data.kilometer,
+        data.jenis_kerusakan,
+        data.spare_part,
+        data.jadwal_berkala,
+        data.keterangan,
+        data.biaya_perbaikan,
+        data.nik_admin,
+        data.status_repair,
+        data.tgl_proses,
+        data.tgl_selesai
+      ]
+    );
+    insertId = result.insertId;
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  return fetchRepairById(insertId);
 };
 
 const updateRepair = async (id, payload = {}) => {

@@ -224,7 +224,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN area a ON sc.id_area = a.id_area
       WHERE t.is_active = 1
         AND sc.departure_datetime IS NOT NULL
-        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 14 DAY)
         AND NOT EXISTS (
           SELECT 1 FROM sales_cost_route_history scrh
           WHERE scrh.id_sales_cost = sc.id_sales_cost
@@ -477,7 +477,13 @@ router.get("/", async (req, res) => {
         limit,
         search,
         month,
-        year
+        year,
+        has_more: {
+          on_trip: filteredOnTrip.length > limit,
+          transaksi: filteredTransaksi.length > limit,
+          repair: filteredRepair.length > limit,
+          idle: filteredIdle.length > limit
+        }
       }
     });
   } catch (error) {
