@@ -110,6 +110,8 @@ const resolveStopTimelineSummary = ({ deliveryStops, historyRows }) => {
       hit,
       actual_arrival: hit ? historyEntry?.gps_time || null : null,
       is_manual: historyEntry?.is_manual === 1,
+      gps_lat: hit ? (historyEntry?.lat || null) : null,
+      gps_lon: hit ? (historyEntry?.lon || null) : null,
       inferred_passed: false,
       incomplete_finish: false,
       overdue
@@ -217,7 +219,7 @@ router.get("/export", authenticateToken, async (req, res) => {
     );
 
     const [historyRows] = await db.query(
-      `SELECT id_sc_stop, id_sales_cost, gps_time, recorded_at, is_manual
+      `SELECT id_sc_stop, id_sales_cost, gps_time, recorded_at, is_manual, lat, lon
        FROM sales_cost_route_history
        WHERE id_sales_cost IN (${placeholders})
        ORDER BY id_sales_cost ASC, recorded_at ASC`,
@@ -264,10 +266,12 @@ router.get("/export", authenticateToken, async (req, res) => {
       { header: "No. PO", key: "no_po", width: 16 },
       { header: "Status SPK", key: "status_spk", width: 16 },
       { header: "Stop", key: "stop_name", width: 20 },
+      { header: "Nama Geofence", key: "geofence_name", width: 24 },
       { header: "Estimasi Tiba", key: "est_arrival", width: 20 },
       { header: "Aktual Tiba", key: "actual_arrival", width: 20 },
       { header: "Status Stop", key: "stop_status", width: 14 },
       { header: "Sumber Aktual", key: "source", width: 16 },
+      { header: "Koordinat GPS", key: "gps_coords", width: 28 },
     ];
 
     // Style header row
@@ -330,10 +334,12 @@ router.get("/export", authenticateToken, async (req, res) => {
           no_po: sc.no_po || "-",
           status_spk: statusLabel(schedule_status),
           stop_name: "-",
+          geofence_name: "-",
           est_arrival: "-",
           actual_arrival: "-",
           stop_status: "-",
           source: "-",
+          gps_coords: "-",
         });
         r.fill = { type: "pattern", pattern: "solid", fgColor: { argb: groupColor } };
         r.alignment = { vertical: "middle" };
@@ -369,10 +375,14 @@ router.get("/export", authenticateToken, async (req, res) => {
             status_spk: si === 0 ? statusLabel(schedule_status) : "",
             // Stop-specific columns always filled
             stop_name: stop.stop_name || "-",
+            geofence_name: stop.wialon_zone_name || "-",
             est_arrival: fmtDt(stop.estimated_arrival),
             actual_arrival: fmtDt(stop.actual_arrival),
             stop_status: stopStatus,
             source,
+            gps_coords: (stop.gps_lat && stop.gps_lon)
+              ? `${Number(stop.gps_lat).toFixed(6)}, ${Number(stop.gps_lon).toFixed(6)}`
+              : "-",
           };
 
           const r = sheet.addRow(rowData);
