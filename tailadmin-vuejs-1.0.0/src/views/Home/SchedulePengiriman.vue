@@ -455,7 +455,25 @@
               </div>
 
               <!-- Action button -->
-              <div class="flex-shrink-0">
+              <div class="flex flex-shrink-0 items-center gap-2">
+                <!-- Selesaikan Semua — hanya admin, hanya jika belum selesai -->
+                <button
+                  v-if="isAdmin && row.schedule_status !== 'completed' && hasPendingStops(row)"
+                  type="button"
+                  :disabled="completingIds.has(row.id_sales_cost)"
+                  class="inline-flex items-center gap-1 rounded-lg border border-success-300 bg-success-50 px-3 py-1.5 text-xs font-medium text-success-700 shadow-theme-xs transition hover:bg-success-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300 dark:hover:bg-success-500/20"
+                  :title="`Selesaikan semua stop pengiriman SPK #${row.id_sales_cost}`"
+                  @click.stop="handleCompleteAll(row)"
+                >
+                  <svg v-if="completingIds.has(row.id_sales_cost)" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <svg v-else class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                  </svg>
+                  {{ completingIds.has(row.id_sales_cost) ? 'Memproses...' : 'Selesaikan Semua' }}
+                </button>
                 <button
                   type="button"
                   class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs transition hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-brand-500/10"
@@ -637,6 +655,7 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import { API_BASE } from '@/config/api'
 import { authFetch, useAuthUser } from '@/services/auth'
+import { salesCostService } from '@/services/salesCostService'
 import { useToast } from '@/composables/useToast'
 
 type DnItem = {
@@ -744,6 +763,30 @@ const isDetailDisabled = computed(() => {
   const level = authUser.value?.level
   return level === 'cs' || level === 'mekanik'
 })
+
+const isAdmin = computed(() => authUser.value?.level === 'admin')
+const completingIds = ref<Set<number>>(new Set())
+
+const hasPendingStops = (row: any): boolean => {
+  const stops = row.delivery_stops_summary || []
+  return stops.some((s: any) => !s.is_departure && !s.hit)
+}
+
+const handleCompleteAll = async (row: any) => {
+  if (completingIds.value.has(row.id_sales_cost)) return
+  completingIds.value = new Set(completingIds.value).add(row.id_sales_cost)
+  try {
+    const result = await salesCostService.completeAll(row.id_sales_cost)
+    toast.success(result?.message || 'Semua stop berhasil diselesaikan.')
+    await loadData()
+  } catch (err: any) {
+    toast.error(err?.message || 'Gagal menyelesaikan stop pengiriman.')
+  } finally {
+    const next = new Set(completingIds.value)
+    next.delete(row.id_sales_cost)
+    completingIds.value = next
+  }
+}
 
 const toDateInputValue = (date: Date) => {
   const year = date.getFullYear()

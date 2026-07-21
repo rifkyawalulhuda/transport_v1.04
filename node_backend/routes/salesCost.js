@@ -2199,4 +2199,171 @@ router.put("/:id/dn", authenticateToken, async (req, res) => {
   }
 });
 
+router.post("/:id/complete-all", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (req.user.level !== "admin") {
+      return res.status(403).json({ message: "Hanya admin yang dapat menyelesaikan semua stop." });
+    }
+
+    const idSalesCost = Number(req.params.id);
+    if (!Number.isFinite(idSalesCost) || idSalesCost <= 0) {
+      return res.status(400).json({ message: "ID transaksi tidak valid." });
+    }
+
+    // Fetch all stops ordered by stop_order
+    const [allStops] = await db.query(
+      `SELECT id, stop_order, stop_name, is_departure, is_finish,
+              wialon_resource_id, wialon_zone_id, wialon_zone_name, estimated_arrival
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost = ?
+       ORDER BY stop_order ASC`,
+      [idSalesCost]
+    );
+
+    if (allStops.length === 0) {
+      return res.status(404).json({ message: "Tidak ada stop pengiriman untuk transaksi ini." });
+    }
+
+    // Fetch existing route history to know which stops are already hit
+    const [existingHistory] = await db.query(
+      `SELECT id_sc_stop, gps_time
+       FROM sales_cost_route_history
+       WHERE id_sales_cost = ? AND id_sc_stop IS NOT NULL`,
+      [idSalesCost]
+    );
+    const hitStopIds = new Set(existingHistory.map(h => Number(h.id_sc_stop)));
+
+    // Only process stops that are NOT departure and NOT already hit
+    const pendingStops = allStops.filter(s =>
+      Number(s.is_departure) !== 1 && !hitStopIds.has(Number(s.id))
+    );
+
+    if (pendingStops.length === 0) {
+      return res.status(200).json({ message: "Semua stop sudah diselesaikan.", completed: 0 });
+    }
+
+    // Fetch sales cost for area/truck info
+    const [[scRow]] = await db.query(
+      "SELECT id_area, id_truck FROM sales_cost WHERE id_sales_cost = ?",
+      [idSalesCost]
+    );
+    if (!scRow) {
+      return res.status(404).json({ message: "Transaksi tidak ditemukan." });
+    }
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmtDate = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    // Seed lastArrivedAt with the latest gps_time from existing history
+    let lastArrivedAt = null;
+    if (existingHistory.length > 0) {
+      const sorted = existingHistory
+        .map(h => h.gps_time ? new Date(h.gps_time) : null)
+        .filter(Boolean)
+        .sort((a, b) => b - a);
+      if (sorted.length > 0) lastArrivedAt = sorted[0];
+    }
+
+    let completed = 0;
+    const errors = [];
+
+    for (const stop of pendingStops) {
+      // Use estimated_arrival if in the past, otherwise now
+      let arrivedAt;
+      if (stop.estimated_arrival) {
+        const estimated = new Date(stop.estimated_arrival);
+        arrivedAt = estimated <= now ? new Date(estimated) : new Date(now);
+      } else {
+        arrivedAt = new Date(now);
+      }
+
+      // Ensure monotonically increasing timestamps
+      if (lastArrivedAt && arrivedAt <= lastArrivedAt) {
+        arrivedAt = new Date(lastArrivedAt.getTime() + 60000);
+      }
+      // Cap to current time
+      if (arrivedAt > now) arrivedAt = new Date(now);
+
+      const arrivedAtStr = fmtDate(arrivedAt);
+      const stepKey = `stop:${stop.id}`;
+
+      try {
+        await db.query(
+          `INSERT INTO sales_cost_route_history
+            (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+             id_truck, step_order_snapshot, step_name_snapshot,
+             wialon_resource_id, wialon_zone_id, wialon_zone_name,
+             gps_time, is_manual, lat, lon)
+           VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL)`,
+          [
+            idSalesCost, scRow.id_area, stop.id, stepKey,
+            scRow.id_truck, Number(stop.stop_order), stop.stop_name || "",
+            stop.wialon_resource_id || null, stop.wialon_zone_id || null,
+            stop.wialon_zone_name || null, arrivedAtStr,
+          ]
+        );
+
+        // If finish stop: write system:finish_order and update finish_order_datetime
+        // Use separate try/catch so errors here don't mark the stop as failed
+        if (Number(stop.is_finish) === 1) {
+          try {
+            const [existingFinish] = await db.query(
+              `SELECT 1 FROM sales_cost_route_history
+               WHERE id_sales_cost = ? AND step_key = 'system:finish_order' LIMIT 1`,
+              [idSalesCost]
+            );
+            if (existingFinish.length === 0) {
+              await db.query(
+                `INSERT INTO sales_cost_route_history
+                  (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                   id_truck, step_order_snapshot, step_name_snapshot,
+                   wialon_resource_id, wialon_zone_id, wialon_zone_name,
+                   gps_time, is_manual, lat, lon)
+                 VALUES (?, ?, NULL, 'system:finish_order', 'finish_order',
+                         ?, 999, 'Finish Order', ?, ?, ?, ?, 1, NULL, NULL)`,
+                [
+                  idSalesCost, scRow.id_area, scRow.id_truck,
+                  stop.wialon_resource_id || null, stop.wialon_zone_id || null,
+                  stop.wialon_zone_name || null, arrivedAtStr,
+                ]
+              );
+            }
+            await db.query(
+              `UPDATE sales_cost SET finish_order_datetime = ?
+               WHERE id_sales_cost = ?
+                 AND (finish_order_datetime IS NULL OR finish_order_datetime = '0000-00-00 00:00:00')`,
+              [arrivedAtStr, idSalesCost]
+            );
+          } catch (finishErr) {
+            // Log but don't fail the stop — finish_order insert is best-effort
+            console.warn(`[complete-all] finish_order step warning for SC ${idSalesCost}:`, finishErr.message);
+          }
+        }
+
+        lastArrivedAt = arrivedAt;
+        hitStopIds.add(Number(stop.id));
+        completed++;
+      } catch (stopErr) {
+        errors.push({ stop_id: stop.id, stop_name: stop.stop_name, error: stopErr.message });
+      }
+    }
+
+    return res.json({
+      message: errors.length === 0
+        ? `${completed} stop berhasil diselesaikan.`
+        : `${completed} stop diselesaikan, ${errors.length} gagal.`,
+      completed,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error("Complete-all error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 module.exports = router;

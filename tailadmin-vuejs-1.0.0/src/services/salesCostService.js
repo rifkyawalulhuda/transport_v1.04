@@ -80,6 +80,13 @@ export const salesCostService = {
     })
     return handleJson(res)
   },
+  async completeAll(id) {
+    const res = await authFetch(`${API_BASE}/sales-costs/${id}/complete-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    return handleJson(res)
+  },
   async setPrintSession(idPrint) {
     const res = await fetch(
       `${LEGACY_BASE}/transaksi/set_session.php?id=${encodeURIComponent(idPrint)}`,
