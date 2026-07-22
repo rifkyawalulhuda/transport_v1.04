@@ -840,11 +840,16 @@ const deliveryStopsWithHistory = computed(() => {
       .map(h => [Number(h.id_sc_stop), h])
   )
 
+  // system:finish_order is stored with id_sc_stop = NULL — find it via step_key as fallback
+  const finishOrderHistory = (detail.value.route_history || []).find(h => h.step_key === 'system:finish_order') || null
+
   const now = new Date()
 
   const baseStops = detail.value.delivery_stops.map(s => {
-    const hit = historyByStopId.has(s.id)
+    // For is_finish stops, also check system:finish_order history entry as fallback
     const historyEntry = historyByStopId.get(s.id)
+      || (s.is_finish === 1 ? finishOrderHistory : null)
+    const hit = !!historyEntry
     const overdue = !hit && !!s.estimated_arrival && new Date(s.estimated_arrival) < now
     return {
       ...s,

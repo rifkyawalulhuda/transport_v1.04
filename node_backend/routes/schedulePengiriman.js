@@ -92,10 +92,15 @@ const resolveStopTimelineSummary = ({ deliveryStops, historyRows }) => {
       .map((h) => [Number(h.id_sc_stop), h])
   );
 
+  // system:finish_order is stored with id_sc_stop = NULL — find it via step_key as fallback
+  const finishOrderHistory = historyRows.find((h) => h.step_key === 'system:finish_order') || null;
+
   const now = new Date();
 
   const baseStops = deliveryStops.map((stop) => {
-    const historyEntry = historyByStopId.get(Number(stop.id));
+    // For is_finish stops, also check system:finish_order history entry as fallback
+    const historyEntry = historyByStopId.get(Number(stop.id))
+      || (Number(stop.is_finish) === 1 ? finishOrderHistory : null);
     const hit = !!historyEntry;
     const overdue = !hit && !!stop.estimated_arrival && new Date(stop.estimated_arrival) < now;
 
@@ -219,7 +224,7 @@ router.get("/export", authenticateToken, async (req, res) => {
     );
 
     const [historyRows] = await db.query(
-      `SELECT id_sc_stop, id_sales_cost, gps_time, recorded_at, is_manual, lat, lon
+      `SELECT id_sc_stop, id_sales_cost, step_key, gps_time, recorded_at, is_manual, lat, lon
        FROM sales_cost_route_history
        WHERE id_sales_cost IN (${placeholders})
        ORDER BY id_sales_cost ASC, recorded_at ASC`,
