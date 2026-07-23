@@ -60,6 +60,276 @@ const normalizePositiveIntString = (value) => {
   return String(parsed);
 };
 
+/**
+ * Build a chronological zone entry timeline from raw GPS messages.
+ * Each entry represents the moment the truck first enters a zone it was not
+ * already inside. Exiting a zone resets the tracker so a re-entry later is
+ * treated as a new visit.
+ *
+ * @param {Array<{t:number, lat:number, lon:number}>} messages - GPS messages sorted by time
+ * @param {Map<string, {points: Array, resourceId: string, zoneId: string}>} zonePolygonMap - zone polygons keyed by "resourceId:zoneId"
+ * @returns {Array<{zoneKey: string, entryTs: number}>} sorted by entryTs ascending
+ */
+const buildZoneEntryTimeline = (messages, zonePolygonMap) => {
+  const timeline = [];
+  const inZoneMap = new Map(); // zoneKey → true (truck is currently inside this zone)
+
+  for (const msg of messages) {
+    const point = { x: msg.lon, y: msg.lat };
+    // fetchRawMessagesForUnit returns t in Unix seconds (Wialon msg.t)
+    const rawT = Number(msg.t);
+    const msgTs = rawT > 1e12 ? Math.floor(rawT / 1000) : Math.floor(rawT);
+
+    for (const [zoneKey, zoneData] of zonePolygonMap) {
+      const isInZone = pointInPolygon(point, zoneData.points);
+
+      if (isInZone && !inZoneMap.has(zoneKey)) {
+        // Truck just entered this zone
+        timeline.push({ zoneKey, entryTs: msgTs });
+        inZoneMap.set(zoneKey, true);
+      } else if (!isInZone && inZoneMap.has(zoneKey)) {
+        // Truck left this zone — reset tracker so re-entry later is a new visit
+        inZoneMap.delete(zoneKey);
+      }
+    }
+  }
+
+  return timeline.sort((a, b) => a.entryTs - b.entryTs);
+};
+
+/**
+ * Seed zone consumption + global clock from existing route history so later
+ * visits to the same geofence (KIIC→GIIC→KIIC) never reuse the first entry.
+ *
+ * @param {Array<{step_key?:string,id_sc_stop?:*,wialon_resource_id?:*,wialon_zone_id?:*,gps_ts?:number,gps_time?:*}>} historyRows
+ * @param {Array<{id:*,wialon_resource_id?:*,wialon_zone_id?:*}>} stops
+ * @returns {{consumedByZone: Map<string,number>, lastGlobalTs: number, hitStopIds: Set<number>}}
+ */
+const seedConsumptionFromHistory = (historyRows, stops = []) => {
+  const consumedByZone = new Map();
+  let lastGlobalTs = 0;
+  const hitStopIds = new Set();
+  const stopById = new Map(
+    (stops || []).map((s) => [Number(s.id), s])
+  );
+
+  const rows = Array.isArray(historyRows) ? [...historyRows] : [];
+  rows.sort((a, b) => {
+    const ta = Number(a.gps_ts) || (a.gps_time ? Math.floor(new Date(a.gps_time).getTime() / 1000) : 0);
+    const tb = Number(b.gps_ts) || (b.gps_time ? Math.floor(new Date(b.gps_time).getTime() / 1000) : 0);
+    return ta - tb;
+  });
+
+  for (const row of rows) {
+    if (row.step_key === DEFAULT_FINISH_STEP_KEY) continue;
+    const stopId = row.id_sc_stop != null ? Number(row.id_sc_stop) : null;
+    if (stopId) hitStopIds.add(stopId);
+
+    let ts = Number(row.gps_ts);
+    if (!Number.isFinite(ts) || ts <= 0) {
+      ts = row.gps_time ? Math.floor(new Date(row.gps_time).getTime() / 1000) : 0;
+    }
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+    if (ts > lastGlobalTs) lastGlobalTs = ts;
+
+    let rId = normalizePositiveIntString(row.wialon_resource_id);
+    let zId = normalizePositiveIntString(row.wialon_zone_id);
+    if ((!rId || !zId) && stopId && stopById.has(stopId)) {
+      const stop = stopById.get(stopId);
+      rId = normalizePositiveIntString(stop.wialon_resource_id);
+      zId = normalizePositiveIntString(stop.wialon_zone_id);
+    }
+    if (!rId || !zId) continue;
+    const zoneKey = `${rId}:${zId}`;
+    const prev = consumedByZone.get(zoneKey) || 0;
+    if (ts > prev) consumedByZone.set(zoneKey, ts);
+  }
+
+  return { consumedByZone, lastGlobalTs, hitStopIds };
+};
+
+/**
+ * Assign zone-entry events to stops in stop_order with:
+ * - per-zone consume (2nd KIIC ≠ 1st KIIC entry)
+ * - global monotonic gps time across stops
+ * - optional gate: wait until previous stop is hit
+ *
+ * @returns {Array<{stop:object, entryTs:number, zoneKey:string}>}
+ */
+/**
+ * Default Opsi B (loose): field order is unpredictable — do not require previous
+ * stop hit. ETA is never used here; only GPS zone-entry times.
+ * Set GEOFENCE_REQUIRE_PREVIOUS_STOP=1 for strict sequential mode.
+ */
+const DEFAULT_REQUIRE_PREVIOUS_STOP =
+  String(process.env.GEOFENCE_REQUIRE_PREVIOUS_STOP || "0").trim() === "1";
+
+/**
+ * Loose finish (default): GPS finish geofence may complete the SPK even if middle
+ * stops were skipped. Set GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH=1 for old behavior.
+ */
+const DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH =
+  String(process.env.GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH || "0").trim() === "1";
+
+/**
+ * Resolve finish GPS hit (actual entry time, not ETA).
+ * Guards against false finish while truck is still idle at base (same zone as departure).
+ *
+ * @returns {{ entryTs: number, lat: number|null, lon: number|null, source: string }|null}
+ */
+const resolveFinishGpsHit = ({
+  departureTs,
+  historyRows = [],
+  stops = [],
+  zoneTimeline = [],
+  finishZoneKey,
+  messages = [],
+  position = null,
+  finishPoints = null,
+  unitId = null,
+  membershipHasUnit = false,
+  requireAllStopsBeforeFinish = DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH
+} = {}) => {
+  if (!finishZoneKey) return null;
+
+  const depTs = Number(departureTs) || 0;
+  const nowTs = Math.floor(Date.now() / 1000);
+  if (depTs > 0 && nowTs < depTs) return null;
+
+  const nonDepartureStops = (stops || []).filter(
+    (s) => Number(s.is_departure) !== 1 && Number(s.is_finish) !== 1
+  );
+  if (requireAllStopsBeforeFinish && nonDepartureStops.length > 0) {
+    const hitIds = new Set(
+      (historyRows || [])
+        .filter((h) => h.id_sc_stop != null && h.step_key !== DEFAULT_FINISH_STEP_KEY)
+        .map((h) => Number(h.id_sc_stop))
+    );
+    const allHit = nonDepartureStops.every((s) => hitIds.has(Number(s.id)));
+    if (!allHit) return null;
+  }
+
+  const { lastGlobalTs } = seedConsumptionFromHistory(historyRows, stops);
+  // Finish only after planned departure and after any prior stop hit (incl. departure)
+  const minFinishTs = Math.max(depTs, lastGlobalTs || 0);
+
+  const timeline = Array.isArray(zoneTimeline)
+    ? [...zoneTimeline].sort((a, b) => a.entryTs - b.entryTs)
+    : [];
+  const finishEntry = timeline.find(
+    (e) => e.zoneKey === finishZoneKey && e.entryTs > minFinishTs
+  );
+
+  if (finishEntry) {
+    const entryMsg = (messages || []).find(
+      (m) => messageTsSeconds(m) === finishEntry.entryTs
+    );
+    return {
+      entryTs: finishEntry.entryTs,
+      lat: entryMsg?.lat ?? position?.lat ?? null,
+      lon: entryMsg?.lon ?? position?.lon ?? null,
+      source: "timeline"
+    };
+  }
+
+  // Live fallback: only after departure, currently inside finish zone, AND
+  // GPS trail shows the truck left the finish polygon at least once after departure
+  // (prevents idle-at-base false finish when departure/finish share Sankyu).
+  const insideNow =
+    membershipHasUnit ||
+    (position?.lat != null &&
+      position?.lon != null &&
+      Array.isArray(finishPoints) &&
+      finishPoints.length >= 3 &&
+      pointInPolygon({ x: position.lon, y: position.lat }, finishPoints));
+  if (!insideNow) return null;
+  if (depTs > 0 && nowTs < depTs) return null;
+
+  let leftAfterDeparture = false;
+  if (Array.isArray(finishPoints) && finishPoints.length >= 3 && Array.isArray(messages)) {
+    for (const m of messages) {
+      const ts = messageTsSeconds(m);
+      if (ts <= minFinishTs) continue;
+      if (!pointInPolygon({ x: m.lon, y: m.lat }, finishPoints)) {
+        leftAfterDeparture = true;
+        break;
+      }
+    }
+  }
+  // If we already have any stop hit after departure, allow live finish without leave scan
+  if (!leftAfterDeparture && lastGlobalTs > depTs) {
+    leftAfterDeparture = true;
+  }
+  if (!leftAfterDeparture && depTs > 0) return null;
+
+  const liveTs =
+    position?.gps_time != null
+      ? Math.floor(new Date(position.gps_time).getTime() / 1000)
+      : nowTs;
+  if (!Number.isFinite(liveTs) || liveTs <= minFinishTs) return null;
+
+  return {
+    entryTs: liveTs,
+    lat: position?.lat ?? null,
+    lon: position?.lon ?? null,
+    source: "live"
+  };
+};
+
+const assignStopHits = ({
+  stops,
+  zoneTimeline,
+  existingHistory = [],
+  requirePreviousStopHit = DEFAULT_REQUIRE_PREVIOUS_STOP
+} = {}) => {
+  const ordered = Array.isArray(stops)
+    ? [...stops]
+        .filter((s) => Number(s.is_finish) !== 1)
+        .sort((a, b) => Number(a.stop_order) - Number(b.stop_order) || Number(a.id) - Number(b.id))
+    : [];
+  const timeline = Array.isArray(zoneTimeline)
+    ? [...zoneTimeline].sort((a, b) => a.entryTs - b.entryTs)
+    : [];
+
+  const { consumedByZone, hitStopIds } =
+    seedConsumptionFromHistory(existingHistory, ordered);
+  const assignments = [];
+
+  for (let i = 0; i < ordered.length; i++) {
+    const stop = ordered[i];
+    const stopId = Number(stop.id);
+    if (hitStopIds.has(stopId)) continue;
+
+    if (requirePreviousStopHit && i > 0) {
+      const prev = ordered[i - 1];
+      if (!hitStopIds.has(Number(prev.id))) break;
+    }
+
+    const resourceId = normalizePositiveIntString(stop.wialon_resource_id);
+    const zoneId = normalizePositiveIntString(stop.wialon_zone_id);
+    if (!resourceId || !zoneId) continue;
+    const zoneKey = `${resourceId}:${zoneId}`;
+    // Per-zone consume only — do NOT require entryTs > lastGlobalTs so
+    // out-of-order field visits (stop2 before stop1) still record actual GPS times.
+    const lastZoneTs = consumedByZone.get(zoneKey) || 0;
+
+    const entry = timeline.find(
+      (e) => e.zoneKey === zoneKey && e.entryTs > lastZoneTs
+    );
+    if (!entry) {
+      // Strict: block later stops. Loose (Opsi B): skip this stop, try others.
+      if (requirePreviousStopHit) break;
+      continue;
+    }
+
+    assignments.push({ stop, entryTs: entry.entryTs, zoneKey });
+    consumedByZone.set(zoneKey, entry.entryTs);
+    hitStopIds.add(stopId);
+  }
+
+  return assignments;
+};
+
 const getActiveSalesCostCandidates = async () => {
   const [rows] = await db.query(`
     SELECT DISTINCT
@@ -223,6 +493,31 @@ const fetchExistingHistoryKeys = async (salesCostIds) => {
   );
 };
 
+/** History rows used to seed sequential zone consumption (per sales cost). */
+const fetchHistoryRowsForAssignment = async (salesCostIds) => {
+  if (!Array.isArray(salesCostIds) || salesCostIds.length === 0) {
+    return new Map();
+  }
+  const placeholders = salesCostIds.map(() => '?').join(',');
+  const [rows] = await db.query(
+    `SELECT id_sales_cost, id_sc_stop, step_key,
+            wialon_resource_id, wialon_zone_id,
+            UNIX_TIMESTAMP(gps_time) AS gps_ts, gps_time
+     FROM sales_cost_route_history
+     WHERE id_sales_cost IN (${placeholders})
+       AND gps_time IS NOT NULL
+       AND CAST(gps_time AS CHAR) <> '0000-00-00 00:00:00'`,
+    salesCostIds
+  );
+  const bySc = new Map();
+  for (const row of rows) {
+    const scId = Number(row.id_sales_cost);
+    if (!bySc.has(scId)) bySc.set(scId, []);
+    bySc.get(scId).push(row);
+  }
+  return bySc;
+};
+
 const findDefaultFinishGeofence = async () => {
   const geofences = await fetchWialonGeofences();
   const normalizedTarget = DEFAULT_FINISH_GEOFENCE_NAME.toLowerCase();
@@ -233,16 +528,27 @@ const findDefaultFinishGeofence = async () => {
   );
 };
 
-const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence) => {
+const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence, scssFinishStop = null) => {
   const resourceId = normalizePositiveIntString(salesCost.finish_geofence_resource_id);
   const zoneId = normalizePositiveIntString(salesCost.finish_geofence_zone_id);
   const zoneName = String(salesCost.finish_geofence_zone_name || "").trim();
 
-  if (resourceId && zoneId && zoneName) {
+  if (resourceId && zoneId) {
     return {
       resource_id: Number(resourceId),
       zone_id: Number(zoneId),
-      zone_name: zoneName
+      zone_name: zoneName || String(scssFinishStop?.wialon_zone_name || "Finish").trim() || "Finish"
+    };
+  }
+
+  // Prefer explicit Finish stop geofence from sales_cost_step_schedule when area cols are empty
+  const scssRes = normalizePositiveIntString(scssFinishStop?.wialon_resource_id);
+  const scssZone = normalizePositiveIntString(scssFinishStop?.wialon_zone_id);
+  if (scssRes && scssZone) {
+    return {
+      resource_id: Number(scssRes),
+      zone_id: Number(scssZone),
+      zone_name: String(scssFinishStop.wialon_zone_name || "Finish").trim() || "Finish"
     };
   }
 
@@ -257,6 +563,12 @@ const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence) =>
   return null;
 };
 
+const messageTsSeconds = (msg) => {
+  const rawT = Number(msg?.t);
+  if (!Number.isFinite(rawT)) return 0;
+  return rawT > 1e12 ? Math.floor(rawT / 1000) : Math.floor(rawT);
+};
+
 const syncGeofenceRouteHistory = async () => {
   const activeSalesCosts = await getActiveSalesCostCandidates();
   if (activeSalesCosts.length === 0) {
@@ -266,22 +578,45 @@ const syncGeofenceRouteHistory = async () => {
     };
   }
 
+  // Login once per sync cycle and share the isolated session across all trucks
+  const sid = await loginIsolatedSession();
+  let inserted = 0;
+  try {
+
   const fallbackFinishGeofence = await findDefaultFinishGeofence();
 
-  const existingHistoryKeys = await fetchExistingHistoryKeys(
-    activeSalesCosts.map((salesCost) => salesCost.id_sales_cost)
-  );
+  const activeScIds = activeSalesCosts.map((salesCost) => salesCost.id_sales_cost);
+  const existingHistoryKeys = await fetchExistingHistoryKeys(activeScIds);
+  const historyRowsBySc = await fetchHistoryRowsForAssignment(activeScIds);
 
   // Build resource/zone map from scss stops across all active sales costs
+  const scIdPlaceholders = activeSalesCosts.map(() => '?').join(',');
+  const scIds = activeSalesCosts.map((sc) => sc.id_sales_cost);
   const [allStopsRows] = await db.query(`
     SELECT id, id_sales_cost, stop_order, stop_name,
            wialon_resource_id, wialon_zone_id, wialon_zone_name,
            is_departure, is_finish
     FROM sales_cost_step_schedule
-    WHERE id_sales_cost IN (${activeSalesCosts.map(() => '?').join(',')})
+    WHERE id_sales_cost IN (${scIdPlaceholders})
       AND is_finish = 0
     ORDER BY id_sales_cost ASC, stop_order ASC
-  `, activeSalesCosts.map(sc => sc.id_sales_cost));
+  `, scIds);
+
+  // Finish rows (is_finish=1) supply geofence when area.finish_geofence_* is null
+  const [finishStopRows] = await db.query(`
+    SELECT id, id_sales_cost, stop_order, stop_name,
+           wialon_resource_id, wialon_zone_id, wialon_zone_name,
+           is_departure, is_finish
+    FROM sales_cost_step_schedule
+    WHERE id_sales_cost IN (${scIdPlaceholders})
+      AND is_finish = 1
+    ORDER BY id_sales_cost ASC, stop_order ASC
+  `, scIds);
+  const finishStopBySalesCost = new Map();
+  for (const row of finishStopRows) {
+    const scId = Number(row.id_sales_cost);
+    if (!finishStopBySalesCost.has(scId)) finishStopBySalesCost.set(scId, row);
+  }
 
   // Group stops by sales cost id
   const stopsBySalesCost = new Map();
@@ -314,7 +649,11 @@ const syncGeofenceRouteHistory = async () => {
       if (!resourceMap.has(resourceId)) resourceMap.set(resourceId, new Set());
       resourceMap.get(resourceId).add(zoneId);
     }
-    const finishGeofence = resolveFinishGeofenceForSalesCost(sc, fallbackFinishGeofence);
+    const finishGeofence = resolveFinishGeofenceForSalesCost(
+      sc,
+      fallbackFinishGeofence,
+      finishStopBySalesCost.get(sc.id_sales_cost) || null
+    );
     if (finishGeofence?.resource_id && finishGeofence?.zone_id) {
       const rId = normalizePositiveIntString(finishGeofence.resource_id);
       const zId = normalizePositiveIntString(finishGeofence.zone_id);
@@ -390,27 +729,94 @@ const syncGeofenceRouteHistory = async () => {
   }
 
   let inserted = 0;
+  // Cache zone polygons per resourceId — fetched once per sync cycle, reused across trucks
+  const zonePolygonCache = new Map();
   for (const salesCost of salesCostsWithStops) {
     const stops = stopsBySalesCost.get(salesCost.id_sales_cost) || [];
     const unitId = normalizePositiveIntString(salesCost.wialon_unit_id);
     const position = positionMap.get(unitId) || null;
-    const gpsTime = toMySqlDateTime(position?.gps_time) || toMySqlDateTime(new Date());
-    const finishGeofence = resolveFinishGeofenceForSalesCost(salesCost, fallbackFinishGeofence);
+    const finishGeofence = resolveFinishGeofenceForSalesCost(
+      salesCost,
+      fallbackFinishGeofence,
+      finishStopBySalesCost.get(salesCost.id_sales_cost) || null
+    );
 
-    // Process all stops including departure (is_finish rows are excluded from `stops`)
-    // Departure stops are GPS-hit when the truck is inside their geofence; the
-    // `inferred_passed` fallback in the reporting layer still covers trucks that
-    // skip the departure point or depart before the sales cost is created.
-    for (const stop of stops) {
+    if (!unitId) continue;
+
+    // Fetch GPS messages for this truck. Start slightly before planned departure so
+    // early geofence hits (truck arrives before scheduled departure) are still recorded.
+    const EARLY_ARRIVAL_BUFFER_SEC = 12 * 60 * 60;
+    const departureTs = Math.floor(new Date(salesCost.departure_datetime).getTime() / 1000);
+    const nowTs = Math.floor(Date.now() / 1000);
+    const timeFrom = Math.max(0, departureTs - EARLY_ARRIVAL_BUFFER_SEC);
+
+    let messages = [];
+    try {
+      messages = await fetchRawMessagesForUnit({
+        sid,
+        unitId,
+        timeFrom,
+        timeTo: nowTs
+      });
+    } catch (err) {
+      console.warn(`[geofence-tracking] failed to fetch messages for unit ${unitId}:`, err.message);
+      continue;
+    }
+
+    if (messages.length === 0) continue;
+
+    // Build zone polygon map — fetch polygon data directly from Wialon geofence
+    // (resourceMap only holds Set<zoneId>, NOT polygon data — previous implementation
+    // was structurally broken and always produced an empty zonePolygonMap)
+    const zonePolygonMap = new Map();
+    const resourceIdsNeeded = new Set(
+      stops.map((s) => normalizePositiveIntString(s.wialon_resource_id)).filter(Boolean)
+    );
+    if (finishGeofence?.resource_id) {
+      const fr = normalizePositiveIntString(finishGeofence.resource_id);
+      if (fr) resourceIdsNeeded.add(fr);
+    }
+
+    for (const rId of resourceIdsNeeded) {
+      if (!zonePolygonCache.has(rId)) {
+        try {
+          const polygonData = await fetchZonePolygons(rId, sid);
+          zonePolygonCache.set(rId, polygonData || new Map());
+        } catch {
+          zonePolygonCache.set(rId, new Map());
+        }
+      }
+
+      const polygons = zonePolygonCache.get(rId);
+      // fetchZonePolygons returns Map<zoneId, {name, points}> — not bare points[]
+      for (const [zoneId, zoneData] of polygons) {
+        const zId = normalizePositiveIntString(zoneId);
+        const points = Array.isArray(zoneData?.points) ? zoneData.points : null;
+        if (zId && points?.length >= 3) {
+          zonePolygonMap.set(`${rId}:${zId}`, { points, resourceId: rId, zoneId: zId });
+        }
+      }
+    }
+
+    // Build chronological zone entry timeline from GPS messages
+    const zoneTimeline = buildZoneEntryTimeline(messages, zonePolygonMap);
+
+    // Sequential assign: seed from DB history so KIIC#2 never reuses KIIC#1 time
+    const scHistoryRows = historyRowsBySc.get(salesCost.id_sales_cost) || [];
+    const assignments = assignStopHits({
+      stops,
+      zoneTimeline,
+      existingHistory: scHistoryRows
+      // requirePreviousStopHit defaults to Opsi B (loose) via env/default
+    });
+
+    for (const { stop, entryTs } of assignments) {
       const stepKey = `stop:${stop.id}`;
       const historyKey = `${salesCost.id_sales_cost}:${stepKey}`;
       if (existingHistoryKeys.has(historyKey)) continue;
 
-      const resourceId = normalizePositiveIntString(stop.wialon_resource_id);
-      const zoneId = normalizePositiveIntString(stop.wialon_zone_id);
-      const membershipForResource = membershipByResource.get(resourceId);
-      const unitsInZone = membershipForResource?.get(zoneId);
-      if (!unitsInZone || !unitsInZone.has(unitId)) continue;
+      const entryGpsTime = toMySqlDateTime(new Date(entryTs * 1000));
+      const entryMsg = messages.find((m) => messageTsSeconds(m) === entryTs);
 
       await db.query(
         `INSERT INTO sales_cost_route_history (
@@ -431,30 +837,55 @@ const syncGeofenceRouteHistory = async () => {
           stop.wialon_resource_id,
           stop.wialon_zone_id,
           stop.wialon_zone_name,
-          gpsTime,
-          position?.lat ?? null,
-          position?.lon ?? null
+          entryGpsTime,
+          entryMsg?.lat ?? position?.lat ?? null,
+          entryMsg?.lon ?? position?.lon ?? null
         ]
       );
 
       existingHistoryKeys.add(historyKey);
+      scHistoryRows.push({
+        id_sc_stop: stop.id,
+        step_key: stepKey,
+        wialon_resource_id: stop.wialon_resource_id,
+        wialon_zone_id: stop.wialon_zone_id,
+        gps_ts: entryTs
+      });
       inserted += 1;
     }
 
-    // Process finish geofence — only after all non-departure stops visited
+    // Process finish geofence — loose by default (skip middle stops OK).
+    // Guard: only after departure + re-entry / leave trail (see resolveFinishGpsHit).
     const deliveryStops = stops.filter((s) => Number(s.is_departure) !== 1);
-    const allDeliveryStopsVisited = deliveryStops.every((s) =>
-      existingHistoryKeys.has(`${salesCost.id_sales_cost}:stop:${s.id}`)
-    );
     const finishHistoryKey = `${salesCost.id_sales_cost}:${DEFAULT_FINISH_STEP_KEY}`;
-    if (!allDeliveryStopsVisited || existingHistoryKeys.has(finishHistoryKey) || !finishGeofence) {
+    if (existingHistoryKeys.has(finishHistoryKey) || !finishGeofence) {
       continue;
     }
 
     const finishResourceId = normalizePositiveIntString(finishGeofence.resource_id);
     const finishZoneId = normalizePositiveIntString(finishGeofence.zone_id);
-    const finishMembership = membershipByResource.get(finishResourceId)?.get(finishZoneId) || null;
-    if (!finishMembership || !finishMembership.has(unitId)) continue;
+    if (!finishResourceId || !finishZoneId) continue;
+    const finishZoneKey = `${finishResourceId}:${finishZoneId}`;
+    const finishPoints = zonePolygonMap.get(finishZoneKey)?.points || null;
+    const finishMembership =
+      membershipByResource.get(finishResourceId)?.get(finishZoneId) || null;
+    const membershipHasUnit = !!(finishMembership && finishMembership.has(unitId));
+
+    const finishHit = resolveFinishGpsHit({
+      departureTs,
+      historyRows: scHistoryRows,
+      stops,
+      zoneTimeline,
+      finishZoneKey,
+      messages,
+      position,
+      finishPoints,
+      unitId,
+      membershipHasUnit
+    });
+    if (!finishHit) continue;
+
+    const finishGpsTime = toMySqlDateTime(new Date(finishHit.entryTs * 1000));
 
     await db.query(
       `INSERT INTO sales_cost_route_history (
@@ -471,19 +902,17 @@ const syncGeofenceRouteHistory = async () => {
         DEFAULT_FINISH_STEP_CODE,
         salesCost.id_truck,
         deliveryStops.length + 1,
-        'Finish Order',
+        "Finish Order",
         finishGeofence.resource_id,
         finishGeofence.zone_id,
         finishGeofence.zone_name,
-        gpsTime,
-        position?.lat ?? null,
-        position?.lon ?? null
+        finishGpsTime,
+        finishHit.lat,
+        finishHit.lon
       ]
     );
 
-    // Set finish_order_datetime on the sales_cost record (idempotent guard prevents double-set)
-    // Use NOW() rather than gpsTime so the timestamp reflects when the system detected the event,
-    // not when the GPS unit last reported its position (which could be stale).
+    // Set finish_order_datetime only when empty — do not overwrite planned ETA
     await db.query(
       `UPDATE sales_cost
          SET finish_order_datetime = NOW()
@@ -501,6 +930,13 @@ const syncGeofenceRouteHistory = async () => {
     active: salesCostsWithStops.length,
     inserted
   };
+
+  } catch (err) {
+    console.error("[geofence-tracking] sync error:", err);
+    throw err;
+  } finally {
+    await logoutIsolatedSession(sid);
+  }
 };
 
 let lastPurgeAt = 0;
@@ -534,6 +970,331 @@ const purgeOldDeliveryNotifications = async () => {
   }
 };
 
+/**
+ * Auto-hit stops for manual / no-GPS SPKs when NOW >= estimated_arrival.
+ * Uses ETA as gps_time (is_manual=1). Completes with system:finish_order on finish stop.
+ */
+const applyDueManualEtaHits = async () => {
+  const summary = { processed: 0, inserted: 0, finished: 0, errors: 0 };
+
+  // Candidates: not finished, recent, and (flagged manual OR no wialon unit OR no stop zones)
+  let candidates;
+  try {
+    const [rows] = await db.query(`
+      SELECT sc.id_sales_cost, sc.id_area, sc.id_truck,
+             sc.departure_datetime, sc.finish_order_datetime,
+             sc.is_manual_mode,
+             t.wialon_unit_id
+      FROM sales_cost sc
+      INNER JOIN truck t ON sc.id_truck = t.id_truck
+      WHERE sc.id_truck IS NOT NULL
+        AND sc.departure_datetime IS NOT NULL
+        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_cost_route_history h
+          WHERE h.id_sales_cost = sc.id_sales_cost
+            AND h.step_key = 'system:finish_order'
+        )
+        AND (
+          sc.is_manual_mode = 1
+          OR t.wialon_unit_id IS NULL
+          OR t.wialon_unit_id = ''
+          OR NOT EXISTS (
+            SELECT 1 FROM sales_cost_step_schedule s
+            WHERE s.id_sales_cost = sc.id_sales_cost
+              AND s.is_finish = 0
+              AND s.wialon_zone_id IS NOT NULL
+          )
+        )
+      ORDER BY sc.id_sales_cost ASC
+    `);
+    candidates = rows;
+  } catch (err) {
+    // Fallback if is_manual_mode column missing on older DBs
+    if (err && (err.code === "ER_BAD_FIELD_ERROR" || /is_manual_mode/i.test(err.message || ""))) {
+      const [rows] = await db.query(`
+        SELECT sc.id_sales_cost, sc.id_area, sc.id_truck,
+               sc.departure_datetime, sc.finish_order_datetime,
+               0 AS is_manual_mode,
+               t.wialon_unit_id
+        FROM sales_cost sc
+        INNER JOIN truck t ON sc.id_truck = t.id_truck
+        WHERE sc.id_truck IS NOT NULL
+          AND sc.departure_datetime IS NOT NULL
+          AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND NOT EXISTS (
+            SELECT 1 FROM sales_cost_route_history h
+            WHERE h.id_sales_cost = sc.id_sales_cost
+              AND h.step_key = 'system:finish_order'
+          )
+          AND (
+            t.wialon_unit_id IS NULL
+            OR t.wialon_unit_id = ''
+            OR NOT EXISTS (
+              SELECT 1 FROM sales_cost_step_schedule s
+              WHERE s.id_sales_cost = sc.id_sales_cost
+                AND s.is_finish = 0
+                AND s.wialon_zone_id IS NOT NULL
+            )
+          )
+        ORDER BY sc.id_sales_cost ASC
+      `);
+      candidates = rows;
+    } else {
+      throw err;
+    }
+  }
+
+  if (!candidates.length) return summary;
+
+  const scIds = candidates.map((r) => Number(r.id_sales_cost));
+  const placeholders = scIds.map(() => "?").join(",");
+
+  const [allStops] = await db.query(
+    `SELECT id, id_sales_cost, stop_order, stop_name,
+            wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            is_departure, is_finish, estimated_arrival
+     FROM sales_cost_step_schedule
+     WHERE id_sales_cost IN (${placeholders})
+     ORDER BY id_sales_cost ASC, stop_order ASC`,
+    scIds
+  );
+  const stopsBySc = new Map();
+  for (const row of allStops) {
+    const id = Number(row.id_sales_cost);
+    if (!stopsBySc.has(id)) stopsBySc.set(id, []);
+    stopsBySc.get(id).push(row);
+  }
+
+  const [histRows] = await db.query(
+    `SELECT id_sales_cost, id_sc_stop, step_key
+     FROM sales_cost_route_history
+     WHERE id_sales_cost IN (${placeholders})`,
+    scIds
+  );
+  const histBySc = new Map();
+  for (const row of histRows) {
+    const id = Number(row.id_sales_cost);
+    if (!histBySc.has(id)) histBySc.set(id, new Set());
+    const key = row.step_key || (row.id_sc_stop ? `stop:${row.id_sc_stop}` : "");
+    if (key) histBySc.get(id).add(key);
+  }
+
+  const now = new Date();
+  const toMysqlLocal = (d) => {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
+  for (const sc of candidates) {
+    try {
+      summary.processed += 1;
+      const scId = Number(sc.id_sales_cost);
+      const stops = stopsBySc.get(scId) || [];
+      if (stops.length === 0) continue;
+
+      const existing = histBySc.get(scId) || new Set();
+      if (existing.has(DEFAULT_FINISH_STEP_KEY)) continue;
+
+      // Exclude pure GPS SPKs that slipped in (have unit + at least one zoned stop + not flagged)
+      const unitId = String(sc.wialon_unit_id || "").trim();
+      const hasZone = stops.some(
+        (s) => Number(s.is_finish) !== 1 && s.wialon_zone_id != null && String(s.wialon_zone_id) !== ""
+      );
+      if (Number(sc.is_manual_mode) !== 1 && unitId && hasZone) continue;
+
+      for (const stop of stops) {
+        const stepKey = `stop:${stop.id}`;
+        if (existing.has(stepKey)) continue;
+        if (!stop.estimated_arrival) continue;
+
+        const eta = new Date(stop.estimated_arrival);
+        if (Number.isNaN(eta.getTime()) || eta > now) {
+          // Sequential: later stops wait until earlier ETA is due (or already hit)
+          if (Number(stop.is_finish) !== 1) break;
+          continue;
+        }
+
+        const gpsTime = toMysqlLocal(eta);
+        await db.query(
+          `INSERT IGNORE INTO sales_cost_route_history
+            (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+             id_truck, step_order_snapshot, step_name_snapshot,
+             wialon_resource_id, wialon_zone_id, wialon_zone_name,
+             gps_time, is_manual, lat, lon)
+           VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL)`,
+          [
+            scId,
+            sc.id_area,
+            stop.id,
+            stepKey,
+            sc.id_truck,
+            stop.stop_order,
+            stop.stop_name || "",
+            stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+            stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+            stop.wialon_zone_name || null,
+            gpsTime
+          ]
+        );
+        existing.add(stepKey);
+        summary.inserted += 1;
+
+        if (Number(stop.is_finish) === 1) {
+          if (!existing.has(DEFAULT_FINISH_STEP_KEY)) {
+            await db.query(
+              `INSERT IGNORE INTO sales_cost_route_history
+                (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                 id_truck, step_order_snapshot, step_name_snapshot,
+                 wialon_resource_id, wialon_zone_id, wialon_zone_name,
+                 gps_time, is_manual, lat, lon)
+               VALUES (?, ?, NULL, ?, ?, ?, ?, 'Finish Order', NULL, NULL, NULL, ?, 1, NULL, NULL)`,
+              [
+                scId,
+                sc.id_area,
+                DEFAULT_FINISH_STEP_KEY,
+                DEFAULT_FINISH_STEP_CODE,
+                sc.id_truck,
+                Number(stop.stop_order) + 1,
+                gpsTime
+              ]
+            );
+            existing.add(DEFAULT_FINISH_STEP_KEY);
+            summary.finished += 1;
+          }
+          // Do not overwrite planned finish_order_datetime if already set (ETA template)
+          await db.query(
+            `UPDATE sales_cost
+               SET finish_order_datetime = ?
+             WHERE id_sales_cost = ?
+               AND (finish_order_datetime IS NULL
+                    OR CAST(finish_order_datetime AS CHAR) = '0000-00-00 00:00:00')`,
+            [gpsTime, scId]
+          );
+        }
+      }
+
+      // Finish ETA due but finish row may be is_finish=1 without separate history if no finish stop
+      // Also: if finish stop has no estimated_arrival, use sc.finish_order_datetime
+      if (!existing.has(DEFAULT_FINISH_STEP_KEY)) {
+        const finishStop = stops.find((s) => Number(s.is_finish) === 1);
+        const finishEtaRaw =
+          finishStop?.estimated_arrival || sc.finish_order_datetime || null;
+        if (finishEtaRaw) {
+          const finishEta = new Date(finishEtaRaw);
+          if (!Number.isNaN(finishEta.getTime()) && finishEta <= now) {
+            // Ensure all prior non-finish stops that are due were processed; if any prior stop
+            // has ETA in future, wait. If prior stop has no ETA, still allow finish when finish ETA due.
+            const earlierBlocking = stops.some((s) => {
+              if (Number(s.is_finish) === 1) return false;
+              if (existing.has(`stop:${s.id}`)) return false;
+              if (!s.estimated_arrival) return false;
+              const e = new Date(s.estimated_arrival);
+              return !Number.isNaN(e.getTime()) && e > now;
+            });
+            if (!earlierBlocking) {
+              // Hit any remaining due non-finish stops first
+              for (const stop of stops) {
+                if (Number(stop.is_finish) === 1) continue;
+                const stepKey = `stop:${stop.id}`;
+                if (existing.has(stepKey)) continue;
+                if (!stop.estimated_arrival) continue;
+                const eta = new Date(stop.estimated_arrival);
+                if (Number.isNaN(eta.getTime()) || eta > now) continue;
+                const gpsTime = toMysqlLocal(eta);
+                await db.query(
+                  `INSERT IGNORE INTO sales_cost_route_history
+                    (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                     id_truck, step_order_snapshot, step_name_snapshot,
+                     wialon_resource_id, wialon_zone_id, wialon_zone_name,
+                     gps_time, is_manual, lat, lon)
+                   VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL)`,
+                  [
+                    scId,
+                    sc.id_area,
+                    stop.id,
+                    stepKey,
+                    sc.id_truck,
+                    stop.stop_order,
+                    stop.stop_name || "",
+                    stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+                    stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+                    stop.wialon_zone_name || null,
+                    gpsTime
+                  ]
+                );
+                existing.add(stepKey);
+                summary.inserted += 1;
+              }
+
+              const gpsTime = toMysqlLocal(finishEta);
+              if (finishStop && !existing.has(`stop:${finishStop.id}`)) {
+                await db.query(
+                  `INSERT IGNORE INTO sales_cost_route_history
+                    (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                     id_truck, step_order_snapshot, step_name_snapshot,
+                     wialon_resource_id, wialon_zone_id, wialon_zone_name,
+                     gps_time, is_manual, lat, lon)
+                   VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL)`,
+                  [
+                    scId,
+                    sc.id_area,
+                    finishStop.id,
+                    `stop:${finishStop.id}`,
+                    sc.id_truck,
+                    finishStop.stop_order,
+                    finishStop.stop_name || "Finish",
+                    finishStop.wialon_resource_id ? Number(finishStop.wialon_resource_id) : null,
+                    finishStop.wialon_zone_id ? Number(finishStop.wialon_zone_id) : null,
+                    finishStop.wialon_zone_name || null,
+                    gpsTime
+                  ]
+                );
+                existing.add(`stop:${finishStop.id}`);
+                summary.inserted += 1;
+              }
+
+              await db.query(
+                `INSERT IGNORE INTO sales_cost_route_history
+                  (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                   id_truck, step_order_snapshot, step_name_snapshot,
+                   wialon_resource_id, wialon_zone_id, wialon_zone_name,
+                   gps_time, is_manual, lat, lon)
+                 VALUES (?, ?, NULL, ?, ?, ?, ?, 'Finish Order', NULL, NULL, NULL, ?, 1, NULL, NULL)`,
+                [
+                  scId,
+                  sc.id_area,
+                  DEFAULT_FINISH_STEP_KEY,
+                  DEFAULT_FINISH_STEP_CODE,
+                  sc.id_truck,
+                  (finishStop ? Number(finishStop.stop_order) : 99) + 1,
+                  gpsTime
+                ]
+              );
+              existing.add(DEFAULT_FINISH_STEP_KEY);
+              summary.finished += 1;
+              summary.inserted += 1;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      summary.errors += 1;
+      console.warn(
+        `[manual-eta] SC ${sc.id_sales_cost} error:`,
+        err.message
+      );
+    }
+  }
+
+  if (summary.inserted > 0 || summary.finished > 0) {
+    console.log(
+      `[manual-eta] processed:${summary.processed} inserted:${summary.inserted} finished:${summary.finished} errors:${summary.errors}`
+    );
+  }
+  return summary;
+};
+
 const runSyncCycle = async () => {
   if (syncInProgress) {
     return;
@@ -546,6 +1307,11 @@ const runSyncCycle = async () => {
       console.log(
         `[geofence-tracking] inserted ${summary.inserted} route history row(s) for ${summary.active} active sales cost(s)`
       );
+    }
+    try {
+      await applyDueManualEtaHits();
+    } catch (manualErr) {
+      console.warn("[manual-eta] sync failed", manualErr);
     }
     await checkArrivalDelays();
     await purgeOldDeliveryNotifications();
@@ -664,18 +1430,53 @@ const runBackfill = async (fromTs, toTs) => {
     stopsBySalesCost.get(scId).push(row);
   }
 
+  const [finishStopRows] = await db.query(
+    `SELECT id, id_sales_cost, stop_order, stop_name,
+            wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            is_departure, is_finish
+     FROM sales_cost_step_schedule
+     WHERE id_sales_cost IN (${placeholders}) AND is_finish = 1
+     ORDER BY id_sales_cost ASC, stop_order ASC`,
+    salesCostIds
+  );
+  const finishStopBySalesCost = new Map();
+  for (const row of finishStopRows) {
+    const scId = Number(row.id_sales_cost);
+    if (!finishStopBySalesCost.has(scId)) finishStopBySalesCost.set(scId, row);
+  }
+
+  // Full history for sequential seed (zone consume + monotonic clock)
+  const [histTimeRows] = await db.query(
+    `SELECT id_sales_cost, id_sc_stop, step_key,
+            wialon_resource_id, wialon_zone_id,
+            UNIX_TIMESTAMP(gps_time) AS gps_ts, gps_time
+     FROM sales_cost_route_history
+     WHERE id_sales_cost IN (${placeholders})
+       AND gps_time IS NOT NULL
+       AND CAST(gps_time AS CHAR) <> '0000-00-00 00:00:00'`,
+    salesCostIds
+  );
+  const historyRowsByScBackfill = new Map();
+  for (const row of histTimeRows) {
+    const scId = Number(row.id_sales_cost);
+    if (!historyRowsByScBackfill.has(scId)) historyRowsByScBackfill.set(scId, []);
+    historyRowsByScBackfill.get(scId).push(row);
+  }
+
   const zonePolygonCache = new Map();
-  const getZonePolygon = async (resourceId, zoneId, sid) => {
+  const getZonePolygonsForResource = async (resourceId, sid) => {
     const cKey = String(resourceId);
     if (!zonePolygonCache.has(cKey)) {
       zonePolygonCache.set(cKey, await fetchZonePolygons(resourceId, sid));
     }
-    return zonePolygonCache.get(cKey)?.get(String(zoneId)) || null;
+    return zonePolygonCache.get(cKey) || new Map();
   };
 
   let sid = null;
+  let fallbackFinishGeofence = null;
   try {
     sid = await loginIsolatedSession();
+    fallbackFinishGeofence = await findDefaultFinishGeofence();
   } catch (err) {
     console.warn('[geofence-backfill] cannot create Wialon session:', err.message);
     return summary;
@@ -691,28 +1492,57 @@ const runBackfill = async (fromTs, toTs) => {
         const stops = stopsBySalesCost.get(Number(sc.id_sales_cost)) || [];
         if (stops.length === 0) { summary.skipped += 1; continue; }
 
-        const scFrom = Math.max(fromTs, Math.floor(new Date(sc.departure_datetime).getTime() / 1000));
-        const scTo = sc.finish_order_datetime
-          ? Math.min(toTs, Math.floor(new Date(sc.finish_order_datetime).getTime() / 1000))
-          : toTs;
+        // Allow up to 12h before planned departure so early GPS hits still backfill.
+        // Do NOT cap by finish_order_datetime — that column is often planned ETA, not actual end.
+        const EARLY_ARRIVAL_BUFFER_SEC = 12 * 60 * 60;
+        const departureTs = Math.floor(new Date(sc.departure_datetime).getTime() / 1000);
+        const scFrom = Math.max(fromTs, Math.max(0, departureTs - EARLY_ARRIVAL_BUFFER_SEC));
+        const scTo = toTs;
         if (scFrom >= scTo) { summary.skipped += 1; continue; }
 
         const messages = await fetchRawMessagesForUnit({ sid, unitId, timeFrom: scFrom, timeTo: scTo });
         if (messages.length === 0) { summary.skipped += 1; continue; }
 
-        // Process all stops including departure — backfill replays raw GPS
-        // history so departure geofences are hit exactly like any other stop.
-        for (const stop of stops) {
+        // Build polygon map for all stop (+ finish) zones — same as live sync
+        const zonePolygonMap = new Map();
+        const resourceIdsNeeded = new Set(
+          stops.map((s) => normalizePositiveIntString(s.wialon_resource_id)).filter(Boolean)
+        );
+        const scIdNum = Number(sc.id_sales_cost);
+        const finishGeofencePreview = resolveFinishGeofenceForSalesCost(
+          sc,
+          fallbackFinishGeofence,
+          finishStopBySalesCost.get(scIdNum) || null
+        );
+        if (finishGeofencePreview?.resource_id) {
+          const fr = normalizePositiveIntString(finishGeofencePreview.resource_id);
+          if (fr) resourceIdsNeeded.add(fr);
+        }
+        for (const rId of resourceIdsNeeded) {
+          const polygons = await getZonePolygonsForResource(rId, sid);
+          for (const [zoneId, zoneData] of polygons) {
+            const zId = normalizePositiveIntString(zoneId);
+            const points = Array.isArray(zoneData?.points) ? zoneData.points : null;
+            if (zId && points?.length >= 3) {
+              zonePolygonMap.set(`${rId}:${zId}`, { points, resourceId: rId, zoneId: zId });
+            }
+          }
+        }
+
+        const zoneTimeline = buildZoneEntryTimeline(messages, zonePolygonMap);
+        const scHistory = historyRowsByScBackfill.get(scIdNum) || [];
+        const assignments = assignStopHits({
+          stops,
+          zoneTimeline,
+          existingHistory: scHistory
+          // requirePreviousStopHit defaults to Opsi B (loose) via env/default
+        });
+
+        for (const { stop, entryTs } of assignments) {
           const stepKey = `stop:${stop.id}`;
           if (existingKeys.has(`${sc.id_sales_cost}:${stepKey}`)) continue;
-          const resId = normalizePositiveIntString(stop.wialon_resource_id);
-          const zId = normalizePositiveIntString(stop.wialon_zone_id);
-          if (!resId || !zId) continue;
-          const zoneData = await getZonePolygon(resId, zId, sid);
-          if (!zoneData || zoneData.points.length < 3) continue;
-          const hit = messages.find(m => pointInPolygon({ x: m.lon, y: m.lat }, zoneData.points));
-          if (!hit) continue;
-          const gpsTime = toMySqlDateTime(new Date(hit.t * 1000));
+          const entryMsg = messages.find((m) => messageTsSeconds(m) === entryTs);
+          const gpsTime = toMySqlDateTime(new Date(entryTs * 1000));
           await db.query(`
             INSERT IGNORE INTO sales_cost_route_history
               (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
@@ -722,36 +1552,54 @@ const runBackfill = async (fromTs, toTs) => {
           `, [sc.id_sales_cost, sc.id_area, stop.id, stepKey,
              sc.id_truck, stop.stop_order, stop.stop_name,
              stop.wialon_resource_id, stop.wialon_zone_id, stop.wialon_zone_name,
-             gpsTime, hit.lat, hit.lon]);
+             gpsTime, entryMsg?.lat ?? null, entryMsg?.lon ?? null]);
           existingKeys.add(`${sc.id_sales_cost}:${stepKey}`);
+          scHistory.push({
+            id_sc_stop: stop.id,
+            step_key: stepKey,
+            wialon_resource_id: stop.wialon_resource_id,
+            wialon_zone_id: stop.wialon_zone_id,
+            gps_ts: entryTs
+          });
           summary.inserted += 1;
         }
+        historyRowsByScBackfill.set(scIdNum, scHistory);
 
-        // Process finish geofence (from area table)
-        const deliveryStops = stops.filter(s => Number(s.is_departure) !== 1);
+        // Loose finish: GPS finish geofence completes SPK even if middle stops skipped
+        const deliveryStops = stops.filter((s) => Number(s.is_departure) !== 1);
         const finishKey = DEFAULT_FINISH_STEP_KEY;
         if (!existingKeys.has(`${sc.id_sales_cost}:${finishKey}`)) {
-          const fResId = normalizePositiveIntString(sc.finish_geofence_resource_id);
-          const fZId = normalizePositiveIntString(sc.finish_geofence_zone_id);
+          const finishGeofence = finishGeofencePreview;
+          const fResId = normalizePositiveIntString(finishGeofence?.resource_id);
+          const fZId = normalizePositiveIntString(finishGeofence?.zone_id);
           if (fResId && fZId) {
-            const fZone = await getZonePolygon(fResId, fZId, sid);
-            if (fZone && fZone.points.length >= 3) {
-              const hit = messages.find(m => pointInPolygon({ x: m.lon, y: m.lat }, fZone.points));
-              if (hit) {
-                const gpsTime = toMySqlDateTime(new Date(hit.t * 1000));
-                await db.query(`
-                  INSERT IGNORE INTO sales_cost_route_history
-                    (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
-                     id_truck, step_order_snapshot, step_name_snapshot,
-                     wialon_resource_id, wialon_zone_id, wialon_zone_name, gps_time, recorded_at, lat, lon)
-                  VALUES (?, ?, NULL, ?, ?, ?, ?, 'Finish Order', ?, ?, ?, ?, NOW(), ?, ?)
-                `, [sc.id_sales_cost, sc.id_area, finishKey, DEFAULT_FINISH_STEP_CODE,
-                   sc.id_truck, deliveryStops.length + 1,
-                   sc.finish_geofence_resource_id, sc.finish_geofence_zone_id, sc.finish_geofence_zone_name,
-                   gpsTime, hit.lat, hit.lon]);
-                existingKeys.add(`${sc.id_sales_cost}:${finishKey}`);
-                summary.inserted += 1;
-              }
+            const fZoneKey = `${fResId}:${fZId}`;
+            const fPoints = zonePolygonMap.get(fZoneKey)?.points || null;
+            const finishHit = resolveFinishGpsHit({
+              departureTs,
+              historyRows: scHistory,
+              stops,
+              zoneTimeline,
+              finishZoneKey: fZoneKey,
+              messages,
+              position: null,
+              finishPoints: fPoints,
+              membershipHasUnit: false
+            });
+            if (finishHit) {
+              const gpsTime = toMySqlDateTime(new Date(finishHit.entryTs * 1000));
+              await db.query(`
+                INSERT IGNORE INTO sales_cost_route_history
+                  (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                   id_truck, step_order_snapshot, step_name_snapshot,
+                   wialon_resource_id, wialon_zone_id, wialon_zone_name, gps_time, recorded_at, lat, lon)
+                VALUES (?, ?, NULL, ?, ?, ?, ?, 'Finish Order', ?, ?, ?, ?, NOW(), ?, ?)
+              `, [sc.id_sales_cost, sc.id_area, finishKey, DEFAULT_FINISH_STEP_CODE,
+                 sc.id_truck, deliveryStops.length + 1,
+                 finishGeofence.resource_id, finishGeofence.zone_id, finishGeofence.zone_name,
+                 gpsTime, finishHit.lat, finishHit.lon]);
+              existingKeys.add(`${sc.id_sales_cost}:${finishKey}`);
+              summary.inserted += 1;
             }
           }
         }
@@ -803,5 +1651,11 @@ module.exports = {
   syncGeofenceRouteHistory,
   checkArrivalDelays,
   runBackfill,
-  detectAndRunStartupBackfill
+  detectAndRunStartupBackfill,
+  applyDueManualEtaHits,
+  // Pure helpers exported for unit tests
+  buildZoneEntryTimeline,
+  seedConsumptionFromHistory,
+  assignStopHits,
+  resolveFinishGpsHit
 };

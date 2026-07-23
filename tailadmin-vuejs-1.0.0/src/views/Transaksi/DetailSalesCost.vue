@@ -139,15 +139,17 @@
                       ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
                       : stop.hit
                         ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
-                        : stop.inferred_passed
-                          ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
-                          : stop.overdue
-                            ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
-                            : stop.is_departure
-                              ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
-                              : stop.is_finish
-                                ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
-                                : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
+                        : stop.geofence_skipped
+                          ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                          : stop.inferred_passed
+                            ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
+                            : stop.overdue
+                              ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                              : stop.is_departure
+                                ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
+                                : stop.is_finish
+                                  ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
+                                  : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
                   >
                     <!-- Departure icon -->
                     <svg v-if="stop.is_departure" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -164,6 +166,10 @@
                     <!-- Hit checkmark -->
                     <svg v-else-if="stop.hit" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <!-- Geofence skipped -->
+                    <svg v-else-if="stop.geofence_skipped" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                     </svg>
                     <!-- Inferred departure passed -->
                     <svg v-else-if="stop.inferred_passed" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -184,15 +190,17 @@
                       ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
                       : stop.hit
                         ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
-                        : stop.inferred_passed
-                          ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
-                          : stop.overdue
-                            ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
-                            : stop.is_departure
-                              ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
-                              : stop.is_finish
-                                ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
-                                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                        : stop.geofence_skipped
+                          ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                          : stop.inferred_passed
+                            ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
+                            : stop.overdue
+                              ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                              : stop.is_departure
+                                ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
+                                : stop.is_finish
+                                  ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
+                                  : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
                   >
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0 flex-1">
@@ -246,6 +254,7 @@
                           </div>
                           <p v-if="!stop.estimated_arrival && !stop.actual_arrival" class="text-xs italic text-gray-400 dark:text-gray-500">Tidak ada estimasi waktu</p>
                           <p v-if="stop.incomplete_finish" class="mt-1 text-xs text-warning-700 dark:text-warning-400">Masih ada tujuan yang belum dikunjungi.</p>
+                          <p v-else-if="stop.geofence_skipped" class="mt-1 text-xs text-warning-700 dark:text-warning-400">Geofence dilewati — SPK selesai tanpa hit GPS di stop ini.</p>
                           <p v-else-if="stop.inferred_passed" class="mt-1 text-xs text-success-700 dark:text-success-400">Keberangkatan dianggap sudah terlampaui karena tujuan berikutnya sudah visited.</p>
                         </div>
                       </div>
@@ -260,6 +269,10 @@
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                           Sudah Tiba
                         </span>
+                        <span v-else-if="stop.geofence_skipped" class="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2.5 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
+                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                          Geofence dilewati
+                        </span>
                         <span v-else-if="stop.inferred_passed" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg>
                           Terlampaui
@@ -273,7 +286,7 @@
                           Menunggu
                         </span>
                         <button
-                          v-if="!stop.hit && !stop.is_departure"
+                          v-if="!stop.hit && !stop.geofence_skipped && !stop.is_departure"
                           type="button"
                           class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                           @click="openCheckIn(stop)"
@@ -863,7 +876,7 @@ const deliveryStopsWithHistory = computed(() => {
   })
 
   const hasAnyVisitedAfterDeparture = baseStops.some(stop => !stop.is_departure && stop.hit)
-  const missingMiddleStops = baseStops.filter(stop => !stop.is_departure && !stop.is_finish && !stop.hit)
+  const finishHit = !!finishOrderHistory || baseStops.some(stop => stop.is_finish && stop.hit)
 
   return baseStops.map(stop => {
     if (stop.is_departure && !stop.hit && hasAnyVisitedAfterDeparture) {
@@ -873,10 +886,17 @@ const deliveryStopsWithHistory = computed(() => {
       }
     }
 
-    if (stop.is_finish && stop.hit && missingMiddleStops.length > 0) {
+    // Middle stop never GPS-hit after SPK finished (loose finish / skip tujuan)
+    if (
+      finishHit &&
+      !stop.hit &&
+      !stop.is_departure &&
+      !stop.is_finish
+    ) {
       return {
         ...stop,
-        incomplete_finish: true
+        geofence_skipped: true,
+        overdue: false
       }
     }
 

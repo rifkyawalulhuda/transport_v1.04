@@ -9,6 +9,7 @@ const {
   autoMapTruckWialonUnits,
   fetchWialonGeofences
 } = require("../services/wialonService");
+const { runBackfill } = require("../services/geofenceTrackingService");
 
 const router = express.Router();
 

@@ -226,6 +226,12 @@ const main = async () => {
     );
     await mark(conn, "20260720000011");
 
+    // ── 20260723000012: sales_cost.is_manual_mode for ETA auto-hits ───────
+    await run(conn, "ADD sales_cost.is_manual_mode",
+      `ALTER TABLE sales_cost ADD COLUMN is_manual_mode TINYINT(1) NOT NULL DEFAULT 0 AFTER finish_order_datetime`
+    );
+    await mark(conn, "20260723000012");
+
     console.log("\nSelesai. Verifikasi dengan: npm run migrate:status");
 
   } finally {

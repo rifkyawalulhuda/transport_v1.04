@@ -47,20 +47,11 @@ const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishOrder
     ? new Date(finishOrderDatetime)
     : arrival;
 
-  const completed = finishHit && visitedStops >= totalStops && totalStops > 0;
-  const incompleteFinish = finishHit && visitedStops < totalStops;
-
-  if (completed) {
+  // GPS finish geofence is source of truth — SPK completes even if middle stops skipped
+  if (finishHit) {
     return {
       schedule_status: "completed",
       has_incomplete_finish: false
-    };
-  }
-
-  if (incompleteFinish) {
-    return {
-      schedule_status: "incomplete_finish",
-      has_incomplete_finish: true
     };
   }
 
@@ -119,12 +110,13 @@ const resolveStopTimelineSummary = ({ deliveryStops, historyRows }) => {
       gps_lon: hit ? (historyEntry?.lon || null) : null,
       inferred_passed: false,
       incomplete_finish: false,
+      geofence_skipped: false,
       overdue
     };
   });
 
   const hasAnyVisitedAfterDeparture = baseStops.some((stop) => !stop.is_departure && stop.hit);
-  const missingMiddleStops = baseStops.filter((stop) => !stop.is_departure && !stop.is_finish && !stop.hit);
+  const finishHit = !!finishOrderHistory || baseStops.some((stop) => stop.is_finish && stop.hit);
 
   return baseStops.map((stop) => {
     if (stop.is_departure && !stop.hit && hasAnyVisitedAfterDeparture) {
@@ -134,10 +126,17 @@ const resolveStopTimelineSummary = ({ deliveryStops, historyRows }) => {
       };
     }
 
-    if (stop.is_finish && stop.hit && missingMiddleStops.length > 0) {
+    // Middle stop never GPS-hit after SPK finished (loose finish / skip tujuan)
+    if (
+      finishHit &&
+      !stop.hit &&
+      !stop.is_departure &&
+      !stop.is_finish
+    ) {
       return {
         ...stop,
-        incomplete_finish: true
+        geofence_skipped: true,
+        overdue: false
       };
     }
 
@@ -357,11 +356,13 @@ router.get("/export", authenticateToken, async (req, res) => {
           const stop = timeline[si];
           const stopStatus = stop.hit
             ? "Tercapai"
-            : stop.inferred_passed
-              ? "Terlewati (Otomatis)"
-              : stop.overdue
-                ? "Terlambat"
-                : "Pending";
+            : stop.geofence_skipped
+              ? "Geofence dilewati"
+              : stop.inferred_passed
+                ? "Terlewati (Otomatis)"
+                : stop.overdue
+                  ? "Terlambat"
+                  : "Pending";
           const source = stop.hit
             ? (stop.is_manual ? "Manual" : "GPS")
             : "-";

@@ -298,15 +298,17 @@
                           ? 'bg-warning-500'
                           : stop.hit
                             ? 'bg-success-500'
-                            : stop.inferred_passed
-                              ? 'bg-success-500'
-                              : stop.overdue
-                                ? 'bg-error-500'
-                                : stop.is_departure
-                                  ? 'bg-brand-500'
-                                  : stop.is_finish
-                                    ? 'bg-gray-500'
-                                    : 'bg-gray-300 dark:bg-gray-600'
+                            : stop.geofence_skipped
+                              ? 'bg-warning-500'
+                              : stop.inferred_passed
+                                ? 'bg-success-500'
+                                : stop.overdue
+                                  ? 'bg-error-500'
+                                  : stop.is_departure
+                                    ? 'bg-brand-500'
+                                    : stop.is_finish
+                                      ? 'bg-gray-500'
+                                      : 'bg-gray-300 dark:bg-gray-600'
                       "
                     >
                       <span class="text-[10px] font-bold text-white">
@@ -323,9 +325,11 @@
                           ? 'border-warning-200 bg-warning-50/50 dark:border-warning-500/30 dark:bg-warning-500/10'
                           : stop.hit || stop.inferred_passed
                             ? 'border-success-200 bg-success-50/50 dark:border-success-500/20 dark:bg-success-500/5'
-                            : stop.overdue
-                              ? 'border-error-200 bg-error-50/50 dark:border-error-500/30 dark:bg-error-500/10'
-                              : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+                            : stop.geofence_skipped
+                              ? 'border-warning-200 bg-warning-50/50 dark:border-warning-500/30 dark:bg-warning-500/10'
+                              : stop.overdue
+                                ? 'border-error-200 bg-error-50/50 dark:border-error-500/30 dark:bg-error-500/10'
+                                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
                       "
                     >
                       <div class="flex flex-wrap items-start justify-between gap-2">
@@ -361,6 +365,12 @@
                             class="mt-1 text-[11px] text-warning-700 dark:text-warning-400"
                           >
                             Masih ada tujuan yang belum dikunjungi.
+                          </p>
+                          <p
+                            v-else-if="stop.geofence_skipped"
+                            class="mt-1 text-[11px] text-warning-700 dark:text-warning-400"
+                          >
+                            Geofence dilewati — SPK selesai tanpa hit GPS di stop ini.
                           </p>
                           <p
                             v-else-if="stop.inferred_passed"
@@ -739,6 +749,7 @@ type DeliveryStopSummary = {
   is_manual: boolean
   inferred_passed: boolean
   incomplete_finish: boolean
+  geofence_skipped?: boolean
   overdue: boolean
 }
 
@@ -1041,6 +1052,9 @@ const resolveStopBadge = (stop: DeliveryStopSummary): { label: string; color: st
   }
   if (stop.hit) {
     return { label: 'Sudah Tiba', color: 'success' }
+  }
+  if (stop.geofence_skipped) {
+    return { label: 'Geofence dilewati', color: 'warning' }
   }
   if (stop.inferred_passed) {
     return { label: 'Terlampaui', color: 'success' }

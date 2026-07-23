@@ -1680,6 +1680,7 @@ const buildPayload = () => {
   departure_datetime: synced_departure,
   arrival_datetime: synced_arrival,
   finish_order_datetime: synced_finish,
+  is_manual_mode: useManualMode.value ? 1 : 0,
   bills: form.bills,
   lift_on: parseIndonesianNumber(form.lift_on || '0'),
   lift_of: parseIndonesianNumber(form.lift_of || '0'),

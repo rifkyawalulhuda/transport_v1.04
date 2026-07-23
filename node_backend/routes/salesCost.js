@@ -1488,6 +1488,12 @@ router.post("/", authenticateToken, async (req, res) => {
     const departureDatetime = body.departure_datetime || null;
     const arrivalDatetime = body.arrival_datetime || null;
     const finishOrderDatetime = body.finish_order_datetime || null;
+    const isManualMode =
+      body.is_manual_mode === true ||
+      body.is_manual_mode === 1 ||
+      body.is_manual_mode === "1"
+        ? 1
+        : 0;
     const noDn = body.no_dn || "";
     const containerDepot = body.container_depot || "";
     const noPo = body.no_po || "";
@@ -1586,7 +1592,7 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     const [result] = await db.query(
-      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, departure_datetime, arrival_datetime, finish_order_datetime, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, departure_datetime, arrival_datetime, finish_order_datetime, is_manual_mode, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [
         tglOrder,
         idTruck,
@@ -1597,6 +1603,7 @@ router.post("/", authenticateToken, async (req, res) => {
         departureDatetime,
         arrivalDatetime,
         finishOrderDatetime,
+        isManualMode,
         bills,
         liftOn,
         liftOf,
@@ -1978,9 +1985,23 @@ router.put("/:id", authenticateToken, async (req, res) => {
       containerSize = null;
     }
 
+    const isManualModePut =
+      body.is_manual_mode === true ||
+      body.is_manual_mode === 1 ||
+      body.is_manual_mode === "1"
+        ? 1
+        : body.is_manual_mode === false ||
+            body.is_manual_mode === 0 ||
+            body.is_manual_mode === "0"
+          ? 0
+          : null;
+
     const [result] = await db.query(
-      "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, departure_datetime = ?, arrival_datetime = ?, finish_order_datetime = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?",
-      [
+      isManualModePut === null
+        ? "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, departure_datetime = ?, arrival_datetime = ?, finish_order_datetime = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?"
+        : "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, departure_datetime = ?, arrival_datetime = ?, finish_order_datetime = ?, is_manual_mode = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?",
+      isManualModePut === null
+        ? [
         idTruck,
         idDriver,
         idArea,
@@ -1988,6 +2009,39 @@ router.put("/:id", authenticateToken, async (req, res) => {
         departureDatetime,
         arrivalDatetime,
         finishOrderDatetime,
+        bills,
+        liftOn,
+        liftOf,
+        containerDepot,
+        noPo,
+        noAju,
+        noContainer,
+        tax,
+        adminCharge,
+        materai,
+        trip,
+        jenisTrip,
+        containerSize,
+        price,
+        containerRepair,
+        demurrageChargers,
+        detentionChargers,
+        extendGatePass,
+        additionalCost,
+        opsCost,
+        total,
+        margin,
+        id
+      ]
+        : [
+        idTruck,
+        idDriver,
+        idArea,
+        idCustomer,
+        departureDatetime,
+        arrivalDatetime,
+        finishOrderDatetime,
+        isManualModePut,
         bills,
         liftOn,
         liftOf,

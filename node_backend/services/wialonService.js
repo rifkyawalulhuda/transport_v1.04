@@ -2019,20 +2019,33 @@ const fetchZonePolygons = async (resourceId, sid) => {
   const safeResourceId = normalizePositiveIntString(resourceId);
   if (!safeResourceId) return new Map();
 
-  try {
-    const payload = await requestWialon(
-      "resource/get_zone_data",
-      { itemId: Number(safeResourceId), flags: 4 }, // flags:4 = include zone points
-      sid
-    );
+  // Wialon zone flags (bitmask): 0x1 area, 0x2 perimeter, 0x4 bounds, 0x8 points, 0x10 base.
+  // flags:4 returns only bounds (b) — NOT polygon points. Use 28 (0x1C = base+points+bounds)
+  // which matches fetchResourceZoneData; fall back to 0 (all fields) then 8 (points only).
+  const flagAttempts = [28, 0, 8];
 
-    const rows = normalizeZoneDataRows(payload);
+  try {
+    let rows = [];
+    for (const flags of flagAttempts) {
+      const payload = await requestWialon(
+        "resource/get_zone_data",
+        { itemId: Number(safeResourceId), flags },
+        sid
+      );
+      rows = normalizeZoneDataRows(payload);
+      const hasPoints = rows.some((zone) => {
+        const raw = Array.isArray(zone?.p) ? zone.p : Array.isArray(zone?.points) ? zone.points : [];
+        return raw.length >= 3;
+      });
+      if (hasPoints) break;
+    }
+
     const result = new Map();
 
     rows.forEach((zone) => {
       const zoneId = normalizePositiveIntString(zone?.id ?? zone?.i ?? zone?.zone_id);
       const zoneName = String(zone?.n ?? zone?.nm ?? zone?.name ?? "").trim();
-      // Points may be in zone.p or zone.points � each point has x (lon) and y (lat)
+      // Points may be in zone.p or zone.points — each point has x (lon) and y (lat)
       const rawPoints = Array.isArray(zone?.p) ? zone.p
         : Array.isArray(zone?.points) ? zone.points
         : [];
