@@ -352,6 +352,8 @@ const getActiveSalesCostCandidates = async () => {
       AND t.wialon_unit_id <> ''
       AND t.is_active = 1
       AND scss.wialon_zone_id IS NOT NULL
+      AND sc.departure_datetime IS NOT NULL
+      AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
       AND NOT EXISTS (
         SELECT 1 FROM sales_cost_route_history scrh
         WHERE scrh.id_sales_cost = sc.id_sales_cost
@@ -369,6 +371,9 @@ const getActiveSalesCostCandidates = async () => {
       id_sales_cost: Number(row.id_sales_cost),
       id_area: Number(row.id_area),
       id_truck: Number(row.id_truck),
+      departure_datetime: row.departure_datetime ?? null,
+      arrival_datetime: row.arrival_datetime ?? null,
+      finish_order_datetime: row.finish_order_datetime ?? null,
       wialon_unit_id: normalizePositiveIntString(row.wialon_unit_id),
       finish_geofence_resource_id: row.finish_geofence_resource_id ?? null,
       finish_geofence_zone_id: row.finish_geofence_zone_id ?? null,
@@ -747,6 +752,12 @@ const syncGeofenceRouteHistory = async () => {
     // early geofence hits (truck arrives before scheduled departure) are still recorded.
     const EARLY_ARRIVAL_BUFFER_SEC = 12 * 60 * 60;
     const departureTs = Math.floor(new Date(salesCost.departure_datetime).getTime() / 1000);
+    if (!Number.isFinite(departureTs) || departureTs <= 0) {
+      console.warn(
+        `[geofence-tracking] SC ${salesCost.id_sales_cost} skip: invalid departure_datetime`
+      );
+      continue;
+    }
     const nowTs = Math.floor(Date.now() / 1000);
     const timeFrom = Math.max(0, departureTs - EARLY_ARRIVAL_BUFFER_SEC);
 
@@ -999,12 +1010,6 @@ const applyDueManualEtaHits = async () => {
           sc.is_manual_mode = 1
           OR t.wialon_unit_id IS NULL
           OR t.wialon_unit_id = ''
-          OR NOT EXISTS (
-            SELECT 1 FROM sales_cost_step_schedule s
-            WHERE s.id_sales_cost = sc.id_sales_cost
-              AND s.is_finish = 0
-              AND s.wialon_zone_id IS NOT NULL
-          )
         )
       ORDER BY sc.id_sales_cost ASC
     `);
@@ -1030,12 +1035,6 @@ const applyDueManualEtaHits = async () => {
           AND (
             t.wialon_unit_id IS NULL
             OR t.wialon_unit_id = ''
-            OR NOT EXISTS (
-              SELECT 1 FROM sales_cost_step_schedule s
-              WHERE s.id_sales_cost = sc.id_sales_cost
-                AND s.is_finish = 0
-                AND s.wialon_zone_id IS NOT NULL
-            )
           )
         ORDER BY sc.id_sales_cost ASC
       `);
@@ -1096,12 +1095,10 @@ const applyDueManualEtaHits = async () => {
       const existing = histBySc.get(scId) || new Set();
       if (existing.has(DEFAULT_FINISH_STEP_KEY)) continue;
 
-      // Exclude pure GPS SPKs that slipped in (have unit + at least one zoned stop + not flagged)
+      // Only is_manual_mode or trucks without Wialon unit use ETA auto-hits (H4).
+      // GPS trucks (even if zones empty) must use geofence tracking or admin complete-all.
       const unitId = String(sc.wialon_unit_id || "").trim();
-      const hasZone = stops.some(
-        (s) => Number(s.is_finish) !== 1 && s.wialon_zone_id != null && String(s.wialon_zone_id) !== ""
-      );
-      if (Number(sc.is_manual_mode) !== 1 && unitId && hasZone) continue;
+      if (Number(sc.is_manual_mode) !== 1 && unitId) continue;
 
       for (const stop of stops) {
         const stepKey = `stop:${stop.id}`;

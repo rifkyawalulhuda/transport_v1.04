@@ -145,12 +145,21 @@ router.get("/", async (req, res) => {
 
     const [repairRows] = await db.query(repairSql, repairParams);
 
+    // Active transaksi = not finished (system:finish_order) AND has a delivery schedule
+    // (step_schedule). SPKs without stops cannot show a timeline and must not pollute
+    // the Transaksi bucket (regression after H1: planned finish_order_datetime no longer
+    // excludes rows, so empty-schedule SPKs were incorrectly classified as Transaksi).
     const trxConditions = [
-      `(
-        (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
-        AND
-        (sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)
-      )`
+      `NOT EXISTS (
+        SELECT 1 FROM sales_cost_route_history scrh_fin
+        WHERE scrh_fin.id_sales_cost = sc.id_sales_cost
+          AND scrh_fin.step_key = 'system:finish_order'
+      )`,
+      `EXISTS (
+        SELECT 1 FROM sales_cost_step_schedule scss_trx
+        WHERE scss_trx.id_sales_cost = sc.id_sales_cost
+      )`,
+      `(sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)`
     ];
     const trxParams = [todayString];
     if (month && year) {
@@ -210,13 +219,32 @@ router.get("/", async (req, res) => {
         t.jenis_kendaraan,
         d.nama_driver,
         a.nama_area,
-        CASE WHEN sc.finish_order_datetime IS NOT NULL
-             AND sc.finish_order_datetime < NOW()
-             AND NOT EXISTS (
-               SELECT 1 FROM sales_cost_route_history scrh
-               WHERE scrh.id_sales_cost = sc.id_sales_cost
-                 AND scrh.step_key = 'system:finish_order'
-             )
+        CASE
+          WHEN NOT EXISTS (
+            SELECT 1 FROM sales_cost_route_history scrh
+            WHERE scrh.id_sales_cost = sc.id_sales_cost
+              AND scrh.step_key = 'system:finish_order'
+          )
+          AND (
+            EXISTS (
+              SELECT 1 FROM sales_cost_step_schedule scss_eta
+              WHERE scss_eta.id_sales_cost = sc.id_sales_cost
+                AND scss_eta.is_finish = 1
+                AND scss_eta.estimated_arrival IS NOT NULL
+                AND scss_eta.estimated_arrival < NOW()
+            )
+            OR (
+              sc.finish_order_datetime IS NOT NULL
+              AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00 00:00:00'
+              AND sc.finish_order_datetime < NOW()
+              AND NOT EXISTS (
+                SELECT 1 FROM sales_cost_step_schedule scss_eta2
+                WHERE scss_eta2.id_sales_cost = sc.id_sales_cost
+                  AND scss_eta2.is_finish = 1
+                  AND scss_eta2.estimated_arrival IS NOT NULL
+              )
+            )
+          )
         THEN 1 ELSE 0 END AS is_overdue
       FROM sales_cost sc
       LEFT JOIN truck t ON sc.id_truck = t.id_truck

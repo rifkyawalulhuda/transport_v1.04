@@ -36,18 +36,28 @@ const parsePositiveInt = (value, fallback) => {
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishOrderDatetime, finishHit, visitedStops, totalStops }) => {
+const resolveScheduleStatus = ({
+  departureDatetime,
+  arrivalDatetime,
+  finishOrderDatetime,
+  plannedFinishDatetime,
+  finishHit,
+  visitedStops,
+  totalStops
+}) => {
   const now = new Date();
   const departure = departureDatetime ? new Date(departureDatetime) : null;
   const arrival = arrivalDatetime ? new Date(arrivalDatetime) : null;
+  const plannedFinish = plannedFinishDatetime ? new Date(plannedFinishDatetime) : null;
+  const finishCol = finishOrderDatetime ? new Date(finishOrderDatetime) : null;
 
-  // Use finish_order_datetime as the overdue deadline if available,
-  // fallback to arrival_datetime for backwards compatibility
-  const overdueDeadline = finishOrderDatetime
-    ? new Date(finishOrderDatetime)
-    : arrival;
+  // Planned finish ETA: prefer finish-stop estimated_arrival, then sc.finish_order_datetime (often planned at create), then arrival
+  const overdueDeadline =
+    (plannedFinish && !Number.isNaN(plannedFinish.getTime()) ? plannedFinish : null) ||
+    (finishCol && !Number.isNaN(finishCol.getTime()) ? finishCol : null) ||
+    arrival;
 
-  // GPS finish geofence is source of truth — SPK completes even if middle stops skipped
+  // Actual completion = system:finish_order only (not sc.finish_order_datetime)
   if (finishHit) {
     return {
       schedule_status: "completed",
@@ -55,7 +65,7 @@ const resolveScheduleStatus = ({ departureDatetime, arrivalDatetime, finishOrder
     };
   }
 
-  // Only flag overdue if the finish deadline has passed AND delivery not finished yet
+  // Overdue: planned finish ETA passed and not GPS/manual finished yet
   if (overdueDeadline && !Number.isNaN(overdueDeadline.getTime()) && overdueDeadline < now && !finishHit) {
     return {
       schedule_status: "overdue",
@@ -312,10 +322,15 @@ router.get("/export", authenticateToken, async (req, res) => {
       const finishHit = timeline.some((s) => s.is_finish && s.hit);
       const visitedStops = timeline.filter((s) => !s.is_departure && !s.is_finish && s.hit).length;
       const totalStops = timeline.filter((s) => !s.is_departure && !s.is_finish).length;
+      const plannedFinish =
+        timeline.find((s) => s.is_finish)?.estimated_arrival ||
+        stops.find((s) => Number(s.is_finish) === 1)?.estimated_arrival ||
+        null;
       const { schedule_status } = resolveScheduleStatus({
         departureDatetime: sc.departure_datetime,
         arrivalDatetime: sc.arrival_datetime,
         finishOrderDatetime: sc.finish_order_datetime,
+        plannedFinishDatetime: plannedFinish,
         finishHit,
         visitedStops,
         totalStops,
@@ -676,11 +691,14 @@ router.get("/", authenticateToken, async (req, res) => {
 
         const deliveryStops = deliveryStopsMap.get(salesCostId) || [];
         const routeHistory = routeHistoryMap.get(salesCostId) || [];
+        const plannedFinish =
+          deliveryStops.find((s) => Number(s.is_finish) === 1)?.estimated_arrival || null;
 
         const statusSummary = resolveScheduleStatus({
           departureDatetime: row.departure_datetime,
           arrivalDatetime: row.arrival_datetime,
           finishOrderDatetime: row.finish_order_datetime,
+          plannedFinishDatetime: plannedFinish,
           finishHit: historySummary.finish_hit,
           visitedStops: historySummary.visited_stops,
           totalStops: stopSummary.total_stops
