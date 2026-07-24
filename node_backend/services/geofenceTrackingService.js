@@ -3,7 +3,8 @@ const {
   fetchWialonGeofences,
   fetchUnitsInZonesByResource,
   getUnitPositionMap,
-  reverseGeocodeCoordinates
+  reverseGeocodeCoordinates,
+  pointInPolygon
 } = require("./wialonService");
 
 const DEFAULT_INTERVAL_MS = Number.parseInt(
@@ -171,9 +172,132 @@ const DEFAULT_REQUIRE_PREVIOUS_STOP =
 const DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH =
   String(process.env.GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH || "0").trim() === "1";
 
+// Same-zone finish (Departure=Finish=Sankyu): require meaningful leave after trip start
+// so ignition/GPS blips at base do not complete the SPK (#44390).
+const FINISH_MIN_AWAY_SEC = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_FINISH_MIN_AWAY_SEC || "1200", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 1200; // 20 min
+})();
+const FINISH_MIN_AWAY_M = (() => {
+  const n = Number.parseFloat(process.env.GEOFENCE_FINISH_MIN_AWAY_M || "1000");
+  return Number.isFinite(n) && n >= 0 ? n : 1000; // 1 km
+})();
+
+/** Approx meters between two lat/lon points (haversine). */
+const haversineMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+};
+
+const polygonCentroid = (points) => {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  let sx = 0;
+  let sy = 0;
+  for (const p of points) {
+    sx += Number(p.x) || 0;
+    sy += Number(p.y) || 0;
+  }
+  return { lon: sx / points.length, lat: sy / points.length };
+};
+
+/**
+ * Evidence that truck left finish/base polygon meaningfully after tripStartTs.
+ * Blocks idle/ignition false finish when Departure zone === Finish zone.
+ */
+const analyzeBaseExit = ({
+  messages = [],
+  finishPoints = null,
+  tripStartTs = 0,
+  minAwaySec = FINISH_MIN_AWAY_SEC,
+  minAwayM = FINISH_MIN_AWAY_M
+} = {}) => {
+  const result = {
+    leftAfterTripStart: false,
+    awayDurationSec: 0,
+    maxAwayMeters: 0,
+    firstExitTs: 0,
+    lastOutsideTs: 0,
+    reentryTs: 0,
+    qualifies: false
+  };
+
+  if (
+    !Array.isArray(finishPoints) ||
+    finishPoints.length < 3 ||
+    !Array.isArray(messages) ||
+    messages.length === 0
+  ) {
+    return result;
+  }
+
+  const centroid = polygonCentroid(finishPoints);
+  const tripStart = Number(tripStartTs) || 0;
+  let outsideStart = null;
+  let maxContinuousAway = 0;
+  let totalAway = 0;
+  let prevTs = null;
+  let wasOutside = false;
+
+  const sorted = [...messages].sort(
+    (a, b) => messageTsSeconds(a) - messageTsSeconds(b)
+  );
+
+  for (const m of sorted) {
+    const ts = messageTsSeconds(m);
+    if (!Number.isFinite(ts) || ts <= tripStart) {
+      prevTs = ts;
+      continue;
+    }
+    const outside = !pointInPolygon({ x: m.lon, y: m.lat }, finishPoints);
+
+    if (outside) {
+      result.leftAfterTripStart = true;
+      if (!result.firstExitTs) result.firstExitTs = ts;
+      result.lastOutsideTs = ts;
+      if (outsideStart == null) outsideStart = ts;
+      if (centroid && Number.isFinite(m.lat) && Number.isFinite(m.lon)) {
+        const d = haversineMeters(centroid.lat, centroid.lon, m.lat, m.lon);
+        if (d > result.maxAwayMeters) result.maxAwayMeters = d;
+      }
+      if (prevTs != null && wasOutside && ts > prevTs) {
+        totalAway += ts - prevTs;
+      }
+      wasOutside = true;
+    } else {
+      if (outsideStart != null) {
+        const seg = ts - outsideStart;
+        if (seg > maxContinuousAway) maxContinuousAway = seg;
+        if (!result.reentryTs) result.reentryTs = ts;
+        outsideStart = null;
+      }
+      wasOutside = false;
+    }
+    prevTs = ts;
+  }
+  // Still outside at end of trail
+  if (outsideStart != null && prevTs != null) {
+    const seg = prevTs - outsideStart;
+    if (seg > maxContinuousAway) maxContinuousAway = seg;
+  }
+
+  result.awayDurationSec = Math.max(maxContinuousAway, totalAway);
+  result.qualifies =
+    result.leftAfterTripStart &&
+    (result.awayDurationSec >= minAwaySec || result.maxAwayMeters >= minAwayM);
+
+  return result;
+};
+
 /**
  * Resolve finish GPS hit (actual entry time, not ETA).
- * Guards against false finish while truck is still idle at base (same zone as departure).
+ * Same-zone finish (dep=finish Sankyu): require meaningful leave after planned
+ * departure OR a middle-stop hit — blocks ignition false finish (#44390).
  *
  * @returns {{ entryTs: number, lat: number|null, lon: number|null, source: string }|null}
  */
@@ -183,6 +307,7 @@ const resolveFinishGpsHit = ({
   stops = [],
   zoneTimeline = [],
   finishZoneKey,
+  departureZoneKey = null,
   messages = [],
   position = null,
   finishPoints = null,
@@ -209,9 +334,49 @@ const resolveFinishGpsHit = ({
     if (!allHit) return null;
   }
 
-  const { lastGlobalTs } = seedConsumptionFromHistory(historyRows, stops);
-  // Finish only after planned departure and after any prior stop hit (incl. departure)
-  const minFinishTs = Math.max(depTs, lastGlobalTs || 0);
+  // Planned trip start only — ignore early departure hits before depTs for finish floor
+  const tripStartTs = depTs > 0 ? depTs : 0;
+
+  // Middle stop hit after planned departure = proven trip (allows loose finish on return)
+  const middleHitAfterTrip = (historyRows || []).some((h) => {
+    if (h.step_key === DEFAULT_FINISH_STEP_KEY) return false;
+    if (h.id_sc_stop == null) return false;
+    const stop = (stops || []).find((s) => Number(s.id) === Number(h.id_sc_stop));
+    if (!stop) return false;
+    if (Number(stop.is_departure) === 1 || Number(stop.is_finish) === 1) return false;
+    let ts = Number(h.gps_ts);
+    if (!Number.isFinite(ts) || ts <= 0) {
+      ts = h.gps_time ? Math.floor(new Date(h.gps_time).getTime() / 1000) : 0;
+    }
+    return ts > tripStartTs;
+  });
+
+  const sameZoneFinish =
+    departureZoneKey &&
+    finishZoneKey &&
+    String(departureZoneKey) === String(finishZoneKey);
+
+  let evidence = null;
+  if (sameZoneFinish && !middleHitAfterTrip) {
+    evidence = analyzeBaseExit({
+      messages,
+      finishPoints,
+      tripStartTs,
+      minAwaySec: FINISH_MIN_AWAY_SEC,
+      minAwayM: FINISH_MIN_AWAY_M
+    });
+    if (!evidence.qualifies) return null;
+  }
+
+  // minFinishTs: after trip start; if same-zone, after proven first exit
+  let minFinishTs = tripStartTs;
+  if (sameZoneFinish && evidence?.firstExitTs) {
+    minFinishTs = Math.max(minFinishTs, evidence.firstExitTs);
+  }
+  if (middleHitAfterTrip) {
+    const { lastGlobalTs } = seedConsumptionFromHistory(historyRows, stops);
+    minFinishTs = Math.max(minFinishTs, lastGlobalTs || 0);
+  }
 
   const timeline = Array.isArray(zoneTimeline)
     ? [...zoneTimeline].sort((a, b) => a.entryTs - b.entryTs)
@@ -232,9 +397,7 @@ const resolveFinishGpsHit = ({
     };
   }
 
-  // Live fallback: only after departure, currently inside finish zone, AND
-  // GPS trail shows the truck left the finish polygon at least once after departure
-  // (prevents idle-at-base false finish when departure/finish share Sankyu).
+  // Live fallback: inside finish zone now + trip evidence already satisfied above
   const insideNow =
     membershipHasUnit ||
     (position?.lat != null &&
@@ -243,24 +406,25 @@ const resolveFinishGpsHit = ({
       finishPoints.length >= 3 &&
       pointInPolygon({ x: position.lon, y: position.lat }, finishPoints));
   if (!insideNow) return null;
-  if (depTs > 0 && nowTs < depTs) return null;
 
-  let leftAfterDeparture = false;
-  if (Array.isArray(finishPoints) && finishPoints.length >= 3 && Array.isArray(messages)) {
-    for (const m of messages) {
-      const ts = messageTsSeconds(m);
-      if (ts <= minFinishTs) continue;
-      if (!pointInPolygon({ x: m.lon, y: m.lat }, finishPoints)) {
-        leftAfterDeparture = true;
-        break;
+  if (sameZoneFinish && !middleHitAfterTrip) {
+    // evidence.qualifies already required; need live time after exit
+    if (!evidence?.firstExitTs) return null;
+  } else if (!sameZoneFinish && !middleHitAfterTrip) {
+    // Different finish zone: require at least one outside-of-finish after trip start
+    let leftOnce = false;
+    if (Array.isArray(finishPoints) && finishPoints.length >= 3 && Array.isArray(messages)) {
+      for (const m of messages) {
+        const ts = messageTsSeconds(m);
+        if (ts <= tripStartTs) continue;
+        if (!pointInPolygon({ x: m.lon, y: m.lat }, finishPoints)) {
+          leftOnce = true;
+          break;
+        }
       }
     }
+    if (!leftOnce && tripStartTs > 0) return null;
   }
-  // If we already have any stop hit after departure, allow live finish without leave scan
-  if (!leftAfterDeparture && lastGlobalTs > depTs) {
-    leftAfterDeparture = true;
-  }
-  if (!leftAfterDeparture && depTs > 0) return null;
 
   const liveTs =
     position?.gps_time != null
@@ -882,12 +1046,19 @@ const syncGeofenceRouteHistory = async () => {
       membershipByResource.get(finishResourceId)?.get(finishZoneId) || null;
     const membershipHasUnit = !!(finishMembership && finishMembership.has(unitId));
 
+    const depStop = stops.find((s) => Number(s.is_departure) === 1);
+    const depRes = normalizePositiveIntString(depStop?.wialon_resource_id);
+    const depZ = normalizePositiveIntString(depStop?.wialon_zone_id);
+    const departureZoneKey =
+      depRes && depZ ? `${depRes}:${depZ}` : null;
+
     const finishHit = resolveFinishGpsHit({
       departureTs,
       historyRows: scHistoryRows,
       stops,
       zoneTimeline,
       finishZoneKey,
+      departureZoneKey,
       messages,
       position,
       finishPoints,
@@ -1361,7 +1532,6 @@ const stopGeofenceTracking = async (timeoutMs = 5000) => {
 const {
   fetchRawMessagesForUnit,
   fetchZonePolygons,
-  pointInPolygon,
   loginIsolatedSession,
   logoutIsolatedSession
 } = require("./wialonService");
@@ -1572,12 +1742,18 @@ const runBackfill = async (fromTs, toTs) => {
           if (fResId && fZId) {
             const fZoneKey = `${fResId}:${fZId}`;
             const fPoints = zonePolygonMap.get(fZoneKey)?.points || null;
+            const depStop = stops.find((s) => Number(s.is_departure) === 1);
+            const depRes = normalizePositiveIntString(depStop?.wialon_resource_id);
+            const depZ = normalizePositiveIntString(depStop?.wialon_zone_id);
+            const departureZoneKey =
+              depRes && depZ ? `${depRes}:${depZ}` : null;
             const finishHit = resolveFinishGpsHit({
               departureTs,
               historyRows: scHistory,
               stops,
               zoneTimeline,
               finishZoneKey: fZoneKey,
+              departureZoneKey,
               messages,
               position: null,
               finishPoints: fPoints,
@@ -1654,5 +1830,6 @@ module.exports = {
   buildZoneEntryTimeline,
   seedConsumptionFromHistory,
   assignStopHits,
-  resolveFinishGpsHit
+  resolveFinishGpsHit,
+  analyzeBaseExit
 };

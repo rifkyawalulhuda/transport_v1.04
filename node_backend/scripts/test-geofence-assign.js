@@ -11,7 +11,8 @@ const {
   buildZoneEntryTimeline,
   seedConsumptionFromHistory,
   assignStopHits,
-  resolveFinishGpsHit
+  resolveFinishGpsHit,
+  analyzeBaseExit
 } = require('../services/geofenceTrackingService');
 
 const KIIC = '1:10';
@@ -221,16 +222,151 @@ function testSeedFromStopLookup() {
 
 const SANKYU = '1:1';
 
+// Unit square ~111km side if used as lat/lon degrees — use small poly around 0,0
+// points x=lon y=lat in [0,1] — 1 degree ~ 111km so outside at lon=0.05 is ~5.5km
+const BASE_POLY = [
+  { x: 0, y: 0 },
+  { x: 0.01, y: 0 },
+  { x: 0.01, y: 0.01 },
+  { x: 0, y: 0.01 }
+];
+
+function testFalseFinishIgnitionAtBase() {
+  // #44390-like: early dep hit, after planned dep still at base with short blip
+  const stops = [
+    { id: 203, stop_order: 0, wialon_resource_id: 1, wialon_zone_id: 1, is_departure: 1, is_finish: 0 },
+    { id: 204, stop_order: 1, wialon_resource_id: 1, wialon_zone_id: 79, is_departure: 0, is_finish: 0 }
+  ];
+  const departureTs = 10000; // planned trip start
+  const messages = [
+    { t: 5000, lat: 0.005, lon: 0.005 }, // parked before dep
+    { t: 10060, lat: 0.005, lon: 0.005 }, // still inside after dep
+    { t: 10100, lat: 0.011, lon: 0.011 }, // short outside blip (~seconds)
+    { t: 10130, lat: 0.005, lon: 0.005 } // re-entry ignition
+  ];
+  const zoneTimeline = [
+    { zoneKey: SANKYU, entryTs: 5000 },
+    { zoneKey: SANKYU, entryTs: 10130 }
+  ];
+  const history = [
+    { id_sc_stop: 203, step_key: 'stop:203', wialon_resource_id: 1, wialon_zone_id: 1, gps_ts: 5000 }
+  ];
+  const hit = resolveFinishGpsHit({
+    departureTs,
+    historyRows: history,
+    stops,
+    zoneTimeline,
+    finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages,
+    finishPoints: BASE_POLY,
+    requireAllStopsBeforeFinish: false
+  });
+  assert.strictEqual(hit, null, '#44390-like ignition must not finish');
+  console.log('OK no false finish on ignition at base');
+}
+
+function testFinishAfterLongLeaveNoMiddle() {
+  const stops = [
+    { id: 10, stop_order: 0, wialon_resource_id: 1, wialon_zone_id: 1, is_departure: 1, is_finish: 0 },
+    { id: 11, stop_order: 1, wialon_resource_id: 1, wialon_zone_id: 79, is_departure: 0, is_finish: 0 }
+  ];
+  const departureTs = 1000;
+  const reentry = 1000 + 30 * 60;
+  const messages = [
+    { t: 900, lat: 0.005, lon: 0.005 },
+    { t: 1100, lat: 0.2, lon: 0.2 },
+    { t: 1100 + 25 * 60, lat: 0.2, lon: 0.2 },
+    { t: reentry, lat: 0.005, lon: 0.005 }
+  ];
+  const hit = resolveFinishGpsHit({
+    departureTs,
+    historyRows: [{ id_sc_stop: 10, step_key: 'stop:10', gps_ts: 900, wialon_resource_id: 1, wialon_zone_id: 1 }],
+    stops,
+    zoneTimeline: [
+      { zoneKey: SANKYU, entryTs: 900 },
+      { zoneKey: SANKYU, entryTs: reentry }
+    ],
+    finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages,
+    finishPoints: BASE_POLY,
+    requireAllStopsBeforeFinish: false
+  });
+  assert.ok(hit);
+  assert.strictEqual(hit.entryTs, reentry);
+  console.log('OK finish after long leave without middle');
+}
+
+function testFinishWithMiddleHitBypassesMinAway() {
+  const stops = [
+    { id: 10, stop_order: 0, wialon_resource_id: 1, wialon_zone_id: 1, is_departure: 1, is_finish: 0 },
+    { id: 11, stop_order: 1, wialon_resource_id: 1, wialon_zone_id: 79, is_departure: 0, is_finish: 0 }
+  ];
+  const departureTs = 1000;
+  const hit = resolveFinishGpsHit({
+    departureTs,
+    historyRows: [
+      { id_sc_stop: 10, step_key: 'stop:10', gps_ts: 900, wialon_resource_id: 1, wialon_zone_id: 1 },
+      { id_sc_stop: 11, step_key: 'stop:11', gps_ts: 1500, wialon_resource_id: 1, wialon_zone_id: 79 }
+    ],
+    stops,
+    zoneTimeline: [
+      { zoneKey: SANKYU, entryTs: 900 },
+      { zoneKey: SANKYU, entryTs: 2000 }
+    ],
+    finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages: [
+      { t: 900, lat: 0.005, lon: 0.005 },
+      { t: 1500, lat: 1, lon: 1 },
+      { t: 2000, lat: 0.005, lon: 0.005 }
+    ],
+    finishPoints: BASE_POLY,
+    requireAllStopsBeforeFinish: false
+  });
+  assert.ok(hit, 'middle hit allows finish on return');
+  assert.strictEqual(hit.entryTs, 2000);
+  console.log('OK middle hit bypasses min-away for finish');
+}
+
+function testAnalyzeBaseExitShortBlip() {
+  // Just outside poly edge (~0.011), ~100-200m, 30s only — below thresholds
+  const r = analyzeBaseExit({
+    messages: [
+      { t: 100, lat: 0.005, lon: 0.005 },
+      { t: 200, lat: 0.0105, lon: 0.0105 },
+      { t: 230, lat: 0.005, lon: 0.005 }
+    ],
+    finishPoints: BASE_POLY,
+    tripStartTs: 50,
+    minAwaySec: 1200,
+    minAwayM: 1000
+  });
+  assert.ok(r.leftAfterTripStart);
+  assert.ok(r.maxAwayMeters < 1000, `maxAway=${r.maxAwayMeters}`);
+  assert.ok(r.awayDurationSec < 1200);
+  assert.strictEqual(r.qualifies, false);
+  console.log('OK analyzeBaseExit rejects short blip');
+}
+
 function testLooseFinishWithoutMiddleStops() {
   const stops = [
     { id: 10, stop_order: 0, wialon_resource_id: 1, wialon_zone_id: 1, is_departure: 1, is_finish: 0 },
     { id: 11, stop_order: 1, wialon_resource_id: 1, wialon_zone_id: 20, is_departure: 0, is_finish: 0 }
   ];
   const departureTs = 500;
-  // Left base, never hit tujuan, re-entered Sankyu
+  // Meaningful leave (>20min / far) then re-enter — skip tujuan still OK
+  const messages = [
+    { t: 400, lat: 0.005, lon: 0.005 }, // in base before dep
+    { t: 600, lat: 0.5, lon: 0.5 }, // far outside after dep
+    { t: 600 + 25 * 60, lat: 0.5, lon: 0.5 }, // still away 25 min
+    { t: 600 + 26 * 60, lat: 0.005, lon: 0.005 } // re-entry
+  ];
+  const reentryTs = 600 + 26 * 60;
   const zoneTimeline = [
-    { zoneKey: SANKYU, entryTs: 400 }, // before departure (idle)
-    { zoneKey: SANKYU, entryTs: 900 } // re-entry after departure
+    { zoneKey: SANKYU, entryTs: 400 },
+    { zoneKey: SANKYU, entryTs: reentryTs }
   ];
   const history = [
     { id_sc_stop: 10, step_key: 'stop:10', wialon_resource_id: 1, wialon_zone_id: 1, gps_ts: 400 }
@@ -241,11 +377,14 @@ function testLooseFinishWithoutMiddleStops() {
     stops,
     zoneTimeline,
     finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages,
+    finishPoints: BASE_POLY,
     requireAllStopsBeforeFinish: false
   });
-  assert.ok(hit, 'finish should allow skip middle');
-  assert.strictEqual(hit.entryTs, 900);
-  console.log('OK loose finish without middle stop hits');
+  assert.ok(hit, 'finish should allow skip middle after meaningful leave');
+  assert.strictEqual(hit.entryTs, reentryTs);
+  console.log('OK loose finish without middle after min-away leave');
 }
 
 function testNoFinishBeforeDeparture() {
@@ -282,6 +421,7 @@ function testNoFinishIdleAtBaseWithoutLeave() {
     stops: [],
     zoneTimeline,
     finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
     messages,
     position: { lat: 0.5, lon: 0.5, gps_time: new Date(300 * 1000).toISOString() },
     finishPoints: poly,
@@ -300,27 +440,33 @@ function testFinishAfterLeaveAndReturn() {
     { x: 1, y: 1 },
     { x: 0, y: 1 }
   ];
+  // Far away long enough (distance >> 1km) then return
   const messages = [
-    { t: 50, lat: 0.5, lon: 0.5 }, // in
-    { t: 150, lat: 5, lon: 5 }, // left after departure
-    { t: 250, lat: 0.5, lon: 0.5 } // returned
+    { t: 50, lat: 0.5, lon: 0.5 },
+    { t: 150, lat: 5, lon: 5 },
+    { t: 150 + 25 * 60, lat: 5, lon: 5 },
+    { t: 150 + 26 * 60, lat: 0.5, lon: 0.5 }
   ];
+  const reentry = 150 + 26 * 60;
   const zoneTimeline = [
     { zoneKey: SANKYU, entryTs: 50 },
-    { zoneKey: SANKYU, entryTs: 250 }
+    { zoneKey: SANKYU, entryTs: reentry }
   ];
   const hit = resolveFinishGpsHit({
     departureTs,
     historyRows: [],
-    stops: [],
+    stops: [
+      { id: 1, is_departure: 1, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 1 }
+    ],
     zoneTimeline,
     finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
     messages,
     finishPoints: poly,
     requireAllStopsBeforeFinish: false
   });
   assert.ok(hit);
-  assert.strictEqual(hit.entryTs, 250);
+  assert.strictEqual(hit.entryTs, reentry);
   console.log('OK finish after leave and return to base');
 }
 
@@ -352,12 +498,16 @@ function main() {
   testStrictGateStillWorks();
   testBuildTimelineReentry();
   testSeedFromStopLookup();
+  testFalseFinishIgnitionAtBase();
+  testFinishAfterLongLeaveNoMiddle();
+  testFinishWithMiddleHitBypassesMinAway();
+  testAnalyzeBaseExitShortBlip();
   testLooseFinishWithoutMiddleStops();
   testNoFinishBeforeDeparture();
   testNoFinishIdleAtBaseWithoutLeave();
   testFinishAfterLeaveAndReturn();
   testStrictFinishRequiresAllStops();
-  console.log('\nAll geofence assign + loose finish tests passed.');
+  console.log('\nAll geofence assign + loose finish + base-exit tests passed.');
 }
 
 main();
