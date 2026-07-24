@@ -143,18 +143,12 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - `route_steps[]` mapped to Wialon geofences
 - Wialon geofences remain managed in Wialon, not drawn manually inside this project.
 - Sales Cost still stores and displays the route using the familiar `nama_area` string such as `117-CLC-GIIC-HEKIKAI`.
-- The backend now tracks geofence history for active Sales Cost deliveries:
-  - first entry only per planned step
-  - supports out-of-order arrival
-  - keeps planned route and actual route history separate
-- A default final system step named `Finish Order` is recorded when:
-  - all planned route steps have been visited, and
-  - the truck later enters the configured finish geofence on the related `area`
-- `Finish Order` geofence is now configured per Master Area via:
-  - `area.finish_geofence_resource_id`
-  - `area.finish_geofence_zone_id`
-  - `area.finish_geofence_zone_name`
-- Legacy fallback to default company geofence `Sankyu` still exists for older areas that do not have finish geofence configured yet.
+- The backend tracks geofence history for active Sales Cost deliveries via GPS message timeline (point-in-polygon), not only live membership snapshots:
+  - chronological zone entries; repeated zones get distinct visit times
+  - loose stop order (field may skip/reorder)
+  - planned route (`sales_cost_step_schedule`) vs actual history (`sales_cost_route_history`) stay separate
+- System step `Finish Order` (`system:finish_order`) is recorded when the truck qualifies for finish geofence (loose by default; same-zone base requires min-away or middle hit — see Geofence Tracking Flow).
+- Finish geofence resolution order: area.finish_geofence_* → scss finish-stop zone → default name `Sankyu` (`DEFAULT_FINISH_GEOFENCE_NAME`).
 - Sales Cost detail now includes a `Riwayat Geofence Pengiriman` section that shows:
   - planned steps
   - visited steps with timestamps
@@ -194,16 +188,16 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
    - last trip time
    - status such as `has_trip`, `no_trip`, `unlinked`, or `error`
 
-### Geofence Tracking Flow
+### Geofence Tracking Flow (current — Jul 2026)
 
-1. Backend loads active Sales Cost candidates for trucks that already have `wialon_unit_id`.
-2. Backend loads per-delivery stop → geofence mappings from `sales_cost_step_schedule` (step key `stop:{scss.id}`). Note: `area_route_step` is no longer used for tracking — only for Surat Jalan printing.
-3. Backend polls Wialon zone membership on an interval (`GEOFENCE_TRACKING_INTERVAL_MS`, default 60s).
-4. If the truck is currently inside a mapped geofence and that step has not been recorded yet, backend inserts one history row into `sales_cost_route_history`. This applies to **all** stops including departure (`is_departure = 1`) and middle stops.
-5. After all middle (delivery, non-departure) stops are completed, backend also watches the finish geofence configured on the area to record the system step `Finish Order`. Departure is not required for finish.
-6. Re-entry to the same step is ignored (dedup via existing history keys) to avoid noisy duplicate history rows.
-7. On server startup, `detectAndRunStartupBackfill()` replays Wialon GPS history (point-in-polygon) to backfill any stop — including departure — that was missed while the server was down (gap ≥ 5 min, up to 7 days back). Manual replay is available via `POST /api/wialon/backfill`.
-8. Departure fallback: if a later stop is hit but departure has no history row (truck skipped the origin, or departed before the Sales Cost existed), the reporting layer marks departure as `inferred_passed` in Schedule Pengiriman / Detail Sales Cost.
+1. Backend loads active GPS Sales Cost candidates: truck has `wialon_unit_id`, at least one stop with `wialon_zone_id`, no `system:finish_order` yet, `departure_datetime` within last **30 days**. Multi-SPK per truck: **all** active SPKs are tracked (H9).
+2. Stop → geofence mappings come from `sales_cost_step_schedule` (step key `stop:{scss.id}`). `area_route_step` is only for Surat Jalan printing.
+3. Every `GEOFENCE_TRACKING_INTERVAL_MS` (default 60s): login Wialon → fetch raw GPS messages (from planned departure − 12h buffer to now) → `fetchZonePolygons` (flags 28/0/8 for points) → `buildZoneEntryTimeline` + `assignStopHits` (point-in-polygon entry events).
+4. **Stop hits (GPS):** `gps_time` = actual GPS entry time (not ETA). Repeated zones (e.g. KIIC→GIIC→KIIC) use chronological re-entries; history is seeded each cycle so visit #2 never reuses visit #1 timestamp. Stop order is **loose** (Opsi B): a later stop may hit without previous stop.
+5. **Finish (GPS, loose by default):** inserts `system:finish_order` even if middle stops were skipped. When Departure zone = Finish zone (typical Sankyu), finish requires **meaningful leave after planned departure** (≥20 min away and/or ≥1 km from base centroid) **or** ≥1 middle stop hit after departure — blocks ignition/idle false finish (#44390). Env: `GEOFENCE_FINISH_MIN_AWAY_SEC`, `GEOFENCE_FINISH_MIN_AWAY_M`.
+6. **Manual / no-GPS path:** `applyDueManualEtaHits()` in the same cycle auto-hits stops when `NOW ≥ estimated_arrival` for SPKs with `is_manual_mode=1` or truck without `wialon_unit_id`. Finish stop due → also writes `system:finish_order` (`is_manual=1`).
+7. Dedup via existing history keys / `INSERT IGNORE`. Startup backfill + `POST /api/wialon/backfill` still available.
+8. UI: middle stops never hit after finish → badge **Geofence dilewati**; departure without history but later hit → `inferred_passed`.
 
 ### Wialon Response Notes
 
@@ -228,9 +222,9 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - monthly truck mileage calculation from Wialon trip history
   - short in-memory cache for monthly mileage results
 - `node_backend/services/geofenceTrackingService.js`
-  - polls Wialon geofence membership for active deliveries
-  - writes first-entry route history
-  - records system `Finish Order` step using default company geofence
+  - GPS: zone-entry timeline, sequential repeated-zone assign, same-zone min-away finish guard
+  - Manual: `applyDueManualEtaHits()` for no-GPS / `is_manual_mode` SPKs
+  - records `system:finish_order`; optional per-area finish geofence + Sankyu fallback
 - `node_backend/services/schemaSyncService.js`
   - legacy runtime schema safety net for tracking-related columns/tables
 - `node_backend/routes/truck.js`
@@ -388,6 +382,10 @@ Required or currently used variables:
 - `WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS`
 - `GEOFENCE_TRACKING_INTERVAL_MS`
 - `DEFAULT_FINISH_GEOFENCE_NAME`
+- `GEOFENCE_REQUIRE_PREVIOUS_STOP` (default `0` = loose stop order)
+- `GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH` (default `0` = loose finish)
+- `GEOFENCE_FINISH_MIN_AWAY_SEC` (default `1200` = 20 min leave for same-zone finish)
+- `GEOFENCE_FINISH_MIN_AWAY_M` (default `1000` = 1 km away for same-zone finish)
 
 ### Example File
 
@@ -662,9 +660,10 @@ npm run build-only
 
 - `sales_cost.departure_datetime` DATETIME NOT NULL (was `delivery_order DATE`)
 - `sales_cost.arrival_datetime` DATETIME NULL (was `arrival_order DATE`)
-- `sales_cost.finish_order_datetime` DATETIME NULL (was `finish_order DATE`)
+- `sales_cost.finish_order_datetime` DATETIME NULL (was `finish_order DATE`) — often **planned ETA at create**, not actual completion
+- `sales_cost.is_manual_mode` TINYINT(1) NOT NULL DEFAULT 0 — manual/no-GPS SPK; drives ETA auto-hits
 - `sales_cost_step_schedule`: `stop_order`, `stop_name`, `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`, `is_departure`, `is_finish`, `estimated_arrival` (no more `id_area_route_step`)
-- `sales_cost_route_history`: has `id_sc_stop INT NULL` for per-stop tracking
+- `sales_cost_route_history`: `id_sc_stop INT NULL`, `is_manual`, nullable wialon fields; completion key `system:finish_order`
 - `delivery_notifications`: `id_sc_stop INT NULL`, `step_name VARCHAR(100) NULL`
 
 ## Active Branch
@@ -771,26 +770,42 @@ npm run build-only
 
 - `SchedulePengiriman.vue` — fixed garbled separator characters in date range display. Was `{{ filters.startDate }} → {{ filters.endDate }}` (broken encoding); now uses HTML entities `&mdash;` and `&bull;` for clean display.
 
-## Key Business Logic Rules (post-2026-07-20)
+## Key Business Logic Rules (post-2026-07-24)
 
 ### "Dalam Perjalanan" (on_trip) definition
 A truck is `on_trip` in Monitoring Kendaraan if ALL of:
 1. `truck.is_active = 1`
-2. `sales_cost.departure_datetime IS NOT NULL` and within 60 days
+2. `sales_cost.departure_datetime IS NOT NULL` and within **14 days**
 3. `NOT EXISTS (system:finish_order in sales_cost_route_history)` — delivery not yet finished
-4. `EXISTS (sales_cost_step_schedule for this sales_cost)` — GPS tracking configured
+4. `EXISTS (sales_cost_step_schedule for this sales_cost)` — has a delivery timeline
+
+### "Transaksi" monitoring bucket
+Active unfinished SPKs with a step schedule and arrival window. **Must have** `sales_cost_step_schedule` rows (empty-schedule SPKs are excluded so they do not appear as Transaksi without a timeline).
 
 ### "system:finish_order" as single source of truth
-`system:finish_order` in `sales_cost_route_history` is the authoritative signal that a delivery is complete. It is written by:
-- `geofenceTrackingService.js` — when truck enters finish geofence (GPS-triggered)
-- `salesCost.js POST /:id/check-in` — when user manually check-ins a stop with `is_finish = 1` (manual trigger)
+`system:finish_order` in `sales_cost_route_history` is the **only** authoritative signal that a delivery is complete. Written by:
+- `geofenceTrackingService.js` — GPS finish (loose + same-zone min-away guard)
+- `applyDueManualEtaHits()` — manual/no-GPS when finish ETA is due
+- `salesCost.js` check-in / complete-all — manual admin/user actions
 
-`finish_order_datetime` in `sales_cost` is set at the same time as a convenience field, but is NOT used as the primary gate for on_trip classification.
+`sales_cost.finish_order_datetime` is often filled at **create time as planned ETA**. It is **not** proof of completion. Prefer finish-stop `scss.estimated_arrival` for overdue deadlines; completion = history only.
+
+### Schedule status
+- `completed` = `finishHit` (`system:finish_order` present), even if middle stops were skipped
+- Middle stops never GPS-hit after finish → UI badge **Geofence dilewati**
+- `overdue` = planned finish ETA past and not finished (not completed)
 
 ### Overdue deadline
-- Monitoring Kendaraan `is_overdue`: `finish_order_datetime < NOW()` AND `NOT EXISTS system:finish_order`
-- Schedule Pengiriman `overdue` status: `finish_order_datetime < NOW()` AND `finishHit = false`
-- Per-stop overdue in Schedule timeline: `estimated_arrival < NOW()` AND stop not yet hit in route_history
+- Prefer finish-stop `estimated_arrival` on `sales_cost_step_schedule`
+- Fallback: `sc.finish_order_datetime` then `arrival_datetime`
+- Never treat `sc.finish_order_datetime` alone as “delivery finished”
+
+### Manual / no-GPS auto timeline
+Eligible for ETA auto-hits only if:
+- `sales_cost.is_manual_mode = 1`, **or**
+- truck has no `wialon_unit_id`
+
+When `NOW ≥ stop.estimated_arrival`, insert history with `is_manual=1` and `gps_time = ETA`. Finish due → also `system:finish_order`.
 
 ### Password security
 - Login: bcrypt dual-mode. New passwords hashed with bcrypt (12 rounds). Legacy plaintext passwords auto-upgrade on first successful login.
@@ -1173,3 +1188,63 @@ Semua HIGH bugs dari `docs/superpowers/plans/audit-bug-report.md` diselesaikan:
 
 #### RBAC Path Matching
 - Gunakan `path === route.path || path.startsWith(route.path + '/')` — **bukan** bare `startsWith(route.path)` — untuk whitelist RBAC. Pola lama bisa di-bypass dengan path yang diawali nama route yang sama.
+
+---
+
+## Updates (2026-07-23 / 2026-07-24 — Delivery Timeline Overhaul)
+
+Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plans live under `.opencode/plans/` (e.g. sequential zones, loose finish, manual ETA, audit C1/H1–H4, false-finish same-zone, multi-SPK M2 audit).
+
+### GPS polygon & sequential stops
+- `fetchZonePolygons`: Wialon flags **28 → 0 → 8** (flags:4 alone returns bounds without points — root cause of empty polygons / zero hits).
+- Live polygon map: correctly reads `Map<zoneId, {name, points}>` (not bare points array).
+- `msg.t` treated as **Unix seconds** (not ms).
+- `assignStopHits` + `seedConsumptionFromHistory`: repeated zones get distinct timestamps; history seeded each cycle.
+- Stop order **loose** (Opsi B): field visit order need not match `stop_order`.
+- Message window: planned departure **−12h** buffer so early GPS still counts.
+- Backfill uses the **same** assigner (no more first-hit-only reuse).
+
+### Finish GPS — loose + same-zone min-away (anti #44390)
+- Default: finish **without** requiring all middle stops (`GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH=0`).
+- Schedule: `completed` when `system:finish_order` exists; skipped middles → **Geofence dilewati**.
+- **Same-zone finish** (Departure zone = Finish zone, typical Sankyu): require after planned `departure_datetime` either:
+  - meaningful leave: **≥20 min** outside and/or **≥1 km** from base centroid, **or**
+  - ≥1 middle stop GPS-hit after departure  
+  then re-entry = finish. Blocks ignition/idle false finish (SPK #44390 pattern).
+- Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000).
+- Helpers: `analyzeBaseExit`, `resolveFinishGpsHit` (exported for tests in `scripts/test-geofence-assign.js`).
+
+### Manual mode / no-GPS auto-finish by ETA
+- Column `sales_cost.is_manual_mode` (migration `20260723000012`; also in `fix-missing-tables.js`).
+- Form `SalesCostForm.vue` sends `is_manual_mode` on create/update.
+- `applyDueManualEtaHits()` in each tracking cycle: auto-hit due stops; finish ETA due → `system:finish_order` (`is_manual=1`, `gps_time` = ETA).
+- Eligible: `is_manual_mode=1` **or** empty `wialon_unit_id` only (not “GPS truck with empty zones”).
+
+### Critical / High audit fixes (C1, H1–H4)
+- **C1:** map `departure_datetime` onto GPS candidates; skip invalid departure.
+- **H2:** GPS candidates limited to last **30 days**.
+- **H4:** manual ETA eligibility tightened (see above).
+- **H1:** Schedule/Monitoring overdue prefer finish-stop ETA; active transaksi uses **no** `system:finish_order` (not `finish_order_datetime IS NULL`); transaksi list requires **exists** step_schedule (fixes empty-timeline SPKs #44335/#44336 showing as Transaksi after H1).
+
+### Monitoring / Schedule UI labels
+- Badge **Geofence dilewati** for middle stops after finish without GPS hit (Schedule + Detail SC + Excel export).
+- Finish longgar product: skip tujuan + return base can complete SPK when min-away (or middle hit) satisfied.
+
+### Multi-SPK same truck (M2) — audited, not fully product-fixed
+- Tracking still finishes **each** active SPK independently with loose finish → shared Sankyu re-entry can close multiple SPKs (documented in `.opencode/plans/audit-m2-multi-spk-finish.md`).
+- Recommended future policy **D**: multi-active → require all middle hits before auto-finish; single-active keep loose. **Not implemented yet.**
+
+### Case notes (ops reference)
+- **#44363** Daikin: empty polygons (flags) + early visit window — fixed by polygon flags + buffer.
+- **#44368** Finish Sankyu: membership-only finish + null area finish cols — fixed by timeline finish + scss/Sankyu fallback.
+- **#44361** stuck GPS unit: no trip trail in Wialon — data issue, not app finish logic.
+- **#44360** skip Jotun, return Sankyu: loose finish + insert verified.
+- **#44390** false finish at base on ignition: same-zone min-away guard (this section).
+
+### Deploy / DB notes (unchanged path)
+- Local prod frontend: `vite --mode local-prod` (no forced `VITE_API_URL`).
+- After production dump import: prefer `npm run migrate:fix-missing` over bare adopt-existing.
+- WIB = UTC+7 for backfill windows when diagnosing Wialon times.
+
+### Tests
+- `node_backend/scripts/test-geofence-assign.js` — sequential zones, loose finish, same-zone min-away / #44390-like cases.
