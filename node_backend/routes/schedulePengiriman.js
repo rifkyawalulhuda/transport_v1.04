@@ -36,6 +36,67 @@ const parsePositiveInt = (value, fallback) => {
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** @returns {Date|null} */
+const parseDateSafe = (value) => {
+  if (value == null || value === "") return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+};
+
+/**
+ * Actual departure → actual finish as "X hari Y jam Z mnt", or "-".
+ */
+const formatDurationId = (fromVal, toVal) => {
+  const from = parseDateSafe(fromVal);
+  const to = parseDateSafe(toVal);
+  if (!from || !to) return "-";
+  const totalMs = to.getTime() - from.getTime();
+  if (!Number.isFinite(totalMs) || totalMs < 0) return "-";
+  const totalMin = Math.floor(totalMs / 60000);
+  const days = Math.floor(totalMin / (24 * 60));
+  const hours = Math.floor((totalMin % (24 * 60)) / 60);
+  const mins = totalMin % 60;
+  return `${days} hari ${hours} jam ${mins} mnt`;
+};
+
+/**
+ * Actual − estimated in whole minutes (positive = late). Null if either missing.
+ * @returns {number|null}
+ */
+const diffMinutes = (actualVal, estimatedVal) => {
+  const actual = parseDateSafe(actualVal);
+  const estimated = parseDateSafe(estimatedVal);
+  if (!actual || !estimated) return null;
+  return Math.round((actual.getTime() - estimated.getTime()) / 60000);
+};
+
+/**
+ * Human-readable signed duration for Excel: "1 jam 56 mnt", "-45 mnt", "tepat".
+ * Omit zero units; leading "-" means earlier than estimate.
+ */
+const formatSignedDurationId = (totalMinutes) => {
+  if (totalMinutes == null || !Number.isFinite(Number(totalMinutes))) return "-";
+  const n = Math.trunc(Number(totalMinutes));
+  if (n === 0) return "tepat";
+  const sign = n < 0 ? "-" : "";
+  let rem = Math.abs(n);
+  const days = Math.floor(rem / 1440);
+  rem %= 1440;
+  const hours = Math.floor(rem / 60);
+  const mins = rem % 60;
+  const parts = [];
+  if (days) parts.push(`${days} hari`);
+  if (hours) parts.push(`${hours} jam`);
+  if (mins) parts.push(`${mins} mnt`);
+  return sign + (parts.length ? parts.join(" ") : "0 mnt");
+};
+
+const formatDiffMinutes = (actualVal, estimatedVal) => {
+  const n = diffMinutes(actualVal, estimatedVal);
+  return formatSignedDurationId(n);
+};
+
 const resolveScheduleStatus = ({
   departureDatetime,
   arrivalDatetime,
@@ -279,10 +340,12 @@ router.get("/export", authenticateToken, async (req, res) => {
       { header: "Jenis Trip", key: "jenis_trip", width: 14 },
       { header: "No. PO", key: "no_po", width: 16 },
       { header: "Status SPK", key: "status_spk", width: 16 },
+      { header: "Jumlah Hari (Aktual)", key: "durasi_aktual", width: 22 },
       { header: "Stop", key: "stop_name", width: 20 },
       { header: "Nama Geofence", key: "geofence_name", width: 24 },
       { header: "Estimasi Tiba", key: "est_arrival", width: 20 },
       { header: "Aktual Tiba", key: "actual_arrival", width: 20 },
+      { header: "Selisih Waktu (Est vs Aktual)", key: "selisih_menit", width: 26 },
       { header: "Status Stop", key: "stop_status", width: 14 },
       { header: "Sumber Aktual", key: "source", width: 16 },
       { header: "Koordinat GPS", key: "gps_coords", width: 28 },
@@ -339,6 +402,16 @@ router.get("/export", authenticateToken, async (req, res) => {
       const groupColor = GROUP_COLORS[groupIndex % 2];
       groupIndex++;
 
+      // Actual dep → finish duration (only when both GPS/manual hits exist)
+      const depActual =
+        timeline.find((s) => s.is_departure && s.hit)?.actual_arrival || null;
+      const finFromStop =
+        timeline.find((s) => s.is_finish && s.hit)?.actual_arrival || null;
+      const finFromHistory =
+        history.find((h) => h.step_key === "system:finish_order")?.gps_time || null;
+      const finActual = finFromStop || finFromHistory || null;
+      const durasiAktual = formatDurationId(depActual, finActual);
+
       if (stops.length === 0) {
         // No stops — one row only
         const r = sheet.addRow({
@@ -352,10 +425,12 @@ router.get("/export", authenticateToken, async (req, res) => {
           jenis_trip: sc.jenis_trip || "-",
           no_po: sc.no_po || "-",
           status_spk: statusLabel(schedule_status),
+          durasi_aktual: durasiAktual,
           stop_name: "-",
           geofence_name: "-",
           est_arrival: "-",
           actual_arrival: "-",
+          selisih_menit: "-",
           stop_status: "-",
           source: "-",
           gps_coords: "-",
@@ -394,11 +469,13 @@ router.get("/export", authenticateToken, async (req, res) => {
             jenis_trip: si === 0 ? (sc.jenis_trip || "-") : "",
             no_po: si === 0 ? (sc.no_po || "-") : "",
             status_spk: si === 0 ? statusLabel(schedule_status) : "",
+            durasi_aktual: si === 0 ? durasiAktual : "",
             // Stop-specific columns always filled
             stop_name: stop.stop_name || "-",
             geofence_name: stop.wialon_zone_name || "-",
             est_arrival: fmtDt(stop.estimated_arrival),
             actual_arrival: fmtDt(stop.actual_arrival),
+            selisih_menit: formatDiffMinutes(stop.actual_arrival, stop.estimated_arrival),
             stop_status: stopStatus,
             source,
             gps_coords: (stop.gps_lat && stop.gps_lon)
@@ -422,10 +499,10 @@ router.get("/export", authenticateToken, async (req, res) => {
       }
     }
 
-    // Apply cell merging for columns 1–10 on multi-stop groups
+    // Merge SPK-level columns 1–11 (includes Jumlah Hari) on multi-stop groups
     // Must be done AFTER all rows are written and fills applied
     for (const { startRow, endRow } of mergeGroups) {
-      for (let col = 1; col <= 10; col++) {
+      for (let col = 1; col <= 11; col++) {
         sheet.mergeCells(startRow, col, endRow, col);
         // Re-apply alignment on merged cell (merge resets it)
         const cell = sheet.getCell(startRow, col);

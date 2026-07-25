@@ -105,6 +105,7 @@ const router = createRouter({
       component: () => import('../views/Transaksi/Subcontractor.vue'),
       meta: {
         title: 'Sub Contractor',
+        allowCS: true,
       },
     },
     {
@@ -113,6 +114,7 @@ const router = createRouter({
       component: () => import('../views/Transaksi/InputSubcontractor.vue'),
       meta: {
         title: 'Input Sub Contractor',
+        allowCS: true,
       },
     },
     {
@@ -121,6 +123,7 @@ const router = createRouter({
       component: () => import('../views/Transaksi/EditSubcontractor.vue'),
       meta: {
         title: 'Edit Sub Contractor',
+        allowCS: true,
       },
     },
     {
@@ -129,6 +132,16 @@ const router = createRouter({
       component: () => import('../views/Transaksi/DetailSubcontractor.vue'),
       meta: {
         title: 'Detail Sub Contractor',
+        allowCS: true,
+      },
+    },
+    {
+      path: '/subcontractor/:id/print',
+      name: 'Print Sub Contractor',
+      component: () => import('../views/Transaksi/PrintSubcontractor.vue'),
+      meta: {
+        title: 'Print Subcontractor',
+        allowCS: true,
       },
     },
     {

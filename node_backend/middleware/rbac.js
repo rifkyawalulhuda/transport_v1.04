@@ -14,7 +14,15 @@ const isAllowedForCs = (req) => {
   const allowedRoutes = [
     { method: "GET", path: "/schedule-pengiriman" },
     { method: "GET", path: "/auth/me" },
-    { method: "PUT", path: "/auth/me" }
+    { method: "PUT", path: "/auth/me" },
+    // Subcontractor (CS: list/detail/create/edit — no DELETE)
+    { method: "GET", path: "/subcontractor" },
+    { method: "POST", path: "/subcontractor" },
+    { method: "PUT", path: "/subcontractor" },
+    // Master options for Subcontractor form
+    { method: "GET", path: "/warehouses" },
+    { method: "GET", path: "/customers" },
+    { method: "GET", path: "/subconts" }
   ];
 
   return allowedRoutes.some(

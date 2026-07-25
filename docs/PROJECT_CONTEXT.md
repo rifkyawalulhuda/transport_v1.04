@@ -147,13 +147,15 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - chronological zone entries; repeated zones get distinct visit times
   - loose stop order (field may skip/reorder)
   - planned route (`sales_cost_step_schedule`) vs actual history (`sales_cost_route_history`) stay separate
-- System step `Finish Order` (`system:finish_order`) is recorded when the truck qualifies for finish geofence (loose by default; same-zone base requires min-away or middle hit — see Geofence Tracking Flow).
+- System step `Finish Order` (`system:finish_order`) is recorded when the truck qualifies for finish geofence (loose by default; same-zone base requires min-away or middle hit — see Geofence Tracking Flow), or via manual ETA / age-distance auto-finish / admin check-in.
 - Finish geofence resolution order: area.finish_geofence_* → scss finish-stop zone → default name `Sankyu` (`DEFAULT_FINISH_GEOFENCE_NAME`).
+- Unfinished SPKs can also auto-close by **trip distance + age** after planned departure (see age/distance auto-finish).
 - Sales Cost detail now includes a `Riwayat Geofence Pengiriman` section that shows:
   - planned steps
   - visited steps with timestamps
   - pending steps
   - light badge for out-of-order visits
+  - middle stops never GPS-hit after finish → **Geofence dilewati**
 
 ## Wialon Integration
 
@@ -190,14 +192,27 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 
 ### Geofence Tracking Flow (current — Jul 2026)
 
-1. Backend loads active GPS Sales Cost candidates: truck has `wialon_unit_id`, at least one stop with `wialon_zone_id`, no `system:finish_order` yet, `departure_datetime` within last **30 days**. Multi-SPK per truck: **all** active SPKs are tracked (H9).
+Sync cycle order each `GEOFENCE_TRACKING_INTERVAL_MS` (default 60s):  
+`syncGeofenceRouteHistory` (GPS) → `applyDueManualEtaHits` (manual ETA) → `applyDueDistanceAgeFinish` (age/distance) → arrival delays → purge notifications.
+
+1. **GPS candidates:** truck has `wialon_unit_id`, at least one stop with `wialon_zone_id`, no `system:finish_order` yet, `departure_datetime` within last **30 days**. Multi-SPK per truck: **all** active SPKs are tracked (H9).
 2. Stop → geofence mappings come from `sales_cost_step_schedule` (step key `stop:{scss.id}`). `area_route_step` is only for Surat Jalan printing.
-3. Every `GEOFENCE_TRACKING_INTERVAL_MS` (default 60s): login Wialon → fetch raw GPS messages (from planned departure − 12h buffer to now) → `fetchZonePolygons` (flags 28/0/8 for points) → `buildZoneEntryTimeline` + `assignStopHits` (point-in-polygon entry events).
-4. **Stop hits (GPS):** `gps_time` = actual GPS entry time (not ETA). Repeated zones (e.g. KIIC→GIIC→KIIC) use chronological re-entries; history is seeded each cycle so visit #2 never reuses visit #1 timestamp. Stop order is **loose** (Opsi B): a later stop may hit without previous stop.
-5. **Finish (GPS, loose by default):** inserts `system:finish_order` even if middle stops were skipped. When Departure zone = Finish zone (typical Sankyu), finish requires **meaningful leave after planned departure** (≥20 min away and/or ≥1 km from base centroid) **or** ≥1 middle stop hit after departure — blocks ignition/idle false finish (#44390). Env: `GEOFENCE_FINISH_MIN_AWAY_SEC`, `GEOFENCE_FINISH_MIN_AWAY_M`.
-6. **Manual / no-GPS path:** `applyDueManualEtaHits()` in the same cycle auto-hits stops when `NOW ≥ estimated_arrival` for SPKs with `is_manual_mode=1` or truck without `wialon_unit_id`. Finish stop due → also writes `system:finish_order` (`is_manual=1`).
-7. Dedup via existing history keys / `INSERT IGNORE`. Startup backfill + `POST /api/wialon/backfill` still available.
-8. UI: middle stops never hit after finish → badge **Geofence dilewati**; departure without history but later hit → `inferred_passed`.
+3. **GPS trail:** login Wialon → fetch raw GPS messages (planned departure **−12h** buffer → now) → `fetchZonePolygons` (flags 28/0/8 for points) → `buildZoneEntryTimeline` + `assignStopHits` (point-in-polygon entry events).
+4. **Stop hits (GPS):** `gps_time` = actual GPS entry time (not ETA). Repeated zones (e.g. KIIC→GIIC→KIIC) use chronological re-entries; history is seeded each cycle so visit #2 never reuses visit #1 timestamp. Stop order is **loose** (Opsi B): a later stop may hit without previous stop (`GEOFENCE_REQUIRE_PREVIOUS_STOP=0`).
+5. **Finish (GPS, loose by default):** inserts `system:finish_order` even if middle stops were skipped (`GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH=0`).  
+   - **Hard gate:** `now >= planned departure` before finish may be recorded.  
+   - **Same-zone** (Departure = Finish, typical Sankyu): require meaningful leave within **lookback** before planned dep (`GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC`, default **4h**): ≥20 min outside and/or ≥1 km from base centroid, **or** ≥1 middle stop hit in that window — then re-entry = finish (re-entry may be **before** planned dep). Blocks ignition false finish (#44390); allows early trip+return (#44394).  
+   - Env: `GEOFENCE_FINISH_MIN_AWAY_SEC`, `GEOFENCE_FINISH_MIN_AWAY_M`, `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC`.  
+   - Helpers: `analyzeBaseExit`, `resolveFinishGpsHit`.
+6. **Manual / no-GPS path:** `applyDueManualEtaHits()` auto-hits stops when `NOW ≥ estimated_arrival` for SPKs with `is_manual_mode=1` or truck without `wialon_unit_id`. Finish stop due → `system:finish_order` (`is_manual=1`, `gps_time` = ETA).
+7. **Age / distance auto-finish (all active SPKs):** `applyDueDistanceAgeFinish()` after GPS + manual.  
+   - Candidates: unfinished, planned dep in lookback (default **60 days**), dep at least min-bracket days ago (default **3**).  
+   - Distance = max haversine between Departure zone centroid and middle (or finish) stop centroids; if polygons missing → distance `null` → fallback days.  
+   - Bracket: **≤60 km → 3 days**, **≤100 km → 7 days**, **>100 km → 10 days**; null distance → **3 days** fallback.  
+   - When `NOW ≥ departure_datetime + N days` → insert `system:finish_order` (`is_manual=1`, snapshot name `Auto Finish (Jarak/Umur)`).  
+   - Dry-run: `GEOFENCE_AGE_FINISH_DRY_RUN=1` logs only. Helpers: `computeTripDistanceKm`, `resolveAgeFinishDays`, `isDueForAgeFinish`.
+8. Dedup via existing history keys / `INSERT IGNORE`. Startup backfill + `POST /api/wialon/backfill` still available.
+9. UI: middle stops never hit after finish → badge **Geofence dilewati**; departure without history but later hit → `inferred_passed`. Schedule **completed** only when `system:finish_order` exists (not from `sc.finish_order_datetime` alone).
 
 ### Wialon Response Notes
 
@@ -222,9 +237,11 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - monthly truck mileage calculation from Wialon trip history
   - short in-memory cache for monthly mileage results
 - `node_backend/services/geofenceTrackingService.js`
-  - GPS: zone-entry timeline, sequential repeated-zone assign, same-zone min-away finish guard
+  - GPS: zone-entry timeline, loose/repeated-zone assign, same-zone min-away + leave lookback finish (`resolveFinishGpsHit`)
   - Manual: `applyDueManualEtaHits()` for no-GPS / `is_manual_mode` SPKs
+  - Age/distance: `applyDueDistanceAgeFinish()` auto-closes stuck SPKs by km bracket + days since planned dep
   - records `system:finish_order`; optional per-area finish geofence + Sankyu fallback
+  - unit tests: `node_backend/scripts/test-geofence-assign.js`
 - `node_backend/services/schemaSyncService.js`
   - legacy runtime schema safety net for tracking-related columns/tables
 - `node_backend/routes/truck.js`
@@ -238,6 +255,15 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 - `node_backend/routes/salesCost.js`
   - sales cost detail now includes route plan and geofence route history
   - rejects inactive trucks for new transactions, import, and truck changes
+- `node_backend/routes/schedulePengiriman.js`
+  - Schedule list + status; Excel export with per-stop est/aktual, **Jumlah Hari (Aktual)**, **Selisih Waktu (Est vs Aktual)**
+- `node_backend/routes/subcontractor.js`
+  - Subcontractor CRUD; multi-stop `delivery_stops`; Excel export with separate Departure/Tujuan/Finish columns
+  - Detail GET joins creator (`created_by_name` / `created_by_nik`); PUT does not overwrite creator `nik_admin` (stores `id_admin`)
+- `tailadmin-vuejs-1.0.0/src/components/subcontractor/SubcontractorForm.vue`
+  - Input/Edit form: 4 section cards (Mitra, Kendaraan, Jadwal manual timeline, Biaya); no geofence
+- `tailadmin-vuejs-1.0.0/src/views/Transaksi/PrintSubcontractor.vue`
+  - A4 Portrait print: **Laporan Subcontractor** (operational only, no cost figures)
 - `tailadmin-vuejs-1.0.0/src/views/Monitoring/TruckLocationMap.vue`
   - 3-panel operational workspace UI
   - Leaflet marker sync and focus behavior
@@ -298,6 +324,11 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - updates route-step configuration and regenerates `nama_area`
 - `GET /api/sales-costs/:id`
   - now also returns `route_steps` and `route_history`
+- `GET /api/subcontractor/:id`
+  - returns header + `delivery_stops` + `created_by_name` / `created_by_nik`
+- `GET /api/subcontractor/export`
+  - Excel one row per transaction; dynamic **Tujuan 1…N** columns from batch max middle stops
+- Frontend print: `/subcontractor/:id/print` (CS allowed)
 
 ## Database Notes
 
@@ -386,6 +417,15 @@ Required or currently used variables:
 - `GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH` (default `0` = loose finish)
 - `GEOFENCE_FINISH_MIN_AWAY_SEC` (default `1200` = 20 min leave for same-zone finish)
 - `GEOFENCE_FINISH_MIN_AWAY_M` (default `1000` = 1 km away for same-zone finish)
+- `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default `14400` = 4h leave-evidence window before planned dep; early trip #44394)
+- `GEOFENCE_AGE_FINISH_SHORT_KM` (default `60`)
+- `GEOFENCE_AGE_FINISH_MID_KM` (default `100`)
+- `GEOFENCE_AGE_FINISH_DAYS_SHORT` (default `3`)
+- `GEOFENCE_AGE_FINISH_DAYS_MID` (default `7`)
+- `GEOFENCE_AGE_FINISH_DAYS_LONG` (default `10`)
+- `GEOFENCE_AGE_FINISH_DAYS_FALLBACK` (default `3` when distance unknown)
+- `GEOFENCE_AGE_FINISH_LOOKBACK_DAYS` (default `60` — how far back unfinished SPKs are scanned)
+- `GEOFENCE_AGE_FINISH_DRY_RUN` (`1` = log only, no INSERT)
 
 ### Example File
 
@@ -665,6 +705,8 @@ npm run build-only
 - `sales_cost_step_schedule`: `stop_order`, `stop_name`, `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`, `is_departure`, `is_finish`, `estimated_arrival` (no more `id_area_route_step`)
 - `sales_cost_route_history`: `id_sc_stop INT NULL`, `is_manual`, nullable wialon fields; completion key `system:finish_order`
 - `delivery_notifications`: `id_sc_stop INT NULL`, `step_name VARCHAR(100) NULL`
+- `sub_contractor.nik_admin` INT — stores **`admin.id_admin` of creator** (not NIK string; JWT `nik_admin` like `CLC003` must not be written here)
+- `sub_contractor_step_schedule` — planned multi-stop schedule for subcontractor (no Wialon columns): `stop_order`, `stop_name`, `is_departure`, `is_finish`, `estimated_arrival`
 
 ## Active Branch
 
@@ -784,8 +826,9 @@ Active unfinished SPKs with a step schedule and arrival window. **Must have** `s
 
 ### "system:finish_order" as single source of truth
 `system:finish_order` in `sales_cost_route_history` is the **only** authoritative signal that a delivery is complete. Written by:
-- `geofenceTrackingService.js` — GPS finish (loose + same-zone min-away guard)
+- `syncGeofenceRouteHistory` / `resolveFinishGpsHit` — GPS finish (loose + same-zone min-away + leave lookback)
 - `applyDueManualEtaHits()` — manual/no-GPS when finish ETA is due
+- `applyDueDistanceAgeFinish()` — age/distance auto-close (`is_manual=1`, name `Auto Finish (Jarak/Umur)`)
 - `salesCost.js` check-in / complete-all — manual admin/user actions
 
 `sales_cost.finish_order_datetime` is often filled at **create time as planned ETA**. It is **not** proof of completion. Prefer finish-stop `scss.estimated_arrival` for overdue deadlines; completion = history only.
@@ -807,6 +850,14 @@ Eligible for ETA auto-hits only if:
 
 When `NOW ≥ stop.estimated_arrival`, insert history with `is_manual=1` and `gps_time = ETA`. Finish due → also `system:finish_order`.
 
+### Age / distance auto-finish
+Closes **any** unfinished SPK (GPS or manual) when planned departure is old enough relative to trip distance:
+- Distance: max haversine (Departure zone centroid → middle/finish zone centroids); missing polygons → fallback days
+- **≤60 km → 3 days**, **≤100 km → 7 days**, **>100 km → 10 days**, unknown → **3 days**
+- Deadline: `departure_datetime + N days`; insert finish with `gps_time = NOW()`
+- Does not invent middle-stop hits; UI shows **Geofence dilewati** for unhit middles
+- Prefer GPS/manual finish first (runs later in the same cycle)
+
 ### Password security
 - Login: bcrypt dual-mode. New passwords hashed with bcrypt (12 rounds). Legacy plaintext passwords auto-upgrade on first successful login.
 - Admin CREATE/UPDATE: passwords always hashed before DB write.
@@ -819,8 +870,14 @@ When `NOW ≥ stop.estimated_arrival`, insert history with `is_manual=1` and `gp
 ### Schedule Pengiriman filter behavior
 - Date range filter is based on `departure_datetime` only — no hidden `arrival_datetime >= TODAY` restriction.
 - Default range: 7 days ago to 7 days ahead.
-- Client-side status filter (`filters.status`) is applied after server-side date/search results.
+- Status filter can be server-side via `?status=` (see Updates 2026-07-21).
 - Only transactions with `sales_cost_step_schedule` configured appear with GPS-tracked status; others appear as `waiting` or `on_trip` based on dates only.
+
+### Schedule Pengiriman Excel export (duration / selisih)
+- File: `node_backend/routes/schedulePengiriman.js` `GET /export` → `schedule-pengiriman_YYYY-MM-DD.xlsx`.
+- **19 columns**; merge SPK fields **1–11** (includes **Jumlah Hari (Aktual)**).
+- **Jumlah Hari (Aktual):** actual departure hit → actual finish (`formatDurationId` → `X hari Y jam Z mnt`); incomplete → `-`. Finish time from finish-stop hit or `system:finish_order.gps_time`.
+- **Selisih Waktu (Est vs Aktual):** per stop, `formatSignedDurationId` on (aktual − estimasi) minutes — e.g. `1 jam 56 mnt`, `-45 mnt`, `tepat`; missing times → `-`. Positive = late vs estimate.
 
 ---
 
@@ -986,69 +1043,56 @@ When `NOW ≥ stop.estimated_arrival`, insert history with `is_manual=1` and `gp
 ### Notifikasi Pengiriman — Scrollable Fix
 - `DeliveryNotificationBell.vue` — `<ul>` list notifikasi diubah dari `h-auto overflow-y-auto` menjadi `flex-1 min-h-0 overflow-y-auto`. `flex-1` mengisi sisa tinggi dropdown (480px - header - footer), `min-h-0` memungkinkan flex child shrink sehingga `overflow-y-auto` aktif.
 
-### Schedule Pengiriman — Export Excel
-**Backend:**
-- `schedulePengiriman.js` — tambah `ExcelJS = require('exceljs')` dan endpoint `GET /export` **sebelum** `GET /` (penting: harus sebelum agar tidak konflik route).
-- Params: `start_date` (YYYY-MM-DD), `end_date` (YYYY-MM-DD). Tanpa param = export semua data.
-- SQL parameterized, safe dari SQL injection. `delivery_stops` dan `route_history` di-fetch dengan `IN (placeholders)`.
-- Per-stop data menggunakan `resolveStopTimelineSummary` yang sudah ada — tidak duplikat kode.
-- Excel: 15 kolom, satu baris per stop, cell merge kolom 1–10 (No, No. SPK, No. Polisi, Driver, Customer, Rute, Trip, Jenis Trip, No. PO, Status SPK) untuk SPK dengan >1 stop.
-- Alternating group colors: putih (`FFFFFFFF`) dan biru-abu muda (`FFEBF3FB`) per grup SPK, bukan per-baris.
-- Merged cells di-align `vertical: "top"`.
-- Bug fix: query route_history yang salah pakai `step_name` dan `step_order` (tidak ada di tabel) → diperbaiki ke kolom yang benar (`id_sc_stop`, `gps_time`, `recorded_at`, `is_manual`, `recorded_at ASC`).
+### Schedule Pengiriman — Export Excel (current — Jul 2026)
+**Backend:** `node_backend/routes/schedulePengiriman.js` → `GET /export` (sebelum `GET /`).
+- Params: `start_date`, `end_date` (YYYY-MM-DD). Tanpa param = semua data.
+- Per-stop via `resolveStopTimelineSummary`; filename `schedule-pengiriman_YYYY-MM-DD.xlsx`.
+- **19 kolom**; satu baris per stop; **merge kolom 1–11** (info SPK + **Jumlah Hari (Aktual)**) untuk SPK multi-stop.
+- Alternating group colors per SPK; merged cells `vertical: "top"`.
 
-**Frontend:**
-- `SchedulePengiriman.vue` — tambah button "Export Excel" emerald di toolbar (setelah Reset button).
-- Modal `<Teleport to="body">` dengan `<Transition name="fade-export">`, 3 opsi: Per Bulan / Per Tahun / Semua Data.
-- Handler `doExportSP` — builds date params, calls `${API_BASE}/schedule-pengiriman/export`, downloads blob.
-- CSS `fade-export` transition di `<style scoped>`.
+**Helpers (export duration / selisih):**
+- `formatDurationId` — Aktual Departure → Aktual Finish → `X hari Y jam Z mnt` (atau `-` jika salah satu belum hit). Finish actual: stop finish hit, fallback `system:finish_order.gps_time`.
+- `diffMinutes` / `formatSignedDurationId` / `formatDiffMinutes` — selisih per stop: aktual − estimasi; human-readable omit-zero units.
 
-**Kolom Excel:**
+**Frontend:** `SchedulePengiriman.vue` — tombol Export Excel + modal (Per Bulan / Per Tahun / Semua Data) → blob download.
 
-| # | Kolom | Source |
-|---|---|---|
-| 1 | No. | auto-increment per grup SPK |
-| 2 | No. SPK | `id_sales_cost` |
-| 3 | No. Polisi | `no_police` |
-| 4 | Driver | `nama_driver` |
-| 5 | Customer | `nama_customer` |
-| 6 | Rute | `nama_area` |
-| 7 | Trip | `trip` |
-| 8 | Jenis Trip | `jenis_trip` |
-| 9 | No. PO | `no_po` |
-| 10 | Status SPK | `schedule_status` |
-| 11 | Stop | `stop_name` |
-| 12 | Estimasi Tiba | `estimated_arrival` |
-| 13 | Aktual Tiba | `actual_arrival` (GPS atau Manual) |
-| 14 | Status Stop | Tercapai / Terlewati (Otomatis) / Terlambat / Pending |
-| 15 | Sumber Aktual | GPS / Manual / - |
+**Kolom Excel (current):**
+
+| # | Kolom | Level | Source / notes |
+|---|---|---|---|
+| 1–10 | No. … Status SPK | SPK (merge) | identity + `schedule_status` |
+| 11 | **Jumlah Hari (Aktual)** | SPK (merge) | Actual dep → actual finish: `0 hari 3 jam 15 mnt`; `-` if incomplete |
+| 12 | Stop | stop | `stop_name` |
+| 13 | Nama Geofence | stop | `wialon_zone_name` |
+| 14 | Estimasi Tiba | stop | `estimated_arrival` |
+| 15 | Aktual Tiba | stop | `actual_arrival` (GPS/manual) |
+| 16 | **Selisih Waktu (Est vs Aktual)** | stop | human-readable: `1 jam 56 mnt`, `-45 mnt`, `tepat`, `-`; **+** = late vs est, **−** = early |
+| 17 | Status Stop | stop | see labels below |
+| 18 | Sumber Aktual | stop | GPS / Manual / - |
+| 19 | Koordinat GPS | stop | `lat, lon` 6 decimals if hit |
 
 **Status Stop labels:**
-- `"Tercapai"` — `stop.hit = true`
-- `"Terlewati (Otomatis)"` — `stop.inferred_passed = true` (departure di-skip tapi stop berikutnya hit)
-- `"Terlambat"` — `stop.overdue = true`
-- `"Pending"` — belum hit, belum overdue
+- `"Tercapai"` — hit
+- `"Geofence dilewati"` — middle never hit after finish
+- `"Terlewati (Otomatis)"` — inferred departure
+- `"Terlambat"` — overdue, not hit
+- `"Pending"` — not hit, not overdue
 
 ### Important Routes (tambahan)
 - `GET /api/schedule-pengiriman/export?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
-  - Export Schedule Pengiriman ke `.xlsx` dengan data per-stop (estimasi + aktual)
-  - Tanpa params = export semua data
-  - Cell merge untuk kolom info SPK pada SPK dengan >1 stop
-  - Alternating group colors per SPK
+  - Export Schedule Pengiriman ke `.xlsx` (per-stop est/aktual + durasi SPK + selisih waktu)
+  - Merge kolom 1–11; alternating group colors per SPK
 
 ---
 
 ## Updates (2026-07-21 continued — Export Enhancements, DB Deployment, Status Filter, Selesaikan Semua)
 
-### Schedule Pengiriman Export — Kolom Tambahan
+### Schedule Pengiriman Export — Kolom Tambahan (superseded by current 19-col layout)
 
-- `schedulePengiriman.js` (`GET /export`) — history query kini juga men-select `lat`, `lon` dari `sales_cost_route_history`.
-- `resolveStopTimelineSummary` — expose dua field baru per stop: `gps_lat`, `gps_lon` (diambil dari `historyEntry.lat/lon`, `null` jika stop belum `hit`).
-- Excel sekarang punya **17 kolom** (sebelumnya 15) — dua kolom baru ditambahkan:
-  - **"Nama Geofence"** (kolom 12, setelah "Stop") — dari `stop.wialon_zone_name` (nama zone yang dipilih saat input SPK, `sales_cost_step_schedule.wialon_zone_name`).
-  - **"Koordinat GPS"** (kolom 17, terakhir) — format `lat, lon` dengan 6 desimal dari `sales_cost_route_history.lat/lon`; hanya terisi jika stop sudah `hit` via GPS, `-` untuk stop Pending/Manual/Inferred.
-- Kedua kolom baru **tidak** termasuk dalam cell-merge group (hanya kolom 1–10 yang di-merge) karena nilainya berbeda per stop.
-- Label status stop "Inferred" diubah menjadi **"Terlewati (Otomatis)"** — lebih jelas dalam Bahasa Indonesia untuk end user.
+- History export selects `lat`, `lon`; timeline exposes `gps_lat` / `gps_lon`.
+- Added **Nama Geofence** + **Koordinat GPS**; later **Jumlah Hari (Aktual)** + **Selisih Waktu (Est vs Aktual)** (see current table above).
+- Merge range expanded to columns **1–11** when Jumlah Hari was added.
+- Status label **"Terlewati (Otomatis)"** for inferred departure; **"Geofence dilewati"** for skipped middles after finish.
 
 ### Schedule Pengiriman — Status Filter: Client-Side → Server-Side
 
@@ -1191,9 +1235,9 @@ Semua HIGH bugs dari `docs/superpowers/plans/audit-bug-report.md` diselesaikan:
 
 ---
 
-## Updates (2026-07-23 / 2026-07-24 — Delivery Timeline Overhaul)
+## Updates (2026-07-23 / 2026-07-24 / 2026-07-25 — Delivery Timeline Overhaul)
 
-Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plans live under `.opencode/plans/` (e.g. sequential zones, loose finish, manual ETA, audit C1/H1–H4, false-finish same-zone, multi-SPK M2 audit).
+Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plans live under `.opencode/plans/` (e.g. sequential zones, loose finish, manual ETA, audit C1/H1–H4, false-finish same-zone, multi-SPK M2 audit, early leave #44394, age/distance auto-finish).
 
 ### GPS polygon & sequential stops
 - `fetchZonePolygons`: Wialon flags **28 → 0 → 8** (flags:4 alone returns bounds without points — root cause of empty polygons / zero hits).
@@ -1204,14 +1248,15 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - Message window: planned departure **−12h** buffer so early GPS still counts.
 - Backfill uses the **same** assigner (no more first-hit-only reuse).
 
-### Finish GPS — loose + same-zone min-away (anti #44390)
+### Finish GPS — loose + same-zone min-away (anti #44390 / early leave #44394)
 - Default: finish **without** requiring all middle stops (`GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH=0`).
 - Schedule: `completed` when `system:finish_order` exists; skipped middles → **Geofence dilewati**.
-- **Same-zone finish** (Departure zone = Finish zone, typical Sankyu): require after planned `departure_datetime` either:
-  - meaningful leave: **≥20 min** outside and/or **≥1 km** from base centroid, **or**
-  - ≥1 middle stop GPS-hit after departure  
-  then re-entry = finish. Blocks ignition/idle false finish (SPK #44390 pattern).
-- Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000).
+- **Hard gate:** `now >= planned departure` before finish may be recorded.
+- **Same-zone finish** (Departure zone = Finish zone, typical Sankyu): require either:
+  - meaningful leave within lookback before planned dep: **≥20 min** outside and/or **≥1 km** from base centroid, **or**
+  - ≥1 middle stop GPS-hit in that lookback window  
+  then re-entry = finish (re-entry may be **before** planned dep). Blocks ignition/idle false finish (#44390); allows early trip+return (#44394).
+- Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000), `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default **14400** = 4h).
 - Helpers: `analyzeBaseExit`, `resolveFinishGpsHit` (exported for tests in `scripts/test-geofence-assign.js`).
 
 ### Manual mode / no-GPS auto-finish by ETA
@@ -1219,6 +1264,15 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - Form `SalesCostForm.vue` sends `is_manual_mode` on create/update.
 - `applyDueManualEtaHits()` in each tracking cycle: auto-hit due stops; finish ETA due → `system:finish_order` (`is_manual=1`, `gps_time` = ETA).
 - Eligible: `is_manual_mode=1` **or** empty `wialon_unit_id` only (not “GPS truck with empty zones”).
+
+### Age / distance auto-finish (all active SPKs) — 2026-07-25
+- After GPS + manual ETA each cycle: `applyDueDistanceAgeFinish()` in `runSyncCycle`.
+- Timer: `departure_datetime + N days` where N from trip distance (max haversine centroid Departure → middle/finish zones).
+- Bracket: **≤60 km → 3 days**, **≤100 km → 7 days**, **>100 km → 10 days**; no polygon distance → **fallback 3 days**.
+- Scan window: unfinished SPKs with dep in last **60 days** and at least **min bracket days** old (SQL prefilter).
+- Inserts `system:finish_order` (`is_manual=1`, snapshot name `Auto Finish (Jarak/Umur)`); middle stops stay **Geofence dilewati** if never hit.
+- Env: `GEOFENCE_AGE_FINISH_*` (km/days/lookback); `GEOFENCE_AGE_FINISH_DRY_RUN=1` logs only (no INSERT).
+- Helpers: `computeTripDistanceKm`, `resolveAgeFinishDays`, `isDueForAgeFinish` (exported; covered in `test-geofence-assign.js`).
 
 ### Critical / High audit fixes (C1, H1–H4)
 - **C1:** map `departure_datetime` onto GPS candidates; skip invalid departure.
@@ -1240,6 +1294,7 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - **#44361** stuck GPS unit: no trip trail in Wialon — data issue, not app finish logic.
 - **#44360** skip Jotun, return Sankyu: loose finish + insert verified.
 - **#44390** false finish at base on ignition: same-zone min-away guard (this section).
+- **#44394** early leave/return before planned dep (B 9979 SYM): leave lookback so re-entry ~minutes before dep still finishes after `now >= dep`; no LAFI polygon hit → Tujuan **Geofence dilewati**.
 
 ### Deploy / DB notes (unchanged path)
 - Local prod frontend: `vite --mode local-prod` (no forced `VITE_API_URL`).
@@ -1247,4 +1302,45 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - WIB = UTC+7 for backfill windows when diagnosing Wialon times.
 
 ### Tests
-- `node_backend/scripts/test-geofence-assign.js` — sequential zones, loose finish, same-zone min-away / #44390-like cases.
+- `node_backend/scripts/test-geofence-assign.js` — sequential zones, loose finish, same-zone min-away / #44390-like cases, early leave/return #44394, age-finish bracket/distance/due helpers.
+- Run: `cd node_backend && node scripts/test-geofence-assign.js`
+
+### Schedule export duration columns (2026-07-25)
+- Excel **19 columns**: merge **1–11** includes **Jumlah Hari (Aktual)** (`X hari Y jam Z mnt` from actual dep→finish).
+- Per-stop **Selisih Waktu (Est vs Aktual)**: human-readable signed duration (`1 jam 56 mnt` / `-…` / `tepat`); positive = late vs estimate.
+- Helpers: `formatDurationId`, `formatSignedDurationId`, `formatDiffMinutes` in `schedulePengiriman.js`.
+
+### Subcontractor — Jadwal manual, CS, export, print (2026-07-25)
+
+#### Schema & API
+- Table `sub_contractor_step_schedule` (migration `20260725000013` / `fix-missing-tables`): multi-stop planned times **without** Wialon/geofence.
+- `GET/POST/PUT` handle `delivery_stops`; replace-all stops on PUT when array provided.
+- `sub_contractor.nik_admin` = creator **`id_admin`** (numeric). POST sets from JWT `id_admin`; PUT **does not** overwrite creator.
+- Detail GET: `LEFT JOIN admin` → `created_by_name`, `created_by_nik`.
+- DELETE remains `requireAdmin`.
+
+#### Form (`SubcontractorForm.vue`)
+- Always **manual** timeline (Departure / Tujuan / Finish): `stop_name` + datetime; no geofence / GPS toggle.
+- Header `delivery_date` / `arrival_date` (DATE) synced from stops; `tujuan_pengiriman` auto-filled from **Finish stop name** (fallback join middle names).
+- Field **Tujuan Pengiriman** removed from UI (covered by jadwal).
+- Optional free-text: No. Polisi, Jenis Kendaraan, Tonase, Driver, No. Surat Jalan (not required).
+- Layout: 4 TailAdmin section cards — **Mitra & Pesanan**, **Kendaraan & Dokumen**, **Jadwal Pengiriman**, **Biaya & Tagihan**.
+
+#### CS privilege
+- Nav: Transaksi → Subcontractor; routes `allowCS: true` (list/new/edit/detail/**print**).
+- RBAC `isAllowedForCs`: GET/POST/PUT `/subcontractor` + GET `/warehouses`, `/customers`, `/subconts` (no DELETE, no export unless later whitelisted).
+
+#### Excel export (`GET /export`)
+- One row per transaction.
+- After Arrival Date: **Departure (Nama/Waktu)**, **Tujuan 1…N (Nama/Waktu)** (N = max middle stops in export batch), **Finish (Nama/Waktu)**.
+- Removed combined “Jadwal Pengiriman” string / Est. Departure-only columns.
+
+#### Print A4 Portrait
+- Route `/subcontractor/:id/print` → `PrintSubcontractor.vue`.
+- Title **Laporan Subcontractor**; operational summary + schedule table; **no** Cost/Sales/GP.
+- Entry: Detail **Print** button + list row action **Print**.
+- `@page { size: A4 portrait }`; flow layout (not absolute SPK clone).
+
+#### Detail page
+- **Dibuat Oleh**: `created_by_name (created_by_nik)`; `-` if `nik_admin` 0 / missing admin.
+- Optional list of planned stops when `delivery_stops` present.

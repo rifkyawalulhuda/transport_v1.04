@@ -12,7 +12,10 @@ const {
   seedConsumptionFromHistory,
   assignStopHits,
   resolveFinishGpsHit,
-  analyzeBaseExit
+  analyzeBaseExit,
+  computeTripDistanceKm,
+  resolveAgeFinishDays,
+  isDueForAgeFinish
 } = require('../services/geofenceTrackingService');
 
 const KIIC = '1:10';
@@ -489,6 +492,198 @@ function testStrictFinishRequiresAllStops() {
   console.log('OK strict finish still requires all stops');
 }
 
+/** #44394-like: leave+return before planned dep; finish after now >= dep */
+function testEarlyLeaveReturnBeforePlannedDepFinishes() {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const departureTs = nowSec - 3600; // planned dep 1h ago
+  const leaveTs = departureTs - 90 * 60; // 1.5h before planned
+  const reentryTs = departureTs - 3 * 60; // 3 min before planned
+  const messages = [
+    { t: leaveTs - 60, lat: 0.005, lon: 0.005 },
+    { t: leaveTs, lat: 0.2, lon: 0.2 },
+    { t: leaveTs + 25 * 60, lat: 0.2, lon: 0.2 },
+    { t: reentryTs, lat: 0.005, lon: 0.005 }
+  ];
+  const hit = resolveFinishGpsHit({
+    departureTs,
+    historyRows: [
+      {
+        id_sc_stop: 10,
+        step_key: 'stop:10',
+        gps_ts: leaveTs - 3600,
+        wialon_resource_id: 1,
+        wialon_zone_id: 1
+      }
+    ],
+    stops: [
+      { id: 10, is_departure: 1, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 1 },
+      { id: 11, is_departure: 0, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 79 }
+    ],
+    zoneTimeline: [
+      { zoneKey: SANKYU, entryTs: leaveTs - 3600 },
+      { zoneKey: SANKYU, entryTs: reentryTs }
+    ],
+    finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages,
+    finishPoints: BASE_POLY,
+    requireAllStopsBeforeFinish: false,
+    leaveLookbackSec: 14400
+  });
+  assert.ok(hit, '#44394 early leave/return must finish after planned dep');
+  assert.strictEqual(hit.entryTs, reentryTs);
+  console.log('OK early leave/return before planned dep finishes (#44394)');
+}
+
+function testNoFinishBeforePlannedDepartureDespiteEarlyTrip() {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const departureTs = nowSec + 3600; // planned dep still in future
+  const leaveTs = nowSec - 90 * 60;
+  const reentryTs = nowSec - 30 * 60;
+  const hit = resolveFinishGpsHit({
+    departureTs,
+    historyRows: [],
+    stops: [
+      { id: 1, is_departure: 1, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 1 }
+    ],
+    zoneTimeline: [
+      { zoneKey: SANKYU, entryTs: leaveTs - 100 },
+      { zoneKey: SANKYU, entryTs: reentryTs }
+    ],
+    finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages: [
+      { t: leaveTs - 100, lat: 0.005, lon: 0.005 },
+      { t: leaveTs, lat: 0.2, lon: 0.2 },
+      { t: leaveTs + 25 * 60, lat: 0.2, lon: 0.2 },
+      { t: reentryTs, lat: 0.005, lon: 0.005 }
+    ],
+    finishPoints: BASE_POLY,
+    leaveLookbackSec: 14400
+  });
+  assert.strictEqual(hit, null, 'must not finish before planned departure');
+  console.log('OK no finish before planned dep despite early trip');
+}
+
+function testMiddleHitBeforePlannedDepAllowsFinish() {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const departureTs = nowSec - 1800;
+  const middleTs = departureTs - 60 * 60;
+  const reentryTs = departureTs - 5 * 60;
+  const hit = resolveFinishGpsHit({
+    departureTs,
+    historyRows: [
+      { id_sc_stop: 10, step_key: 'stop:10', gps_ts: departureTs - 2 * 3600, wialon_resource_id: 1, wialon_zone_id: 1 },
+      { id_sc_stop: 11, step_key: 'stop:11', gps_ts: middleTs, wialon_resource_id: 1, wialon_zone_id: 79 }
+    ],
+    stops: [
+      { id: 10, is_departure: 1, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 1 },
+      { id: 11, is_departure: 0, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 79 }
+    ],
+    zoneTimeline: [
+      { zoneKey: SANKYU, entryTs: departureTs - 2 * 3600 },
+      { zoneKey: SANKYU, entryTs: reentryTs }
+    ],
+    finishZoneKey: SANKYU,
+    departureZoneKey: SANKYU,
+    messages: [
+      { t: departureTs - 2 * 3600, lat: 0.005, lon: 0.005 },
+      { t: middleTs, lat: 1, lon: 1 },
+      { t: reentryTs, lat: 0.005, lon: 0.005 }
+    ],
+    finishPoints: BASE_POLY,
+    leaveLookbackSec: 14400
+  });
+  assert.ok(hit, 'middle hit in lookback allows finish on early return');
+  assert.strictEqual(hit.entryTs, reentryTs);
+  console.log('OK middle hit before planned dep allows finish');
+}
+
+function testResolveAgeFinishDaysBracket() {
+  assert.strictEqual(resolveAgeFinishDays(null), 3);
+  assert.strictEqual(resolveAgeFinishDays(0), 3);
+  assert.strictEqual(resolveAgeFinishDays(60), 3);
+  assert.strictEqual(resolveAgeFinishDays(60.1), 7);
+  assert.strictEqual(resolveAgeFinishDays(100), 7);
+  assert.strictEqual(resolveAgeFinishDays(100.1), 10);
+  assert.strictEqual(resolveAgeFinishDays(250), 10);
+  console.log('OK age-finish days bracket');
+}
+
+function testIsDueForAgeFinish() {
+  const dep = 1_000_000;
+  const day = 24 * 60 * 60;
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep, distanceKm: 50, nowTs: dep + 2 * day }).due,
+    false
+  );
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep, distanceKm: 50, nowTs: dep + 3 * day }).due,
+    true
+  );
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep, distanceKm: 80, nowTs: dep + 6 * day }).due,
+    false
+  );
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep, distanceKm: 80, nowTs: dep + 7 * day }).due,
+    true
+  );
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep, distanceKm: 150, nowTs: dep + 9 * day }).due,
+    false
+  );
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep, distanceKm: 150, nowTs: dep + 10 * day }).due,
+    true
+  );
+  assert.strictEqual(
+    isDueForAgeFinish({ departureTs: dep + 1000, distanceKm: 10, nowTs: dep }).due,
+    false,
+    'not before planned dep'
+  );
+  console.log('OK age-finish due checks');
+}
+
+function testComputeTripDistanceKm() {
+  // ~1 degree lat ≈ 111 km; use small offset
+  const map = new Map([
+    [
+      '1:1',
+      {
+        points: [
+          { x: 107.0, y: -6.0 },
+          { x: 107.01, y: -6.0 },
+          { x: 107.01, y: -6.01 },
+          { x: 107.0, y: -6.01 }
+        ]
+      }
+    ],
+    [
+      '1:21',
+      {
+        points: [
+          { x: 107.4, y: -6.0 },
+          { x: 107.41, y: -6.0 },
+          { x: 107.41, y: -6.01 },
+          { x: 107.4, y: -6.01 }
+        ]
+      }
+    ]
+  ]);
+  const stops = [
+    { id: 1, is_departure: 1, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 1 },
+    { id: 2, is_departure: 0, is_finish: 0, wialon_resource_id: 1, wialon_zone_id: 21 }
+  ];
+  const km = computeTripDistanceKm({ stops, zonePolygonMap: map });
+  assert.ok(km != null && km > 40 && km < 50, `expected ~44km got ${km}`);
+  assert.strictEqual(
+    computeTripDistanceKm({ stops: [], zonePolygonMap: map }),
+    null
+  );
+  console.log('OK computeTripDistanceKm');
+}
+
 function main() {
   testFullSequence();
   testSeedPartialHistory();
@@ -507,7 +702,13 @@ function main() {
   testNoFinishIdleAtBaseWithoutLeave();
   testFinishAfterLeaveAndReturn();
   testStrictFinishRequiresAllStops();
-  console.log('\nAll geofence assign + loose finish + base-exit tests passed.');
+  testEarlyLeaveReturnBeforePlannedDepFinishes();
+  testNoFinishBeforePlannedDepartureDespiteEarlyTrip();
+  testMiddleHitBeforePlannedDepAllowsFinish();
+  testResolveAgeFinishDaysBracket();
+  testIsDueForAgeFinish();
+  testComputeTripDistanceKm();
+  console.log('\nAll geofence assign + loose finish + base-exit + age-finish tests passed.');
 }
 
 main();

@@ -39,6 +39,11 @@ export const getMenuGroups = (userLevel) => {
             subItems: [{ name: 'Schedule Pengiriman', path: '/schedule-pengiriman', pro: false }],
           },
           {
+            icon: DocsIcon,
+            name: 'Transaksi',
+            subItems: [{ name: 'Subcontractor', path: '/subcontractor', pro: false }],
+          },
+          {
             icon: UserCircleIcon,
             name: 'User Profile',
             path: '/profile',

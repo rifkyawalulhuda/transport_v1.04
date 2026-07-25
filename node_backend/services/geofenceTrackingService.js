@@ -4,7 +4,11 @@ const {
   fetchUnitsInZonesByResource,
   getUnitPositionMap,
   reverseGeocodeCoordinates,
-  pointInPolygon
+  pointInPolygon,
+  fetchRawMessagesForUnit,
+  fetchZonePolygons,
+  loginIsolatedSession,
+  logoutIsolatedSession
 } = require("./wialonService");
 
 const DEFAULT_INTERVAL_MS = Number.parseInt(
@@ -172,8 +176,9 @@ const DEFAULT_REQUIRE_PREVIOUS_STOP =
 const DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH =
   String(process.env.GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH || "0").trim() === "1";
 
-// Same-zone finish (Departure=Finish=Sankyu): require meaningful leave after trip start
-// so ignition/GPS blips at base do not complete the SPK (#44390).
+// Same-zone finish (Departure=Finish=Sankyu): require meaningful leave so ignition/GPS
+// blips at base do not complete the SPK (#44390). Leave evidence may start up to
+// LOOKBACK before planned departure so early trip+return still finishes (#44394).
 const FINISH_MIN_AWAY_SEC = (() => {
   const n = Number.parseInt(process.env.GEOFENCE_FINISH_MIN_AWAY_SEC || "1200", 10);
   return Number.isFinite(n) && n >= 0 ? n : 1200; // 20 min
@@ -182,6 +187,43 @@ const FINISH_MIN_AWAY_M = (() => {
   const n = Number.parseFloat(process.env.GEOFENCE_FINISH_MIN_AWAY_M || "1000");
   return Number.isFinite(n) && n >= 0 ? n : 1000; // 1 km
 })();
+const FINISH_LEAVE_LOOKBACK_SEC = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC || "14400", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 14400; // 4 h before planned dep
+})();
+
+// Auto-finish unfinished SPKs by trip distance (zone centroid) + age since planned dep
+const AGE_FINISH_SHORT_KM = (() => {
+  const n = Number.parseFloat(process.env.GEOFENCE_AGE_FINISH_SHORT_KM || "60");
+  return Number.isFinite(n) && n >= 0 ? n : 60;
+})();
+const AGE_FINISH_MID_KM = (() => {
+  const n = Number.parseFloat(process.env.GEOFENCE_AGE_FINISH_MID_KM || "100");
+  return Number.isFinite(n) && n > AGE_FINISH_SHORT_KM ? n : 100;
+})();
+const AGE_FINISH_DAYS_SHORT = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_AGE_FINISH_DAYS_SHORT || "3", 10);
+  return Number.isFinite(n) && n > 0 ? n : 3;
+})();
+const AGE_FINISH_DAYS_MID = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_AGE_FINISH_DAYS_MID || "7", 10);
+  return Number.isFinite(n) && n > 0 ? n : 7;
+})();
+const AGE_FINISH_DAYS_LONG = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_AGE_FINISH_DAYS_LONG || "10", 10);
+  return Number.isFinite(n) && n > 0 ? n : 10;
+})();
+const AGE_FINISH_DAYS_FALLBACK = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_AGE_FINISH_DAYS_FALLBACK || "3", 10);
+  return Number.isFinite(n) && n > 0 ? n : 3;
+})();
+const AGE_FINISH_LOOKBACK_DAYS = (() => {
+  const n = Number.parseInt(process.env.GEOFENCE_AGE_FINISH_LOOKBACK_DAYS || "60", 10);
+  return Number.isFinite(n) && n > 0 ? n : 60;
+})();
+const AGE_FINISH_DRY_RUN =
+  String(process.env.GEOFENCE_AGE_FINISH_DRY_RUN || "0").trim() === "1";
+const AGE_FINISH_STEP_NAME = "Auto Finish (Jarak/Umur)";
 
 /** Approx meters between two lat/lon points (haversine). */
 const haversineMeters = (lat1, lon1, lat2, lon2) => {
@@ -204,6 +246,99 @@ const polygonCentroid = (points) => {
     sy += Number(p.y) || 0;
   }
   return { lon: sx / points.length, lat: sy / points.length };
+};
+
+/**
+ * Max haversine km from departure zone centroid to middle (or finish) stop centroids.
+ * @returns {number|null} km or null when polygons unavailable
+ */
+const computeTripDistanceKm = ({ stops = [], zonePolygonMap = new Map() } = {}) => {
+  const list = Array.isArray(stops) ? stops : [];
+  const dep = list.find((s) => Number(s.is_departure) === 1);
+  if (!dep) return null;
+  const depRes = normalizePositiveIntString(dep.wialon_resource_id);
+  const depZ = normalizePositiveIntString(dep.wialon_zone_id);
+  if (!depRes || !depZ) return null;
+  const depKey = `${depRes}:${depZ}`;
+  const depPoints = zonePolygonMap.get(depKey)?.points;
+  const depC = polygonCentroid(depPoints);
+  if (!depC) return null;
+
+  const targets = list.filter(
+    (s) => Number(s.is_departure) !== 1 && Number(s.is_finish) !== 1
+  );
+  const finishStops = list.filter((s) => Number(s.is_finish) === 1);
+  const dests = targets.length > 0 ? targets : finishStops;
+  if (dests.length === 0) return null;
+
+  let maxM = 0;
+  let any = false;
+  for (const s of dests) {
+    const rId = normalizePositiveIntString(s.wialon_resource_id);
+    const zId = normalizePositiveIntString(s.wialon_zone_id);
+    if (!rId || !zId) continue;
+    const pts = zonePolygonMap.get(`${rId}:${zId}`)?.points;
+    const c = polygonCentroid(pts);
+    if (!c) continue;
+    const m = haversineMeters(depC.lat, depC.lon, c.lat, c.lon);
+    if (Number.isFinite(m)) {
+      any = true;
+      if (m > maxM) maxM = m;
+    }
+  }
+  if (!any) return null;
+  return Number((maxM / 1000).toFixed(3));
+};
+
+/**
+ * Days allowed open after planned departure from trip distance km.
+ * ≤shortKm → short days; ≤midKm → mid days; else long days; null → fallback.
+ */
+const resolveAgeFinishDays = (
+  distanceKm,
+  {
+    shortKm = AGE_FINISH_SHORT_KM,
+    midKm = AGE_FINISH_MID_KM,
+    daysShort = AGE_FINISH_DAYS_SHORT,
+    daysMid = AGE_FINISH_DAYS_MID,
+    daysLong = AGE_FINISH_DAYS_LONG,
+    daysFallback = AGE_FINISH_DAYS_FALLBACK
+  } = {}
+) => {
+  if (distanceKm == null || !Number.isFinite(Number(distanceKm))) {
+    return daysFallback;
+  }
+  const km = Number(distanceKm);
+  if (km <= shortKm) return daysShort;
+  if (km <= midKm) return daysMid;
+  return daysLong;
+};
+
+/**
+ * Whether SPK is due for age-based auto-finish.
+ * @returns {{ due: boolean, days: number, deadlineTs: number, distanceKm: number|null }}
+ */
+const isDueForAgeFinish = ({
+  departureTs,
+  distanceKm = null,
+  nowTs = Math.floor(Date.now() / 1000),
+  bracketOpts = {}
+} = {}) => {
+  const dep = Number(departureTs) || 0;
+  const now = Number(nowTs) || 0;
+  const days = resolveAgeFinishDays(distanceKm, bracketOpts);
+  if (dep <= 0 || now < dep) {
+    return { due: false, days, deadlineTs: 0, distanceKm: distanceKm ?? null };
+  }
+  const deadlineTs = dep + days * 24 * 60 * 60;
+  return {
+    due: now >= deadlineTs,
+    days,
+    deadlineTs,
+    distanceKm: distanceKm == null || !Number.isFinite(Number(distanceKm))
+      ? null
+      : Number(distanceKm)
+  };
 };
 
 /**
@@ -296,8 +431,10 @@ const analyzeBaseExit = ({
 
 /**
  * Resolve finish GPS hit (actual entry time, not ETA).
- * Same-zone finish (dep=finish Sankyu): require meaningful leave after planned
- * departure OR a middle-stop hit — blocks ignition false finish (#44390).
+ * Same-zone finish (dep=finish Sankyu): require meaningful leave within lookback
+ * before planned departure OR a middle-stop hit — blocks ignition false finish
+ * (#44390) while allowing early trip+return finish (#44394).
+ * Hard gate: now must be >= planned departure before finish may be recorded.
  *
  * @returns {{ entryTs: number, lat: number|null, lon: number|null, source: string }|null}
  */
@@ -313,7 +450,8 @@ const resolveFinishGpsHit = ({
   finishPoints = null,
   unitId = null,
   membershipHasUnit = false,
-  requireAllStopsBeforeFinish = DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH
+  requireAllStopsBeforeFinish = DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH,
+  leaveLookbackSec = FINISH_LEAVE_LOOKBACK_SEC
 } = {}) => {
   if (!finishZoneKey) return null;
 
@@ -334,10 +472,14 @@ const resolveFinishGpsHit = ({
     if (!allHit) return null;
   }
 
-  // Planned trip start only — ignore early departure hits before depTs for finish floor
-  const tripStartTs = depTs > 0 ? depTs : 0;
+  // Leave / middle-hit evidence window starts lookback before planned dep (#44394).
+  // Recording finish still requires now >= depTs (gate above).
+  const lookback = Number.isFinite(Number(leaveLookbackSec)) && Number(leaveLookbackSec) >= 0
+    ? Number(leaveLookbackSec)
+    : FINISH_LEAVE_LOOKBACK_SEC;
+  const leaveEvidenceStartTs = depTs > 0 ? Math.max(0, depTs - lookback) : 0;
 
-  // Middle stop hit after planned departure = proven trip (allows loose finish on return)
+  // Middle stop hit in leave-evidence window = proven trip (allows loose finish on return)
   const middleHitAfterTrip = (historyRows || []).some((h) => {
     if (h.step_key === DEFAULT_FINISH_STEP_KEY) return false;
     if (h.id_sc_stop == null) return false;
@@ -348,7 +490,7 @@ const resolveFinishGpsHit = ({
     if (!Number.isFinite(ts) || ts <= 0) {
       ts = h.gps_time ? Math.floor(new Date(h.gps_time).getTime() / 1000) : 0;
     }
-    return ts > tripStartTs;
+    return ts > leaveEvidenceStartTs;
   });
 
   const sameZoneFinish =
@@ -361,15 +503,16 @@ const resolveFinishGpsHit = ({
     evidence = analyzeBaseExit({
       messages,
       finishPoints,
-      tripStartTs,
+      tripStartTs: leaveEvidenceStartTs,
       minAwaySec: FINISH_MIN_AWAY_SEC,
       minAwayM: FINISH_MIN_AWAY_M
     });
     if (!evidence.qualifies) return null;
   }
 
-  // minFinishTs: after trip start; if same-zone, after proven first exit
-  let minFinishTs = tripStartTs;
+  // minFinishTs: after leave-evidence start; if same-zone, after proven first exit
+  // (allows re-entry before planned dep when leave happened early — #44394)
+  let minFinishTs = leaveEvidenceStartTs;
   if (sameZoneFinish && evidence?.firstExitTs) {
     minFinishTs = Math.max(minFinishTs, evidence.firstExitTs);
   }
@@ -411,19 +554,19 @@ const resolveFinishGpsHit = ({
     // evidence.qualifies already required; need live time after exit
     if (!evidence?.firstExitTs) return null;
   } else if (!sameZoneFinish && !middleHitAfterTrip) {
-    // Different finish zone: require at least one outside-of-finish after trip start
+    // Different finish zone: require at least one outside-of-finish in evidence window
     let leftOnce = false;
     if (Array.isArray(finishPoints) && finishPoints.length >= 3 && Array.isArray(messages)) {
       for (const m of messages) {
         const ts = messageTsSeconds(m);
-        if (ts <= tripStartTs) continue;
+        if (ts <= leaveEvidenceStartTs) continue;
         if (!pointInPolygon({ x: m.lon, y: m.lat }, finishPoints)) {
           leftOnce = true;
           break;
         }
       }
     }
-    if (!leftOnce && tripStartTs > 0) return null;
+    if (!leftOnce && leaveEvidenceStartTs > 0) return null;
   }
 
   const liveTs =
@@ -1463,6 +1606,216 @@ const applyDueManualEtaHits = async () => {
   return summary;
 };
 
+/**
+ * Auto-finish active SPKs past distance-based age since planned departure.
+ * ≤60km → 3d, ≤100km → 7d, >100km → 10d; no distance → fallback 3d.
+ * Dry-run: GEOFENCE_AGE_FINISH_DRY_RUN=1 logs only.
+ */
+const applyDueDistanceAgeFinish = async () => {
+  const summary = {
+    processed: 0,
+    finished: 0,
+    would_finish: 0,
+    skipped: 0,
+    errors: 0,
+    dry_run: AGE_FINISH_DRY_RUN
+  };
+
+  const lookback = AGE_FINISH_LOOKBACK_DAYS;
+  const minDays = Math.min(
+    AGE_FINISH_DAYS_SHORT,
+    AGE_FINISH_DAYS_MID,
+    AGE_FINISH_DAYS_LONG,
+    AGE_FINISH_DAYS_FALLBACK
+  );
+
+  let candidates;
+  try {
+    const [rows] = await db.query(
+      `
+      SELECT sc.id_sales_cost, sc.id_area, sc.id_truck, sc.departure_datetime
+      FROM sales_cost sc
+      INNER JOIN truck t ON sc.id_truck = t.id_truck
+      WHERE sc.id_truck IS NOT NULL
+        AND sc.departure_datetime IS NOT NULL
+        AND sc.departure_datetime <= NOW()
+        AND sc.departure_datetime >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND sc.departure_datetime <= DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND NOT EXISTS (
+          SELECT 1 FROM sales_cost_route_history h
+          WHERE h.id_sales_cost = sc.id_sales_cost
+            AND h.step_key = 'system:finish_order'
+        )
+      ORDER BY sc.departure_datetime ASC, sc.id_sales_cost ASC
+      `,
+      [lookback, minDays]
+    );
+    candidates = rows;
+  } catch (err) {
+    console.warn("[age-finish] candidate query failed:", err.message);
+    return summary;
+  }
+
+  if (!candidates || candidates.length === 0) {
+    return summary;
+  }
+
+  const scIds = candidates.map((r) => Number(r.id_sales_cost));
+  const placeholders = scIds.map(() => "?").join(",");
+  const [stopRows] = await db.query(
+    `
+    SELECT id, id_sales_cost, stop_order, stop_name,
+           wialon_resource_id, wialon_zone_id, wialon_zone_name,
+           is_departure, is_finish
+    FROM sales_cost_step_schedule
+    WHERE id_sales_cost IN (${placeholders})
+    ORDER BY id_sales_cost ASC, stop_order ASC, id ASC
+    `,
+    scIds
+  );
+
+  const stopsBySc = new Map();
+  const resourceIds = new Set();
+  for (const row of stopRows) {
+    const scId = Number(row.id_sales_cost);
+    if (!stopsBySc.has(scId)) stopsBySc.set(scId, []);
+    stopsBySc.get(scId).push(row);
+    const rId = normalizePositiveIntString(row.wialon_resource_id);
+    if (rId) resourceIds.add(rId);
+  }
+
+  let sid = null;
+  const zonePolygonMap = new Map();
+  try {
+    if (resourceIds.size > 0) {
+      try {
+        sid = await loginIsolatedSession();
+        for (const rId of resourceIds) {
+          try {
+            const polygonData = await fetchZonePolygons(rId, sid);
+            for (const [zId, data] of polygonData.entries()) {
+              const points = data?.points || data;
+              if (!Array.isArray(points) || points.length < 3) continue;
+              zonePolygonMap.set(`${rId}:${normalizePositiveIntString(zId)}`, {
+                points,
+                resourceId: rId,
+                zoneId: normalizePositiveIntString(zId)
+              });
+            }
+          } catch (polyErr) {
+            console.warn(
+              `[age-finish] polygon fetch failed resource ${rId}:`,
+              polyErr.message
+            );
+          }
+        }
+      } catch (loginErr) {
+        console.warn(
+          "[age-finish] Wialon login failed, using distance fallback:",
+          loginErr.message
+        );
+      }
+    }
+
+    const nowTs = Math.floor(Date.now() / 1000);
+    const nowGps = toMySqlDateTime(new Date());
+
+    for (const sc of candidates) {
+      const scId = Number(sc.id_sales_cost);
+      summary.processed += 1;
+      try {
+        const depMs = new Date(sc.departure_datetime).getTime();
+        const departureTs = Number.isFinite(depMs) ? Math.floor(depMs / 1000) : 0;
+        if (departureTs <= 0) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const stops = stopsBySc.get(scId) || [];
+        const distanceKm = computeTripDistanceKm({ stops, zonePolygonMap });
+        const check = isDueForAgeFinish({
+          departureTs,
+          distanceKm,
+          nowTs
+        });
+
+        if (!check.due) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        const logPayload = {
+          id_sales_cost: scId,
+          distance_km: check.distanceKm,
+          days: check.days,
+          deadline: new Date(check.deadlineTs * 1000).toISOString(),
+          departure: sc.departure_datetime
+        };
+
+        if (AGE_FINISH_DRY_RUN) {
+          summary.would_finish += 1;
+          console.log("[age-finish] DRY_RUN would finish", logPayload);
+          continue;
+        }
+
+        const deliveryStops = stops.filter((s) => Number(s.is_departure) !== 1);
+        await db.query(
+          `INSERT IGNORE INTO sales_cost_route_history (
+              id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+              id_truck, step_order_snapshot, step_name_snapshot,
+              wialon_resource_id, wialon_zone_id, wialon_zone_name,
+              gps_time, is_manual, lat, lon
+            ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, 1, NULL, NULL)`,
+          [
+            scId,
+            sc.id_area,
+            DEFAULT_FINISH_STEP_KEY,
+            DEFAULT_FINISH_STEP_CODE,
+            sc.id_truck,
+            deliveryStops.length + 1,
+            AGE_FINISH_STEP_NAME,
+            nowGps
+          ]
+        );
+
+        await db.query(
+          `UPDATE sales_cost
+              SET finish_order_datetime = NOW()
+            WHERE id_sales_cost = ?
+              AND (finish_order_datetime IS NULL
+                   OR CAST(finish_order_datetime AS CHAR) = '0000-00-00 00:00:00')`,
+          [scId]
+        );
+
+        summary.finished += 1;
+        console.log("[age-finish] finished", logPayload);
+      } catch (err) {
+        summary.errors += 1;
+        console.warn(`[age-finish] SC ${scId} error:`, err.message);
+      }
+    }
+  } finally {
+    if (sid) {
+      try {
+        await logoutIsolatedSession(sid);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  if (
+    summary.finished > 0 ||
+    summary.would_finish > 0 ||
+    summary.errors > 0
+  ) {
+    console.log(
+      `[age-finish] processed:${summary.processed} finished:${summary.finished} would_finish:${summary.would_finish} skipped:${summary.skipped} errors:${summary.errors} dry_run:${summary.dry_run}`
+    );
+  }
+  return summary;
+};
+
 const runSyncCycle = async () => {
   if (syncInProgress) {
     return;
@@ -1480,6 +1833,11 @@ const runSyncCycle = async () => {
       await applyDueManualEtaHits();
     } catch (manualErr) {
       console.warn("[manual-eta] sync failed", manualErr);
+    }
+    try {
+      await applyDueDistanceAgeFinish();
+    } catch (ageErr) {
+      console.warn("[age-finish] sync failed", ageErr);
     }
     await checkArrivalDelays();
     await purgeOldDeliveryNotifications();
@@ -1528,13 +1886,6 @@ const stopGeofenceTracking = async (timeoutMs = 5000) => {
 // ============================================================
 // HISTORICAL BACKFILL
 // ============================================================
-
-const {
-  fetchRawMessagesForUnit,
-  fetchZonePolygons,
-  loginIsolatedSession,
-  logoutIsolatedSession
-} = require("./wialonService");
 
 const BACKFILL_MAX_GAP_MS = 7 * 24 * 60 * 60 * 1000;
 const BACKFILL_MIN_GAP_MS = 5 * 60 * 1000;
@@ -1826,10 +2177,16 @@ module.exports = {
   runBackfill,
   detectAndRunStartupBackfill,
   applyDueManualEtaHits,
+  applyDueDistanceAgeFinish,
   // Pure helpers exported for unit tests
   buildZoneEntryTimeline,
   seedConsumptionFromHistory,
   assignStopHits,
   resolveFinishGpsHit,
-  analyzeBaseExit
+  analyzeBaseExit,
+  computeTripDistanceKm,
+  resolveAgeFinishDays,
+  isDueForAgeFinish,
+  haversineMeters,
+  polygonCentroid
 };
