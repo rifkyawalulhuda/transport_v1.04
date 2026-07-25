@@ -1310,6 +1310,18 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - Per-stop **Selisih Waktu (Est vs Aktual)**: human-readable signed duration (`1 jam 56 mnt` / `-…` / `tepat`); positive = late vs estimate.
 - Helpers: `formatDurationId`, `formatSignedDurationId`, `formatDiffMinutes` in `schedulePengiriman.js`.
 
+### Sales Cost — GPS trail playback (Phase 1 + 2A + 2B, 2026-07-25)
+- `GET /api/sales-costs/:id/gps-trail` (auth): window from `departure − GPS_TRAIL_PRE_BUFFER_SEC` (default 2h, also earliest history) to finish hit or NOW.
+- Reuses `fetchRawMessagesForUnit` + `downsampleTrailPoints` (default max **800** points, env `GPS_TRAIL_MAX_POINTS`).
+- Soft empty reasons: `no_wialon_unit`, `wialon_empty`, `wialon_error`, etc. (HTTP 200).
+- Markers from `sales_cost_route_history` rows with lat/lon (hit aktual).
+- **`planned_stops`**: centroid + **`polygon: [[lat,lon],…]`** (simplified, env `GPS_TRAIL_POLYGON_MAX_POINTS` default **80**) per `sales_cost_step_schedule` via `fetchZonePolygons`; still returned when trail empty.
+- Geometry helpers: `node_backend/services/gpsTrailGeometry.js`.
+- UI Detail **Rute GPS Aktual**: trail, pin D/1/2/3/F, **polygon fill**, hit hijau, expand map, **layer chips** (Trail / Tujuan / Polygon / Hit).
+- **Phase 2B scrubber:** Play/Pause, speed 1×/2×/4×, range by point index, truck marker + progress polyline; no auto-pan; FE-only (no API change).
+- Out of scope still: print map SPK, multi-SPK M2 policy.
+- Tests: `scripts/test-gps-trail-downsample.js`, `scripts/test-gps-trail-polygon.js`.
+
 ### Subcontractor — Jadwal manual, CS, export, print (2026-07-25)
 
 #### Schema & API

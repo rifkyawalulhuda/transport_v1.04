@@ -56,6 +56,10 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}`)
     return handleJson(res)
   },
+  async fetchGpsTrail(id) {
+    const res = await authFetch(`${API_BASE}/sales-costs/${id}/gps-trail`)
+    return handleJson(res)
+  },
   async updateSalesCost(id, payload) {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}`, {
       method: 'PUT',

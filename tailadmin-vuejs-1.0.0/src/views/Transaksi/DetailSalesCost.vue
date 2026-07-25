@@ -411,6 +411,195 @@
             </div>
           </div>
 
+          <!-- Rute GPS Aktual (Wialon playback) -->
+          <div class="mt-8 border-t border-gray-200 pt-6 dark:border-gray-700">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  Rute GPS Aktual
+                </h3>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  Playback trail Wialon untuk window trip SPK
+                </p>
+              </div>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-white/5"
+                :disabled="gpsTrailLoading"
+                @click="loadGpsTrail"
+              >
+                {{ gpsTrailLoading ? 'Memuat...' : 'Muat ulang' }}
+              </button>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+              <p v-if="gpsTrailLoading" class="text-sm text-gray-500 dark:text-gray-400">
+                Memuat rute GPS...
+              </p>
+              <p v-else-if="gpsTrailError" class="text-sm text-error-600 dark:text-error-400">
+                {{ gpsTrailError }}
+              </p>
+              <template v-else-if="gpsTrail">
+                <p
+                  v-if="gpsTrail.reason && !hasGpsTrailMapContent"
+                  class="mb-3 text-sm text-gray-500 dark:text-gray-400"
+                >
+                  {{ gpsTrailReasonLabel(gpsTrail.reason) }}
+                </p>
+                <p
+                  v-else-if="gpsTrail.reason && hasGpsTrailMapContent && (!gpsTrail.points || !gpsTrail.points.length)"
+                  class="mb-3 text-sm text-gray-500 dark:text-gray-400"
+                >
+                  {{ gpsTrailReasonLabel(gpsTrail.reason) }} Geofence tujuan tetap ditampilkan.
+                </p>
+                <div
+                  v-if="hasGpsTrailMapContent"
+                  class="mb-2 flex flex-wrap items-center gap-1.5"
+                >
+                  <button
+                    v-for="chip in gpsLayerChips"
+                    :key="chip.key"
+                    type="button"
+                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                    :class="
+                      gpsLayerVisibility[chip.key]
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300'
+                        : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/5'
+                    "
+                    @click="toggleGpsLayer(chip.key)"
+                  >
+                    {{ chip.label }}
+                  </button>
+                </div>
+                <div v-if="hasGpsTrailMapContent" class="relative">
+                  <div
+                    ref="gpsTrailMapEl"
+                    class="w-full overflow-hidden rounded-lg border border-gray-100 bg-gray-50 transition-[height] duration-300 ease-out dark:border-gray-800 dark:bg-gray-950"
+                    :style="{ height: gpsTrailMapExpanded ? '520px' : '300px' }"
+                  ></div>
+                  <button
+                    type="button"
+                    class="absolute bottom-2 right-2 z-[500] inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 shadow-sm backdrop-blur transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:bg-gray-800"
+                    @click="toggleGpsTrailMapSize"
+                  >
+                    <svg
+                      class="h-3.5 w-3.5 transition-transform duration-200"
+                      :class="gpsTrailMapExpanded ? 'rotate-180' : ''"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        v-if="!gpsTrailMapExpanded"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                      />
+                      <path
+                        v-else
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M9 4v4m0 0H5m4 0L4 3m11 5h4m0 0V4m0 4l5-5M9 16v4m0 0H5m4 0l-5 5m15-5h4m0 0v4m0-4l5 5"
+                      />
+                    </svg>
+                    {{ gpsTrailMapExpanded ? 'Perkecil' : 'Perbesar' }}
+                  </button>
+                </div>
+                <div
+                  v-if="playbackAvailable"
+                  class="mt-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-950/60"
+                >
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      class="inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
+                      @click="toggleGpsPlayback"
+                    >
+                      {{ gpsPlayback.playing ? 'Pause' : 'Play' }}
+                    </button>
+                    <div class="flex items-center gap-1">
+                      <button
+                        v-for="s in playbackSpeedOptions"
+                        :key="s"
+                        type="button"
+                        class="inline-flex h-7 items-center rounded-full border px-2 text-[11px] font-medium transition-colors"
+                        :class="
+                          gpsPlayback.speed === s
+                            ? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
+                        "
+                        @click="setPlaybackSpeed(s)"
+                      >
+                        {{ s }}×
+                      </button>
+                    </div>
+                    <span class="ml-auto text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                      {{ playbackTimeLabel }}
+                      <span v-if="playbackSpeedLabel" class="text-gray-400">
+                        · {{ playbackSpeedLabel }}
+                      </span>
+                    </span>
+                  </div>
+                  <div class="mt-2 flex items-center gap-2">
+                    <input
+                      type="range"
+                      class="h-1.5 w-full cursor-pointer accent-brand-500"
+                      :min="0"
+                      :max="playbackMaxIndex"
+                      :value="gpsPlayback.index"
+                      @input="onPlaybackScrub"
+                    />
+                  </div>
+                  <div
+                    class="mt-1 flex justify-between text-[10px] text-gray-400 dark:text-gray-500"
+                  >
+                    <span>{{ playbackStartLabel }}</span>
+                    <span>{{ playbackEndLabel }}</span>
+                  </div>
+                </div>
+                <p
+                  v-if="hasGpsTrailMapContent"
+                  class="mt-2 text-[11px] text-gray-500 dark:text-gray-400"
+                >
+                  <template v-if="gpsTrail.points?.length">
+                    {{ gpsTrail.point_count }} titik GPS
+                    <span v-if="gpsTrail.downsampled">
+                      (dari {{ gpsTrail.point_count_raw }}, di-downsample)
+                    </span>
+                    · {{ formatUnixLocal(gpsTrail.from) }}
+                    → {{ formatUnixLocal(gpsTrail.to) }}
+                  </template>
+                  <span v-if="gpsTrail.no_police"> · {{ gpsTrail.no_police }}</span>
+                  <span v-if="plannedStopsWithCoords.length">
+                    · {{ plannedStopsWithCoords.length }} pin tujuan
+                  </span>
+                  <span v-if="plannedStopsWithPolygon.length">
+                    · {{ plannedStopsWithPolygon.length }} polygon
+                  </span>
+                  <span v-if="gpsTrail.markers?.length">
+                    · {{ gpsTrail.markers.length }} hit aktual
+                  </span>
+                </p>
+                <p
+                  v-if="hasGpsTrailMapContent"
+                  class="mt-1 text-[11px] text-gray-400 dark:text-gray-500"
+                >
+                  Area oranye = Tujuan · Ungu = Departure · Abu = Finish · Hijau = hit · Biru = trail · slider = playback
+                </p>
+                <p
+                  v-else-if="!gpsTrail.reason"
+                  class="text-sm text-gray-500 dark:text-gray-400"
+                >
+                  Tidak ada titik GPS atau geofence tujuan untuk ditampilkan.
+                </p>
+              </template>
+              <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+                Rute GPS belum dimuat.
+              </p>
+            </div>
+          </div>
+
           <div class="mt-8 border-t border-gray-200 pt-6 dark:border-gray-700">
             <div class="mb-4 flex items-center justify-between">
               <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
@@ -547,8 +736,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import * as L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
@@ -667,6 +858,261 @@ const dnLoading = ref(false)
 const formError = ref('')
 const dnItems = ref<DnItem[]>([])
 const currentPage = ref(1)
+
+type GpsTrailPoint = { t: number; lat: number; lon: number; speed?: number | null }
+type GpsTrailMarker = {
+  type: string
+  label: string
+  step_key?: string | null
+  t?: number | null
+  lat: number
+  lon: number
+}
+type GpsPlannedStop = {
+  id?: number
+  stop_order?: number
+  stop_name?: string
+  label?: string
+  kind?: 'departure' | 'middle' | 'finish' | string
+  middle_index?: number | null
+  wialon_zone_name?: string | null
+  lat?: number | null
+  lon?: number | null
+  polygon?: [number, number][] | null
+  hit?: boolean
+}
+
+type GpsTrailPayload = {
+  id_sales_cost?: number | null
+  wialon_unit_id?: string | null
+  no_police?: string | null
+  from?: number
+  to?: number
+  point_count_raw?: number
+  point_count?: number
+  downsampled?: boolean
+  points?: GpsTrailPoint[]
+  markers?: GpsTrailMarker[]
+  planned_stops?: GpsPlannedStop[]
+  reason?: string | null
+}
+
+type GpsLayerKey = 'trail' | 'planned' | 'polygon' | 'hits'
+type PlaybackSpeed = 1 | 2 | 4
+
+const gpsTrail = ref<GpsTrailPayload | null>(null)
+const gpsTrailLoading = ref(false)
+const gpsTrailError = ref('')
+const gpsTrailMapEl = ref<HTMLElement | null>(null)
+const gpsTrailMapExpanded = ref(false)
+const gpsLayerVisibility = ref<Record<GpsLayerKey, boolean>>({
+  trail: true,
+  planned: true,
+  polygon: true,
+  hits: true
+})
+const gpsLayerChips: { key: GpsLayerKey; label: string }[] = [
+  { key: 'trail', label: 'Trail GPS' },
+  { key: 'planned', label: 'Tujuan' },
+  { key: 'polygon', label: 'Polygon' },
+  { key: 'hits', label: 'Hit aktual' }
+]
+const playbackSpeedOptions: PlaybackSpeed[] = [1, 2, 4]
+const gpsPlayback = ref({
+  playing: false,
+  speed: 2 as PlaybackSpeed,
+  index: 0
+})
+let gpsTrailMap: L.Map | null = null
+let gpsLayerTrail: L.LayerGroup | null = null
+let gpsLayerPlanned: L.LayerGroup | null = null
+let gpsLayerPolygons: L.LayerGroup | null = null
+let gpsLayerHits: L.LayerGroup | null = null
+let gpsLayerPlayback: L.LayerGroup | null = null
+let gpsTruckMarker: L.CircleMarker | null = null
+let gpsProgressLine: L.Polyline | null = null
+let gpsPlaybackTimer: ReturnType<typeof setInterval> | null = null
+let gpsPlaybackLatLngs: L.LatLng[] = []
+
+const plannedStopsWithCoords = computed(() => {
+  const list = gpsTrail.value?.planned_stops
+  if (!Array.isArray(list)) return [] as GpsPlannedStop[]
+  return list.filter(
+    (s) =>
+      s.lat != null &&
+      s.lon != null &&
+      Number.isFinite(Number(s.lat)) &&
+      Number.isFinite(Number(s.lon)) &&
+      Number(s.lat) !== 0 &&
+      Number(s.lon) !== 0
+  )
+})
+
+const plannedStopsWithPolygon = computed(() => {
+  const list = gpsTrail.value?.planned_stops
+  if (!Array.isArray(list)) return [] as GpsPlannedStop[]
+  return list.filter(
+    (s) => Array.isArray(s.polygon) && s.polygon.length >= 3
+  )
+})
+
+const hasGpsTrailMapContent = computed(() => {
+  const pts = gpsTrail.value?.points?.length || 0
+  return (
+    pts > 0 ||
+    plannedStopsWithCoords.value.length > 0 ||
+    plannedStopsWithPolygon.value.length > 0
+  )
+})
+
+const playbackPoints = computed(() => {
+  const pts = gpsTrail.value?.points
+  if (!Array.isArray(pts)) return [] as GpsTrailPoint[]
+  return pts.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+})
+
+const playbackAvailable = computed(() => playbackPoints.value.length >= 2)
+
+const playbackMaxIndex = computed(() =>
+  Math.max(0, playbackPoints.value.length - 1)
+)
+
+const playbackTimeLabel = computed(() => {
+  const p = playbackPoints.value[gpsPlayback.value.index]
+  return p?.t ? formatUnixLocal(p.t) : '-'
+})
+
+const playbackSpeedLabel = computed(() => {
+  const p = playbackPoints.value[gpsPlayback.value.index]
+  if (p?.speed == null || !Number.isFinite(Number(p.speed))) return ''
+  return `${Number(p.speed).toFixed(0)} km/j`
+})
+
+const playbackStartLabel = computed(() => {
+  const p = playbackPoints.value[0]
+  return p?.t ? formatUnixLocal(p.t) : '-'
+})
+
+const playbackEndLabel = computed(() => {
+  const list = playbackPoints.value
+  const p = list[list.length - 1]
+  return p?.t ? formatUnixLocal(p.t) : '-'
+})
+
+const toggleGpsTrailMapSize = () => {
+  gpsTrailMapExpanded.value = !gpsTrailMapExpanded.value
+  setTimeout(() => {
+    gpsTrailMap?.invalidateSize()
+  }, 320)
+}
+
+const applyGpsLayerVisibility = () => {
+  if (!gpsTrailMap) return
+  const sync = (group: L.LayerGroup | null, on: boolean) => {
+    if (!group || !gpsTrailMap) return
+    if (on) {
+      if (!gpsTrailMap.hasLayer(group)) group.addTo(gpsTrailMap)
+    } else if (gpsTrailMap.hasLayer(group)) {
+      gpsTrailMap.removeLayer(group)
+    }
+  }
+  sync(gpsLayerTrail, gpsLayerVisibility.value.trail)
+  sync(gpsLayerPlanned, gpsLayerVisibility.value.planned)
+  sync(gpsLayerPolygons, gpsLayerVisibility.value.polygon)
+  sync(gpsLayerHits, gpsLayerVisibility.value.hits)
+  // Playback (truck + progress) always on when present
+  if (gpsLayerPlayback && !gpsTrailMap.hasLayer(gpsLayerPlayback)) {
+    gpsLayerPlayback.addTo(gpsTrailMap)
+  }
+}
+
+const toggleGpsLayer = (key: GpsLayerKey) => {
+  gpsLayerVisibility.value = {
+    ...gpsLayerVisibility.value,
+    [key]: !gpsLayerVisibility.value[key]
+  }
+  applyGpsLayerVisibility()
+}
+
+const stopGpsPlayback = () => {
+  if (gpsPlaybackTimer != null) {
+    clearInterval(gpsPlaybackTimer)
+    gpsPlaybackTimer = null
+  }
+  gpsPlayback.value = {
+    ...gpsPlayback.value,
+    playing: false
+  }
+}
+
+const playbackIntervalMs = (speed: PlaybackSpeed) => {
+  if (speed === 4) return 100
+  if (speed === 2) return 200
+  return 400
+}
+
+const applyPlaybackFrame = (index: number) => {
+  const pts = playbackPoints.value
+  if (!pts.length || !gpsPlaybackLatLngs.length) return
+  const max = pts.length - 1
+  const i = Math.max(0, Math.min(index, max))
+  gpsPlayback.value = { ...gpsPlayback.value, index: i }
+
+  const ll = gpsPlaybackLatLngs[i]
+  if (ll && gpsTruckMarker) {
+    gpsTruckMarker.setLatLng(ll)
+  }
+  if (gpsProgressLine) {
+    const slice = gpsPlaybackLatLngs.slice(0, i + 1)
+    gpsProgressLine.setLatLngs(slice.length ? slice : [gpsPlaybackLatLngs[0]])
+  }
+}
+
+const startGpsPlayback = () => {
+  const max = playbackMaxIndex.value
+  if (max < 1) return
+  stopGpsPlayback()
+  // Restart from start if already at end
+  if (gpsPlayback.value.index >= max) {
+    applyPlaybackFrame(0)
+  }
+  gpsPlayback.value = { ...gpsPlayback.value, playing: true }
+  gpsPlaybackTimer = setInterval(() => {
+    const next = gpsPlayback.value.index + 1
+    if (next >= playbackMaxIndex.value) {
+      applyPlaybackFrame(playbackMaxIndex.value)
+      stopGpsPlayback()
+      return
+    }
+    applyPlaybackFrame(next)
+  }, playbackIntervalMs(gpsPlayback.value.speed))
+}
+
+const toggleGpsPlayback = () => {
+  if (!playbackAvailable.value) return
+  if (gpsPlayback.value.playing) {
+    stopGpsPlayback()
+  } else {
+    startGpsPlayback()
+  }
+}
+
+const setPlaybackSpeed = (speed: PlaybackSpeed) => {
+  const wasPlaying = gpsPlayback.value.playing
+  gpsPlayback.value = { ...gpsPlayback.value, speed }
+  if (wasPlaying) {
+    startGpsPlayback()
+  }
+}
+
+const onPlaybackScrub = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const i = Number(target.value)
+  if (!Number.isFinite(i)) return
+  const wasPlaying = gpsPlayback.value.playing
+  if (wasPlaying) stopGpsPlayback()
+  applyPlaybackFrame(i)
+}
 const itemsPerPage = 5
 const checkInModal = ref({
   open: false,
@@ -1100,6 +1546,365 @@ const submitCheckIn = async () => {
   }
 }
 
+const gpsTrailReasonLabel = (reason?: string | null) => {
+  switch (reason) {
+    case 'no_truck':
+      return 'SPK tidak memiliki truck.'
+    case 'no_wialon_unit':
+      return 'Truck belum terhubung ke unit Wialon (wialon_unit_id kosong).'
+    case 'no_departure':
+      return 'Departure datetime belum diisi; window trail tidak bisa ditentukan.'
+    case 'wialon_empty':
+      return 'Tidak ada pesan GPS Wialon pada window trip ini.'
+    case 'wialon_error':
+      return 'Gagal mengambil data dari Wialon. Coba muat ulang.'
+    case 'not_found':
+      return 'Transaksi tidak ditemukan.'
+    case 'invalid_window':
+      return 'Window waktu trail tidak valid.'
+    default:
+      return reason ? `Trail tidak tersedia (${reason}).` : 'Trail tidak tersedia.'
+  }
+}
+
+const formatUnixLocal = (unix?: number | null) => {
+  if (!unix || !Number.isFinite(Number(unix))) return '-'
+  const date = new Date(Number(unix) * 1000)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date)
+}
+
+const destroyGpsTrailMap = () => {
+  stopGpsPlayback()
+  if (gpsTrailMap) {
+    gpsTrailMap.remove()
+    gpsTrailMap = null
+  }
+  gpsLayerTrail = null
+  gpsLayerPlanned = null
+  gpsLayerPolygons = null
+  gpsLayerHits = null
+  gpsLayerPlayback = null
+  gpsTruckMarker = null
+  gpsProgressLine = null
+  gpsPlaybackLatLngs = []
+  gpsPlayback.value = { playing: false, speed: gpsPlayback.value.speed, index: 0 }
+}
+
+const plannedStopStyle = (kind?: string) => {
+  if (kind === 'departure') {
+    return { color: '#7a5af8', fillColor: '#9b8afb', labelBg: '#7a5af8' }
+  }
+  if (kind === 'finish') {
+    return { color: '#344054', fillColor: '#667085', labelBg: '#344054' }
+  }
+  return { color: '#dc6803', fillColor: '#f79009', labelBg: '#dc6803' }
+}
+
+const plannedStopKindLabel = (s: GpsPlannedStop) => {
+  if (s.kind === 'departure') return 'Departure (geofence rencana)'
+  if (s.kind === 'finish') return 'Finish (geofence rencana)'
+  return `Tujuan ${s.middle_index ?? ''} (geofence rencana)`.trim()
+}
+
+const renderGpsTrailMap = async () => {
+  await nextTick()
+  const el = gpsTrailMapEl.value
+  const points = gpsTrail.value?.points || []
+  const plannedPins = plannedStopsWithCoords.value
+  const plannedPolys = plannedStopsWithPolygon.value
+  if (
+    !el ||
+    (points.length === 0 && plannedPins.length === 0 && plannedPolys.length === 0)
+  ) {
+    destroyGpsTrailMap()
+    return
+  }
+
+  const mapHeight = gpsTrailMapExpanded.value ? 520 : 300
+  el.style.width = '100%'
+  el.style.height = `${mapHeight}px`
+  el.style.minHeight = `${mapHeight}px`
+
+  const latLngs = points
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+    .map((p) => L.latLng(p.lat, p.lon))
+
+  destroyGpsTrailMap()
+
+  gpsTrailMap = L.map(el, {
+    zoomControl: true,
+    attributionControl: true
+  })
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(gpsTrailMap)
+
+  // Z-order: polygons under trail under hits under pins under playback
+  gpsLayerPolygons = L.layerGroup()
+  gpsLayerTrail = L.layerGroup()
+  gpsLayerHits = L.layerGroup()
+  gpsLayerPlanned = L.layerGroup()
+  gpsLayerPlayback = L.layerGroup()
+  gpsTruckMarker = null
+  gpsProgressLine = null
+  gpsPlaybackLatLngs = latLngs
+
+  const bounds: L.LatLngBounds = L.latLngBounds([])
+
+  // Polygons first (under everything)
+  for (const s of plannedPolys) {
+    const ring = (s.polygon || []).filter(
+      (pair) =>
+        Array.isArray(pair) &&
+        pair.length >= 2 &&
+        Number.isFinite(Number(pair[0])) &&
+        Number.isFinite(Number(pair[1]))
+    ) as [number, number][]
+    if (ring.length < 3) continue
+    const style = plannedStopStyle(s.kind)
+    const poly = L.polygon(ring, {
+      color: style.color,
+      fillColor: style.fillColor,
+      weight: 2,
+      opacity: 0.85,
+      fillOpacity: 0.15
+    })
+    poly.bindPopup(
+      [
+        `<strong>${s.label || s.stop_name || 'Stop'}</strong>`,
+        plannedStopKindLabel(s),
+        s.wialon_zone_name ? `Zone: ${s.wialon_zone_name}` : null,
+        s.hit
+          ? '<span style="color:#027a48">Sudah hit (aktual)</span>'
+          : '<span style="color:#b54708">Belum hit</span>'
+      ]
+        .filter(Boolean)
+        .join('<br/>')
+    )
+    gpsLayerPolygons.addLayer(poly)
+    bounds.extend(poly.getBounds())
+  }
+
+  if (latLngs.length >= 1) {
+    // Full trail (muted when playback available)
+    const line = L.polyline(latLngs, {
+      color: '#465fff',
+      weight: latLngs.length >= 2 ? 3 : 4,
+      opacity: latLngs.length >= 2 ? 0.35 : 0.85
+    })
+    gpsLayerTrail.addLayer(line)
+    bounds.extend(line.getBounds())
+
+    const maxDotMarkers = 120
+    const step =
+      points.length <= maxDotMarkers ? 1 : Math.ceil(points.length / maxDotMarkers)
+    for (let i = 0; i < points.length; i += step) {
+      if (i === 0 || i === points.length - 1) continue
+      const p = points[i]
+      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue
+      const timeLabel = p.t ? formatUnixLocal(p.t) : '-'
+      const speedLabel =
+        p.speed != null && Number.isFinite(Number(p.speed))
+          ? `${Number(p.speed).toFixed(0)} km/j`
+          : null
+      const dot = L.circleMarker([p.lat, p.lon], {
+        radius: 3,
+        color: '#465fff',
+        fillColor: '#84adff',
+        fillOpacity: 0.9,
+        weight: 1,
+        opacity: 0.85
+      })
+      dot.bindPopup(
+        [
+          '<strong>Titik GPS</strong>',
+          `Waktu: ${timeLabel}`,
+          `Koordinat: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`,
+          speedLabel ? `Speed: ${speedLabel}` : null
+        ]
+          .filter(Boolean)
+          .join('<br/>')
+      )
+      gpsLayerTrail.addLayer(dot)
+    }
+
+    const start = points[0]
+    const end = points[points.length - 1]
+    L.circleMarker(latLngs[0], {
+      radius: 7,
+      color: '#465fff',
+      fillColor: '#fff',
+      fillOpacity: 1,
+      weight: 3
+    })
+      .bindPopup(
+        [
+          '<strong>Awal trail</strong>',
+          `Waktu: ${start?.t ? formatUnixLocal(start.t) : '-'}`,
+          `Koordinat: ${latLngs[0].lat.toFixed(5)}, ${latLngs[0].lng.toFixed(5)}`
+        ].join('<br/>')
+      )
+      .addTo(gpsLayerTrail)
+    L.circleMarker(latLngs[latLngs.length - 1], {
+      radius: 7,
+      color: '#f04438',
+      fillColor: '#fff',
+      fillOpacity: 1,
+      weight: 3
+    })
+      .bindPopup(
+        [
+          '<strong>Akhir trail</strong>',
+          `Waktu: ${end?.t ? formatUnixLocal(end.t) : '-'}`,
+          `Koordinat: ${latLngs[latLngs.length - 1].lat.toFixed(5)}, ${latLngs[latLngs.length - 1].lng.toFixed(5)}`
+        ].join('<br/>')
+      )
+      .addTo(gpsLayerTrail)
+  }
+
+  // Planned pin badges
+  for (const s of plannedPins) {
+    const lat = Number(s.lat)
+    const lon = Number(s.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+    const style = plannedStopStyle(s.kind)
+    const badgeText =
+      s.kind === 'middle' && s.middle_index != null
+        ? String(s.middle_index)
+        : s.kind === 'departure'
+          ? 'D'
+          : s.kind === 'finish'
+            ? 'F'
+            : '•'
+    const icon = L.divIcon({
+      className: 'gps-planned-stop-icon',
+      html: `<div style="
+        width:26px;height:26px;border-radius:9999px;
+        background:${style.labelBg};color:#fff;
+        border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);
+        display:flex;align-items:center;justify-content:center;
+        font:700 11px/1 Arial,sans-serif;
+      ">${badgeText}</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    })
+    const m = L.marker([lat, lon], { icon, zIndexOffset: 600 })
+    m.bindPopup(
+      [
+        `<strong>${s.label || s.stop_name || 'Stop'}</strong>`,
+        plannedStopKindLabel(s),
+        s.wialon_zone_name ? `Zone: ${s.wialon_zone_name}` : null,
+        `Koordinat: ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+        s.hit
+          ? '<span style="color:#027a48">Sudah hit (aktual)</span>'
+          : '<span style="color:#b54708">Belum hit</span>'
+      ]
+        .filter(Boolean)
+        .join('<br/>')
+    )
+    gpsLayerPlanned.addLayer(m)
+    bounds.extend([lat, lon])
+  }
+
+  // Actual geofence hits
+  const markers = gpsTrail.value?.markers || []
+  for (const m of markers) {
+    if (!Number.isFinite(m.lat) || !Number.isFinite(m.lon)) continue
+    const timeLabel = m.t ? formatUnixLocal(m.t) : '-'
+    const marker = L.circleMarker([m.lat, m.lon], {
+      radius: 8,
+      color: '#027a48',
+      fillColor: '#12b76a',
+      fillOpacity: 0.95,
+      weight: 2
+    })
+    marker.bindPopup(
+      [
+        `<strong>${m.label || 'Stop'}</strong>`,
+        '<span style="color:#027a48">Hit geofence aktual</span>',
+        `Waktu: ${timeLabel}`,
+        `Koordinat: ${m.lat.toFixed(5)}, ${m.lon.toFixed(5)}`
+      ].join('<br/>')
+    )
+    gpsLayerHits.addLayer(marker)
+    bounds.extend([m.lat, m.lon])
+  }
+
+  // Playback: progress path + truck marker (always-on layer)
+  if (latLngs.length >= 2 && gpsLayerPlayback) {
+    gpsProgressLine = L.polyline([latLngs[0]], {
+      color: '#465fff',
+      weight: 4,
+      opacity: 0.95
+    })
+    gpsLayerPlayback.addLayer(gpsProgressLine)
+
+    gpsTruckMarker = L.circleMarker(latLngs[0], {
+      radius: 9,
+      color: '#1d4ed8',
+      fillColor: '#465fff',
+      fillOpacity: 1,
+      weight: 3
+    })
+    gpsTruckMarker.bindPopup('<strong>Posisi truck</strong>')
+    gpsLayerPlayback.addLayer(gpsTruckMarker)
+    applyPlaybackFrame(0)
+  }
+
+  applyGpsLayerVisibility()
+
+  if (bounds.isValid()) {
+    gpsTrailMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 })
+  }
+  gpsTrailMap.invalidateSize()
+}
+
+const loadGpsTrail = async () => {
+  const idParam = resolveIdParam()
+  if (!idParam) return
+  gpsTrailLoading.value = true
+  gpsTrailError.value = ''
+  destroyGpsTrailMap()
+  try {
+    const data = (await salesCostService.fetchGpsTrail(idParam)) as GpsTrailPayload
+    gpsTrail.value = data
+    gpsTrailLoading.value = false
+    const hasPlannedPin = (data.planned_stops || []).some(
+      (s) =>
+        s.lat != null &&
+        s.lon != null &&
+        Number.isFinite(Number(s.lat)) &&
+        Number.isFinite(Number(s.lon))
+    )
+    const hasPoly = (data.planned_stops || []).some(
+      (s) => Array.isArray(s.polygon) && s.polygon.length >= 3
+    )
+    if ((data.points && data.points.length > 0) || hasPlannedPin || hasPoly) {
+      await nextTick()
+      await nextTick()
+      await renderGpsTrailMap()
+      requestAnimationFrame(() => {
+        gpsTrailMap?.invalidateSize()
+        setTimeout(() => gpsTrailMap?.invalidateSize(), 150)
+      })
+    }
+  } catch (error: unknown) {
+    gpsTrailError.value =
+      error instanceof Error ? error.message : 'Gagal memuat rute GPS.'
+    gpsTrail.value = null
+    destroyGpsTrailMap()
+    gpsTrailLoading.value = false
+  }
+}
+
 const loadDetail = async () => {
   const idParam = resolveIdParam()
   if (!idParam) {
@@ -1109,7 +1914,11 @@ const loadDetail = async () => {
   }
   loading.value = true
   dnLoading.value = true
-  
+  destroyGpsTrailMap()
+  gpsTrail.value = null
+  gpsTrailError.value = ''
+  gpsTrailMapExpanded.value = false
+
   try {
     const [data, dnResponse] = await Promise.all([
       salesCostService.fetchSalesCostById(idParam),
@@ -1117,6 +1926,8 @@ const loadDetail = async () => {
     ])
     detail.value = data
     dnItems.value = dnResponse.items || []
+    // Lazy load trail after main detail (non-blocking for first paint)
+    void loadGpsTrail()
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Gagal memuat detail transaksi. Silakan coba lagi.'
@@ -1166,5 +1977,9 @@ watch(
 
 onMounted(() => {
   loadDetail()
+})
+
+onBeforeUnmount(() => {
+  destroyGpsTrailMap()
 })
 </script>
