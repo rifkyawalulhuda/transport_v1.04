@@ -73,7 +73,7 @@ router.get("/truck-monthly-avg", authenticateToken, async (req, res) => {
       `SELECT sc.id_truck, t.no_police, COUNT(*) AS transaction_count
        FROM sales_cost sc
        JOIN truck t ON t.id_truck = sc.id_truck
-       WHERE sc.delivery_order >= ? AND sc.delivery_order < ?
+       WHERE sc.departure_datetime >= ? AND sc.departure_datetime < ?
        GROUP BY sc.id_truck, t.no_police
        ORDER BY transaction_count DESC`,
       [start, end]
@@ -112,11 +112,11 @@ router.get("/metrics/sales-cost", authenticateToken, async (req, res) => {
     const prevYear = month === 1 ? year - 1 : year;
     const [currentRows, prevRows] = await Promise.all([
       db.query(
-        "SELECT COUNT(*) AS count FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COUNT(*) AS count FROM sales_cost WHERE MONTH(departure_datetime) = ? AND YEAR(departure_datetime) = ?",
         [month, year]
       ),
       db.query(
-        "SELECT COUNT(*) AS count FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COUNT(*) AS count FROM sales_cost WHERE MONTH(departure_datetime) = ? AND YEAR(departure_datetime) = ?",
         [prevMonth, prevYear]
       )
     ]);
@@ -172,11 +172,11 @@ router.get("/metrics/sales-cost/summary", authenticateToken, async (req, res) =>
     const prevYear = month === 1 ? year - 1 : year;
     const [currentRows, prevRows] = await Promise.all([
       db.query(
-        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(total AS SIGNED)), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(total AS SIGNED)), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(departure_datetime) = ? AND YEAR(departure_datetime) = ?",
         [month, year]
       ),
       db.query(
-        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(departure_datetime) = ? AND YEAR(departure_datetime) = ?",
         [prevMonth, prevYear]
       )
     ]);
@@ -207,7 +207,7 @@ router.get("/charts/monthly-transactions", authenticateToken, async (req, res) =
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const [salesRows, subRows] = await Promise.all([
       db.query(
-        "SELECT MONTH(delivery_order) AS m, COUNT(*) AS c FROM sales_cost WHERE YEAR(delivery_order) = ? GROUP BY m",
+        "SELECT MONTH(departure_datetime) AS m, COUNT(*) AS c FROM sales_cost WHERE YEAR(departure_datetime) = ? GROUP BY m",
         [selectedYear]
       ),
       db.query(
@@ -256,7 +256,7 @@ router.get("/charts/sales-cost-statistics", authenticateToken, async (req, res) 
       totalCost = Array(4).fill(0);
       grossProfit = Array(4).fill(0);
       const [rows] = await db.query(
-        `SELECT QUARTER(delivery_order) AS period, COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(${costExpression}), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE YEAR(delivery_order) = ? GROUP BY period`,
+        `SELECT QUARTER(departure_datetime) AS period, COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(${costExpression}), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE YEAR(departure_datetime) = ? GROUP BY period`,
         [selectedYear]
       );
       rows.forEach((row) => {
@@ -275,7 +275,7 @@ router.get("/charts/sales-cost-statistics", authenticateToken, async (req, res) 
       totalCost = Array(5).fill(0);
       grossProfit = Array(5).fill(0);
       const [rows] = await db.query(
-        `SELECT YEAR(delivery_order) AS period, COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(${costExpression}), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE YEAR(delivery_order) BETWEEN ? AND ? GROUP BY period ORDER BY period`,
+        `SELECT YEAR(departure_datetime) AS period, COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(${costExpression}), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE YEAR(departure_datetime) BETWEEN ? AND ? GROUP BY period ORDER BY period`,
         [startYear, endYear]
       );
       rows.forEach((row) => {
@@ -292,7 +292,7 @@ router.get("/charts/sales-cost-statistics", authenticateToken, async (req, res) 
       totalCost = Array(12).fill(0);
       grossProfit = Array(12).fill(0);
       const [rows] = await db.query(
-        `SELECT MONTH(delivery_order) AS period, COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(${costExpression}), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE YEAR(delivery_order) = ? GROUP BY period`,
+        `SELECT MONTH(departure_datetime) AS period, COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(${costExpression}), 0) AS total_cost, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE YEAR(departure_datetime) = ? GROUP BY period`,
         [selectedYear]
       );
       rows.forEach((row) => {
@@ -326,11 +326,11 @@ router.get("/monthly-target", authenticateToken, async (req, res) => {
     const prevYear = month === 1 ? year - 1 : year;
     const [currentRows, prevRows] = await Promise.all([
       db.query(
-        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(total AS SIGNED)), 0) AS total, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COALESCE(SUM(CAST(price AS SIGNED)), 0) AS sales, COALESCE(SUM(CAST(total AS SIGNED)), 0) AS total, COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(departure_datetime) = ? AND YEAR(departure_datetime) = ?",
         [month, year]
       ),
       db.query(
-        "SELECT COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(delivery_order) = ? AND YEAR(delivery_order) = ?",
+        "SELECT COALESCE(SUM(CAST(margin AS SIGNED)), 0) AS gross_profit FROM sales_cost WHERE MONTH(departure_datetime) = ? AND YEAR(departure_datetime) = ?",
         [prevMonth, prevYear]
       )
     ]);
@@ -653,7 +653,7 @@ router.get("/", async (req, res) => {
     };
 
     const [topTruckRows] = await db.query(
-      "SELECT YEAR(sales_cost.delivery_order) AS tahun, truck.no_police AS no_police, COUNT(*) AS total_order FROM sales_cost INNER JOIN truck ON sales_cost.id_truck = truck.id_truck GROUP BY tahun, sales_cost.id_truck, truck.no_police ORDER BY tahun, total_order DESC"
+      "SELECT YEAR(sales_cost.departure_datetime) AS tahun, truck.no_police AS no_police, COUNT(*) AS total_order FROM sales_cost INNER JOIN truck ON sales_cost.id_truck = truck.id_truck GROUP BY tahun, sales_cost.id_truck, truck.no_police ORDER BY tahun, total_order DESC"
     );
 
     const transactionDataByYear = {};
@@ -669,7 +669,7 @@ router.get("/", async (req, res) => {
     });
 
     const [salesMonthlyRows] = await db.query(
-      "SELECT YEAR(delivery_order) AS tahun, DATE_FORMAT(delivery_order, '%b') AS label, MONTH(delivery_order) AS bulan, SUM(price) AS sales_bulan, SUM(CAST(margin AS SIGNED)) AS gross_bulan, SUM(ops_cost) AS ops_bulan, COUNT(*) AS trx_bulan FROM sales_cost GROUP BY tahun, bulan, DATE_FORMAT(delivery_order, '%b') ORDER BY tahun, bulan"
+      "SELECT YEAR(departure_datetime) AS tahun, DATE_FORMAT(departure_datetime, '%b') AS label, MONTH(departure_datetime) AS bulan, SUM(price) AS sales_bulan, SUM(CAST(margin AS SIGNED)) AS gross_bulan, SUM(ops_cost) AS ops_bulan, COUNT(*) AS trx_bulan FROM sales_cost GROUP BY tahun, bulan, DATE_FORMAT(departure_datetime, '%b') ORDER BY tahun, bulan"
     );
 
     const chartData = {};

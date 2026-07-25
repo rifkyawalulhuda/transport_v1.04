@@ -38,6 +38,10 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/areas`)
     return handleJson(res)
   },
+  async fetchAreaRouteSteps(id) {
+    const res = await authFetch(`${API_BASE}/areas/${id}/route-steps`)
+    return handleJson(res)
+  },
   async createSalesCost(payload) {
     const res = await authFetch(`${API_BASE}/sales-costs`, {
       method: 'POST',
@@ -73,6 +77,13 @@ export const salesCostService = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ items }),
+    })
+    return handleJson(res)
+  },
+  async completeAll(id) {
+    const res = await authFetch(`${API_BASE}/sales-costs/${id}/complete-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     })
     return handleJson(res)
   },

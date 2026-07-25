@@ -143,23 +143,19 @@ The project now also includes truck location tracking with Wialon GPS data displ
   - `route_steps[]` mapped to Wialon geofences
 - Wialon geofences remain managed in Wialon, not drawn manually inside this project.
 - Sales Cost still stores and displays the route using the familiar `nama_area` string such as `117-CLC-GIIC-HEKIKAI`.
-- The backend now tracks geofence history for active Sales Cost deliveries:
-  - first entry only per planned step
-  - supports out-of-order arrival
-  - keeps planned route and actual route history separate
-- A default final system step named `Finish Order` is recorded when:
-  - all planned route steps have been visited, and
-  - the truck later enters the configured finish geofence on the related `area`
-- `Finish Order` geofence is now configured per Master Area via:
-  - `area.finish_geofence_resource_id`
-  - `area.finish_geofence_zone_id`
-  - `area.finish_geofence_zone_name`
-- Legacy fallback to default company geofence `Sankyu` still exists for older areas that do not have finish geofence configured yet.
+- The backend tracks geofence history for active Sales Cost deliveries via GPS message timeline (point-in-polygon), not only live membership snapshots:
+  - chronological zone entries; repeated zones get distinct visit times
+  - loose stop order (field may skip/reorder)
+  - planned route (`sales_cost_step_schedule`) vs actual history (`sales_cost_route_history`) stay separate
+- System step `Finish Order` (`system:finish_order`) is recorded when the truck qualifies for finish geofence (loose by default; same-zone base requires min-away or middle hit — see Geofence Tracking Flow), or via manual ETA / age-distance auto-finish / admin check-in.
+- Finish geofence resolution order: area.finish_geofence_* → scss finish-stop zone → default name `Sankyu` (`DEFAULT_FINISH_GEOFENCE_NAME`).
+- Unfinished SPKs can also auto-close by **trip distance + age** after planned departure (see age/distance auto-finish).
 - Sales Cost detail now includes a `Riwayat Geofence Pengiriman` section that shows:
   - planned steps
   - visited steps with timestamps
   - pending steps
   - light badge for out-of-order visits
+  - middle stops never GPS-hit after finish → **Geofence dilewati**
 
 ## Wialon Integration
 
@@ -194,14 +190,29 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
    - last trip time
    - status such as `has_trip`, `no_trip`, `unlinked`, or `error`
 
-### Geofence Tracking Flow
+### Geofence Tracking Flow (current — Jul 2026)
 
-1. Backend loads active Sales Cost candidates for trucks that already have `wialon_unit_id`.
-2. Backend loads route-step to geofence mappings from `area_route_step`.
-3. Backend polls Wialon zone membership on an interval.
-4. If the truck is currently inside a mapped geofence and that step has not been recorded yet, backend inserts one history row into `sales_cost_route_history`.
-5. After all planned steps are completed, backend also watches the finish geofence configured on the area to record the system step `Finish Order`.
-6. Re-entry to the same step is ignored in phase 1 to avoid noisy duplicate history rows.
+Sync cycle order each `GEOFENCE_TRACKING_INTERVAL_MS` (default 60s):  
+`syncGeofenceRouteHistory` (GPS) → `applyDueManualEtaHits` (manual ETA) → `applyDueDistanceAgeFinish` (age/distance) → arrival delays → purge notifications.
+
+1. **GPS candidates:** truck has `wialon_unit_id`, at least one stop with `wialon_zone_id`, no `system:finish_order` yet, `departure_datetime` within last **30 days**. Multi-SPK per truck: **all** active SPKs are tracked (H9).
+2. Stop → geofence mappings come from `sales_cost_step_schedule` (step key `stop:{scss.id}`). `area_route_step` is only for Surat Jalan printing.
+3. **GPS trail:** login Wialon → fetch raw GPS messages (planned departure **−12h** buffer → now) → `fetchZonePolygons` (flags 28/0/8 for points) → `buildZoneEntryTimeline` + `assignStopHits` (point-in-polygon entry events).
+4. **Stop hits (GPS):** `gps_time` = actual GPS entry time (not ETA). Repeated zones (e.g. KIIC→GIIC→KIIC) use chronological re-entries; history is seeded each cycle so visit #2 never reuses visit #1 timestamp. Stop order is **loose** (Opsi B): a later stop may hit without previous stop (`GEOFENCE_REQUIRE_PREVIOUS_STOP=0`).
+5. **Finish (GPS, loose by default):** inserts `system:finish_order` even if middle stops were skipped (`GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH=0`).  
+   - **Hard gate:** `now >= planned departure` before finish may be recorded.  
+   - **Same-zone** (Departure = Finish, typical Sankyu): require meaningful leave within **lookback** before planned dep (`GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC`, default **4h**): ≥20 min outside and/or ≥1 km from base centroid, **or** ≥1 middle stop hit in that window — then re-entry = finish (re-entry may be **before** planned dep). Blocks ignition false finish (#44390); allows early trip+return (#44394).  
+   - Env: `GEOFENCE_FINISH_MIN_AWAY_SEC`, `GEOFENCE_FINISH_MIN_AWAY_M`, `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC`.  
+   - Helpers: `analyzeBaseExit`, `resolveFinishGpsHit`.
+6. **Manual / no-GPS path:** `applyDueManualEtaHits()` auto-hits stops when `NOW ≥ estimated_arrival` for SPKs with `is_manual_mode=1` or truck without `wialon_unit_id`. Finish stop due → `system:finish_order` (`is_manual=1`, `gps_time` = ETA).
+7. **Age / distance auto-finish (all active SPKs):** `applyDueDistanceAgeFinish()` after GPS + manual.  
+   - Candidates: unfinished, planned dep in lookback (default **60 days**), dep at least min-bracket days ago (default **3**).  
+   - Distance = max haversine between Departure zone centroid and middle (or finish) stop centroids; if polygons missing → distance `null` → fallback days.  
+   - Bracket: **≤60 km → 3 days**, **≤100 km → 7 days**, **>100 km → 10 days**; null distance → **3 days** fallback.  
+   - When `NOW ≥ departure_datetime + N days` → insert `system:finish_order` (`is_manual=1`, snapshot name `Auto Finish (Jarak/Umur)`).  
+   - Dry-run: `GEOFENCE_AGE_FINISH_DRY_RUN=1` logs only. Helpers: `computeTripDistanceKm`, `resolveAgeFinishDays`, `isDueForAgeFinish`.
+8. Dedup via existing history keys / `INSERT IGNORE`. Startup backfill + `POST /api/wialon/backfill` still available.
+9. UI: middle stops never hit after finish → badge **Geofence dilewati**; departure without history but later hit → `inferred_passed`. Schedule **completed** only when `system:finish_order` exists (not from `sc.finish_order_datetime` alone).
 
 ### Wialon Response Notes
 
@@ -226,9 +237,11 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - monthly truck mileage calculation from Wialon trip history
   - short in-memory cache for monthly mileage results
 - `node_backend/services/geofenceTrackingService.js`
-  - polls Wialon geofence membership for active deliveries
-  - writes first-entry route history
-  - records system `Finish Order` step using default company geofence
+  - GPS: zone-entry timeline, loose/repeated-zone assign, same-zone min-away + leave lookback finish (`resolveFinishGpsHit`)
+  - Manual: `applyDueManualEtaHits()` for no-GPS / `is_manual_mode` SPKs
+  - Age/distance: `applyDueDistanceAgeFinish()` auto-closes stuck SPKs by km bracket + days since planned dep
+  - records `system:finish_order`; optional per-area finish geofence + Sankyu fallback
+  - unit tests: `node_backend/scripts/test-geofence-assign.js`
 - `node_backend/services/schemaSyncService.js`
   - legacy runtime schema safety net for tracking-related columns/tables
 - `node_backend/routes/truck.js`
@@ -242,6 +255,15 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
 - `node_backend/routes/salesCost.js`
   - sales cost detail now includes route plan and geofence route history
   - rejects inactive trucks for new transactions, import, and truck changes
+- `node_backend/routes/schedulePengiriman.js`
+  - Schedule list + status; Excel export with per-stop est/aktual, **Jumlah Hari (Aktual)**, **Selisih Waktu (Est vs Aktual)**
+- `node_backend/routes/subcontractor.js`
+  - Subcontractor CRUD; multi-stop `delivery_stops`; Excel export with separate Departure/Tujuan/Finish columns
+  - Detail GET joins creator (`created_by_name` / `created_by_nik`); PUT does not overwrite creator `nik_admin` (stores `id_admin`)
+- `tailadmin-vuejs-1.0.0/src/components/subcontractor/SubcontractorForm.vue`
+  - Input/Edit form: 4 section cards (Mitra, Kendaraan, Jadwal manual timeline, Biaya); no geofence
+- `tailadmin-vuejs-1.0.0/src/views/Transaksi/PrintSubcontractor.vue`
+  - A4 Portrait print: **Laporan Subcontractor** (operational only, no cost figures)
 - `tailadmin-vuejs-1.0.0/src/views/Monitoring/TruckLocationMap.vue`
   - 3-panel operational workspace UI
   - Leaflet marker sync and focus behavior
@@ -302,6 +324,11 @@ Wialon is used as the GPS source for truck locations. The hardware/vendor side i
   - updates route-step configuration and regenerates `nama_area`
 - `GET /api/sales-costs/:id`
   - now also returns `route_steps` and `route_history`
+- `GET /api/subcontractor/:id`
+  - returns header + `delivery_stops` + `created_by_name` / `created_by_nik`
+- `GET /api/subcontractor/export`
+  - Excel one row per transaction; dynamic **Tujuan 1…N** columns from batch max middle stops
+- Frontend print: `/subcontractor/:id/print` (CS allowed)
 
 ## Database Notes
 
@@ -386,6 +413,19 @@ Required or currently used variables:
 - `WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS`
 - `GEOFENCE_TRACKING_INTERVAL_MS`
 - `DEFAULT_FINISH_GEOFENCE_NAME`
+- `GEOFENCE_REQUIRE_PREVIOUS_STOP` (default `0` = loose stop order)
+- `GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH` (default `0` = loose finish)
+- `GEOFENCE_FINISH_MIN_AWAY_SEC` (default `1200` = 20 min leave for same-zone finish)
+- `GEOFENCE_FINISH_MIN_AWAY_M` (default `1000` = 1 km away for same-zone finish)
+- `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default `14400` = 4h leave-evidence window before planned dep; early trip #44394)
+- `GEOFENCE_AGE_FINISH_SHORT_KM` (default `60`)
+- `GEOFENCE_AGE_FINISH_MID_KM` (default `100`)
+- `GEOFENCE_AGE_FINISH_DAYS_SHORT` (default `3`)
+- `GEOFENCE_AGE_FINISH_DAYS_MID` (default `7`)
+- `GEOFENCE_AGE_FINISH_DAYS_LONG` (default `10`)
+- `GEOFENCE_AGE_FINISH_DAYS_FALLBACK` (default `3` when distance unknown)
+- `GEOFENCE_AGE_FINISH_LOOKBACK_DAYS` (default `60` — how far back unfinished SPKs are scanned)
+- `GEOFENCE_AGE_FINISH_DRY_RUN` (`1` = log only, no INSERT)
 
 ### Example File
 
@@ -579,3 +619,728 @@ npm run build-only
 - Sections: Info Utama, Timeline, Detail Kerusakan, Biaya Perbaikan.
 - Status badge redesign: compact with dot indicator (Selesai/Proses).
 - Applied same UI/UX pattern as Detail Sales Cost and Detail Subcontractor.
+
+---
+
+## Major Feature Additions (Juli 2026)
+
+### Delivery Timeline DATETIME Migration
+
+- Renamed `sales_cost` columns: `delivery_order` → `departure_datetime`, `arrival_order` → `arrival_datetime`, `finish_order` → `finish_order_datetime` (type `DATE` → `DATETIME`).
+- All backend routes, export/import, geofence tracking, monitoring, and frontend views updated to use new field names.
+- `DatePickerInput.vue` updated with `enableTime` prop — uses `type="datetime-local"` (then later upgraded to Flatpickr).
+- `SalesCostForm.vue` section "Tanggal Transaksi" hidden from UI (Opsi B) — values auto-synced from "Jadwal Pengiriman" stops in `buildPayload()`.
+- `mysql2` pool configured with `timezone: 'local'` and `dateStrings: true` to prevent UTC conversion issues.
+
+### Monitoring Kendaraan — Status "Dalam Perjalanan"
+
+- New `on_trip` status added: truck is "Dalam Perjalanan" if `departure_datetime` is set, `finish_order_datetime` is NULL, and no `system:finish_order` in `sales_cost_route_history`.
+- `monitoringKendaraan.js` adds `onTripSql` query and returns `on_trip` array + `summary.on_trip` in response.
+- `MonitoringKendaraan.vue` adds new "Kendaraan Dalam Perjalanan" section above Transaksi, with amber badge and "⚠ Terlambat" indicator if overdue.
+
+### Delivery Notifications (Arrival Overdue Alerts)
+
+- New table `delivery_notifications` for arrival overdue notifications.
+- `geofenceTrackingService.js` — `checkArrivalDelays()` runs every 60 seconds, creates notifications when `arrival_datetime` has passed but truck hasn't triggered finish geofence.
+- New backend route `routes/deliveryNotifications.js` — GET, PUT read, PUT read-all, DELETE endpoints.
+- `DeliveryNotificationBell.vue` component — polls every 30 seconds, shows unread badge in AppHeader, dropdown with stop-level context badges.
+- Notifications support per-stop context: `id_sc_stop`, `step_name` columns distinguish stop-level vs final arrival notifications.
+
+### Delivery Stops — Direct Geofence Selection (Pendekatan C)
+
+- `sales_cost_step_schedule` table restructured: replaced `id_area_route_step` FK with direct geofence fields (`stop_order`, `stop_name`, `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`, `is_departure`, `is_finish`).
+- Area `route_steps` (from `area_route_step`) are no longer used for geofence tracking — only for Surat Jalan printing.
+- New endpoint `GET /api/areas/:id/route-steps` added to `area.js` (before `/:id` to avoid param conflict).
+- `SalesCostForm.vue` — "Jadwal Pengiriman" section replaces old "Estimasi Tiba Per Stop": vertical timeline card with Departure (fixed), dynamic middle stops (add/remove), Finish (fixed). Each stop has geofence picker (`SearchableSelect` with `value-key="value"`) + Flatpickr datetime.
+- Validation: all stops require geofence + estimated time; date order validated both on submit and realtime via `watch` + `updateStopOrderErrors()`.
+- `geofenceTrackingService.js` — all tracking logic now uses `sales_cost_step_schedule` stops instead of `area_route_step`. Step key format changed from `route:{id_area_route_step}` to `stop:{scss.id}`.
+- `sales_cost_route_history` and `delivery_notifications` gain `id_sc_stop` column for per-stop tracking.
+- `DetailSalesCost.vue` — "Jadwal & Realisasi Pengiriman" uses `delivery_stops` + `id_sc_stop` matching for hit/overdue/actual_arrival.
+
+### Historical Geofence Backfill
+
+- `wialonService.js` — new `fetchRawMessagesForUnit()` (uses `messages/load_interval` + `messages/get_messages`), `fetchZonePolygons()` (polygon data from Wialon), `pointInPolygon()` (ray-casting algorithm). `loginIsolatedSession` and `logoutIsolatedSession` now exported.
+- `geofenceTrackingService.js` — `runBackfill(fromTs, toTs)` processes active sales costs in time window, checks point-in-polygon for each GPS message vs geofence zones, inserts missing `sales_cost_route_history` records.
+- `detectAndRunStartupBackfill()` — auto-detects downtime gap (min 5 min, max 7 days) on server startup, runs backfill before `startGeofenceTracking()`.
+- `routes/wialon.js` — `POST /api/wialon/backfill` endpoint for manual admin trigger with `from`/`to` ISO timestamps.
+- `server.js` — startup sequence: `detectAndRunStartupBackfill().finally(() => startGeofenceTracking())`.
+
+### Flatpickr Datetime Picker
+
+- `DatePickerInput.vue` upgraded: when `enableTime=true`, uses `vue-flatpickr-component` instead of `type="datetime-local"`. Config: 24-hour, Indonesian locale, 5-minute steps, `allowInput: true`. Both `flatpickr` and `vue-flatpickr-component` already installed. CSS imported globally in `main.ts`.
+
+### Timeline Card UI — Jadwal Pengiriman
+
+- `SalesCostForm.vue` Jadwal Pengiriman section redesigned as vertical timeline:
+  - Connector line gradient (brand-400 → gray-400) linking all nodes.
+  - Departure: filled brand-500 circle with play icon, gradient card.
+  - Middle stops: numbered circles, subtle × remove button.
+  - Add stop: dashed circle node + full-width dashed add card.
+  - Finish: flag icon gray-600 circle, gradient gray card.
+  - Error messages in rounded red box per stop.
+- `DetailSalesCost.vue` "Jadwal & Realisasi Pengiriman" matching read-only timeline:
+  - Node icons change per status: ✓ (hit), ⚠ (overdue), ▶ (departure), 🏁 (finish), numbered (middle).
+  - Card background gradient changes per status.
+  - Status badges include icons for better readability.
+
+### Bug Fixes (Juli 2026)
+
+- `wialonService.js` all `delivery_order`/`arrival_order`/`finish_order` column refs renamed to new names.
+- `dashboard.js` and `schedulePengiriman.js` column refs updated.
+- `db.js` pool: `timezone: 'local'`, `dateStrings: true` to fix UTC timezone shift on DATETIME save.
+- `formatDateTime()` in `DetailSalesCost.vue` normalizes timezone suffix (strips `Z`) to prevent gps_time UTC offset display mismatch.
+- `SalesCostForm.vue`: removed `required` attributes from hidden Tanggal Transaksi fields (was blocking form submit via browser HTML5 validation).
+- `DatePickerInput.vue`: added `value-key="value"` to all geofence `SearchableSelect` instances (was preventing geofence selection from working).
+- `sales_cost_step_schedule`: FK and `id_area_route_step` column dropped via manual migration; `estimated_arrival` set to NULL-able.
+- `salesCost.js`: `insertedId` → `result.insertId` fix for delivery stops save.
+- `area.js`: `GET /:id/route-steps` endpoint added before `GET /:id` to prevent param conflict.
+- `SalesCostForm.vue` HTML structure: Jadwal Pengiriman moved outside hidden Tanggal Transaksi div (was causing section to be invisible).
+
+## Key DB Schema Notes (current)
+
+- `sales_cost.departure_datetime` DATETIME NOT NULL (was `delivery_order DATE`)
+- `sales_cost.arrival_datetime` DATETIME NULL (was `arrival_order DATE`)
+- `sales_cost.finish_order_datetime` DATETIME NULL (was `finish_order DATE`) — often **planned ETA at create**, not actual completion
+- `sales_cost.is_manual_mode` TINYINT(1) NOT NULL DEFAULT 0 — manual/no-GPS SPK; drives ETA auto-hits
+- `sales_cost_step_schedule`: `stop_order`, `stop_name`, `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`, `is_departure`, `is_finish`, `estimated_arrival` (no more `id_area_route_step`)
+- `sales_cost_route_history`: `id_sc_stop INT NULL`, `is_manual`, nullable wialon fields; completion key `system:finish_order`
+- `delivery_notifications`: `id_sc_stop INT NULL`, `step_name VARCHAR(100) NULL`
+- `sub_contractor.nik_admin` INT — stores **`admin.id_admin` of creator** (not NIK string; JWT `nik_admin` like `CLC003` must not be written here)
+- `sub_contractor_step_schedule` — planned multi-stop schedule for subcontractor (no Wialon columns): `stop_order`, `stop_name`, `is_departure`, `is_finish`, `estimated_arrival`
+
+## Active Branch
+
+- `add-module-bbs` — contains all Juli 2026 features. Not yet pushed to GitHub.
+
+---
+
+## Updates (2026-07-18 to 2026-07-20)
+
+### Monitoring Kendaraan — Enhancements & Bug Fixes
+
+- `monitoringKendaraan.js` — enriched `truckRows` query to include `last_lat`, `last_lng`, `last_gps_time`, `last_address` from `truck` table.
+- `monitoringKendaraan.js` — fixed stale `on_trip` window: added `departure_datetime >= DATE_SUB(NOW(), INTERVAL 60 DAY)` to `onTripSql`.
+- `monitoringKendaraan.js` — fixed `lastSql` tie-breaking: double subquery with `MAX(id_sales_cost)` as tiebreaker for non-deterministic `last_transaction`.
+- `monitoringKendaraan.js` — added `status_duration_minutes` to `on_trip` and `transaksi` items (minutes since departure).
+- `monitoringKendaraan.js` — `on_trip` status now only applies to trucks with `sales_cost_step_schedule` configured (GPS-tracked deliveries). Older transactions without step schedule fall into `transaksi` instead of polluting `on_trip` with 500+ stale entries.
+- `monitoringKendaraan.js` — `is_overdue` badge now uses `finish_order_datetime < NOW()` (not `arrival_datetime`) as overdue deadline, and also checks `NOT EXISTS system:finish_order` to avoid false overdue on completed trips.
+- `MonitoringKendaraan.vue` — auto-refresh every 60 seconds + manual refresh button with "X menit lalu" display.
+- `MonitoringKendaraan.vue` — filter bulan/tahun now exposed to user (was wired in backend but never sent from frontend).
+- `MonitoringKendaraan.vue` — truck cards now show: driver name, duration in status, last GPS coordinates/address, Sales Cost number.
+- `MonitoringKendaraan.vue` — fixed broken `<div>` tag on transaksi section that caused entire page to not respond.
+
+### GPS Cache — Truck Table
+
+- Migration `20260717000008` — added `last_lat`, `last_lng`, `last_address`, `last_gps_time` columns to `truck` table.
+- `geofenceTrackingService.js` — GPS cache now 2-phase: Phase 1 updates coordinates in parallel, Phase 2 runs reverse geocoding as fire-and-forget (`void Promise.allSettled`) — no longer blocks sync cycle.
+- `geofenceTrackingService.js` — GPS `null` coordinate check changed from falsy (`!position?.lon`) to explicit null check (`position?.lon == null`) to allow coordinate `0`.
+- `monitoringKendaraan.js` — `last_address` column now included in `truckRows` SELECT query so reverse-geocoded address is served in monitoring response.
+
+### Delivery Notifications — Bug Fixes & Improvements
+
+- `deliveryNotifications.js` — `unread_count` now uses a separate `SELECT COUNT(*)` query (not counted from LIMIT-50 rows, which gave wrong count when >50 unread).
+- `deliveryNotifications.js` — GET handler now runs both queries (rows + count) in parallel with `Promise.all`.
+- `DeliveryNotificationBell.vue` — `formatTimeAgo` bug fixed: seconds label was `"${diff}d lalu"` (showing "5d lalu"), now `"${diff} dtk lalu"`.
+- `DeliveryNotificationBell.vue` — click on notification now navigates to `/sales-cost/${item.id_sales_cost}` (detail page) instead of generic `/sales-cost` list.
+- `DeliveryNotificationBell.vue` — polling interval was `30000ms`; updated to `60_000ms` with proper `clearInterval` on unmount.
+
+### DatePickerInput — Replaced flatpickr with VueDatePicker
+
+- `DatePickerInput.vue` — `flat-pickr` component replaced with `@vuepic/vue-datepicker` (v8.8.1, already installed).
+- VueDatePicker uses `teleport="body"` + internal `@floating-ui` for viewport-aware popup positioning — fixes calendar popup being clipped on right-column inputs in forms.
+- Output format unchanged: `YYYY-MM-DD HH:MM` string. All callers (`SalesCostForm.vue`, etc.) unaffected.
+- CSS imported via `import '@vuepic/vue-datepicker/dist/main.css'` inside the component; flatpickr CSS import in `main.ts` preserved (still used by `DefaultInputs.vue` demo page).
+
+### Security & Infrastructure (Kelompok 3)
+
+- `routes/auth.js` — password login now uses bcrypt dual-mode: tries `bcrypt.compare()` first; falls back to plaintext for legacy passwords and auto-upgrades to bcrypt hash on successful login (12 rounds, non-blocking).
+- `routes/admin.js` — admin CREATE and UPDATE now hash password with `bcrypt.hash(password, 12)` before INSERT/UPDATE. Password column removed from all GET/POST/PUT response SELECT queries.
+- `server.js` — CORS `origin` now reads from `process.env.ALLOWED_ORIGIN`; falls back to `true` (all origins) when unset (dev mode).
+- `server.js` — CORS preflight `app.options("*", cors())` now passes same config as main cors middleware (previously bypassed restrictions).
+- `server.js` — static routes `/doc-data-truck`, `/doc-data-chasis`, `/doc-supir` now protected with `authenticateToken` middleware.
+- `server.js` — `/img` static route left public (browser `<img>` tags cannot send Authorization headers; profile photos must be accessible without auth).
+- `middleware/rbac.js` — `restrictCsAccess` and `restrictPatcherAccess` now use hybrid pattern: reads `req.user` if already decoded by `authenticateToken`, falls back to `jwt.verify` if not.
+- `.env` — cleaned: removed duplicate `MONGO_URI`, added missing `DB_PORT`, `WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS`, `GEOFENCE_TRACKING_INTERVAL_MS`, `DEFAULT_FINISH_GEOFENCE_NAME`, `ALLOWED_ORIGIN`.
+- `.env.example` — updated to match all keys now used in `.env`.
+- `bcrypt@5.1.1` added to `node_backend/package.json`.
+- `ALLOWED_ORIGIN` env var — new variable for CORS production restriction. Set to production domain (e.g. `https://app.example.com`) in production `.env`. Leave empty for dev.
+
+### Geofence Tracking — Critical Bug Fixes
+
+- `geofenceTrackingService.js` — C5: `finish_order_datetime` is now set to `NOW()` via `UPDATE sales_cost` after inserting `system:finish_order` to `sales_cost_route_history`. Uses idempotency guard (`finish_order_datetime IS NULL OR = '0000-00-00 00:00:00'`).
+- `geofenceTrackingService.js` — C6: `finish_geofence_resource_id`, `finish_geofence_zone_id`, `finish_geofence_zone_name` are now included in the `pickedByTruck` map object (were previously dropped), so per-area finish geofence is used correctly instead of always falling back to `DEFAULT_FINISH_GEOFENCE_NAME` ("Sankyu").
+
+### Repair Business Logic Fixes
+
+- `repairService.js` — C2/C3/C4: `updateRepair` now uses `payload.field !== undefined ? payload.field : existing.field` pattern for all 12 fields — prevents partial update from overwriting existing data with empty strings or null. `id_truck` and `nik_admin` (both NOT NULL in DB) use additional `!= null` guard.
+- `repairService.js` — H1: `createRepair` now checks if the truck is currently on an active trip (`system:finish_order` not yet recorded, within 60 days) before inserting. Returns 409 if truck is on trip.
+- `repairService.js` — H3: `updateRepair` enforces one-way state machine: `SELESAI → PROSES` transition is now blocked with a 400 error.
+
+### Sales Cost — Validation & Lock Fixes
+
+- `salesCost.js` — H14: date ordering validation added to both POST and PUT handlers: `departure ≤ arrival ≤ finish_order`. Returns 400 with Indonesian message if order is wrong.
+- `salesCost.js` — H15: DELETE handler now has same month-lock check as PUT handler: records from past months cannot be deleted (returns 403 "Data terkunci. Tidak bisa dihapus.").
+- `salesCost.js` — `POST /:id/check-in` handler now selects `stop.is_finish` from `sales_cost_step_schedule` and, if `is_finish = 1`, automatically inserts a `system:finish_order` record into `sales_cost_route_history` and updates `finish_order_datetime` on the `sales_cost` row (idempotent). This ensures manual check-in of the Finish stop has the same effect as GPS-triggered finish, making Monitoring Kendaraan status consistent with Schedule Pengiriman.
+
+### Database Migrations
+
+- `20260717000008_add_gps_cache_to_truck.sql` — added `last_lat`, `last_lng`, `last_address`, `last_gps_time` to `truck`.
+- `20260720000009_nullable_wialon_fields_route_history.sql` — changed `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name` in `sales_cost_route_history` from `NOT NULL` to `NULL DEFAULT NULL`. Required so manual check-in (without Wialon GPS config) can insert route history without error.
+
+### Monitoring Kendaraan — Status Logic Alignment with Schedule Pengiriman
+
+**Problem:** `on_trip` status in Monitoring used `finish_order_datetime IS NULL` as primary gate, but `finish_order_datetime` is also set manually as an estimated schedule — causing trucks to appear as "Transaksi" even while physically en route.
+
+**Fix:** Removed `finish_order_datetime IS NULL` from `onTripSql`. The single source of truth for "delivery finished" is now `system:finish_order` in `sales_cost_route_history` — consistent with Schedule Pengiriman's `resolveScheduleStatus` logic.
+
+- `monitoringKendaraan.js` — `onTripSql` no longer requires `finish_order_datetime IS NULL`; only requires `NOT EXISTS (system:finish_order in route_history)` AND `EXISTS (sales_cost_step_schedule)`.
+
+### Schedule Pengiriman — Overdue Logic Fix
+
+**Problem:** `resolveScheduleStatus` in `schedulePengiriman.js` used `arrival_datetime` (estimated stop 1 arrival time) as the overdue deadline. This caused "Estimasi arrival sudah lewat" text to appear even when the truck was ahead of schedule, because `arrival_datetime` is the stop 1 ETA, not the overall delivery deadline.
+
+**Fix:** `resolveScheduleStatus` now uses `finish_order_datetime` as the overdue deadline (fallback to `arrival_datetime` for backwards compatibility). The overdue condition also now requires `!finishHit` — completed deliveries cannot be overdue.
+
+- `schedulePengiriman.js` — `resolveScheduleStatus` accepts new parameter `finishOrderDatetime`; uses it as `overdueDeadline` when available.
+- `schedulePengiriman.js` — caller at line ~449 now passes `finishOrderDatetime: row.finish_order_datetime`.
+
+### Monitoring Kendaraan — Repair Query Fix
+
+- `monitoringKendaraan.js` — repair query changed from `LEFT JOIN truck` to `INNER JOIN truck AND truck.is_active = 1` so inactive trucks no longer appear in monitoring repair list.
+
+### Schedule Pengiriman — Text Fix
+
+- `SchedulePengiriman.vue` — fixed garbled separator characters in date range display. Was `{{ filters.startDate }} → {{ filters.endDate }}` (broken encoding); now uses HTML entities `&mdash;` and `&bull;` for clean display.
+
+## Key Business Logic Rules (post-2026-07-24)
+
+### "Dalam Perjalanan" (on_trip) definition
+A truck is `on_trip` in Monitoring Kendaraan if ALL of:
+1. `truck.is_active = 1`
+2. `sales_cost.departure_datetime IS NOT NULL` and within **14 days**
+3. `NOT EXISTS (system:finish_order in sales_cost_route_history)` — delivery not yet finished
+4. `EXISTS (sales_cost_step_schedule for this sales_cost)` — has a delivery timeline
+
+### "Transaksi" monitoring bucket
+Active unfinished SPKs with a step schedule and arrival window. **Must have** `sales_cost_step_schedule` rows (empty-schedule SPKs are excluded so they do not appear as Transaksi without a timeline).
+
+### "system:finish_order" as single source of truth
+`system:finish_order` in `sales_cost_route_history` is the **only** authoritative signal that a delivery is complete. Written by:
+- `syncGeofenceRouteHistory` / `resolveFinishGpsHit` — GPS finish (loose + same-zone min-away + leave lookback)
+- `applyDueManualEtaHits()` — manual/no-GPS when finish ETA is due
+- `applyDueDistanceAgeFinish()` — age/distance auto-close (`is_manual=1`, name `Auto Finish (Jarak/Umur)`)
+- `salesCost.js` check-in / complete-all — manual admin/user actions
+
+`sales_cost.finish_order_datetime` is often filled at **create time as planned ETA**. It is **not** proof of completion. Prefer finish-stop `scss.estimated_arrival` for overdue deadlines; completion = history only.
+
+### Schedule status
+- `completed` = `finishHit` (`system:finish_order` present), even if middle stops were skipped
+- Middle stops never GPS-hit after finish → UI badge **Geofence dilewati**
+- `overdue` = planned finish ETA past and not finished (not completed)
+
+### Overdue deadline
+- Prefer finish-stop `estimated_arrival` on `sales_cost_step_schedule`
+- Fallback: `sc.finish_order_datetime` then `arrival_datetime`
+- Never treat `sc.finish_order_datetime` alone as “delivery finished”
+
+### Manual / no-GPS auto timeline
+Eligible for ETA auto-hits only if:
+- `sales_cost.is_manual_mode = 1`, **or**
+- truck has no `wialon_unit_id`
+
+When `NOW ≥ stop.estimated_arrival`, insert history with `is_manual=1` and `gps_time = ETA`. Finish due → also `system:finish_order`.
+
+### Age / distance auto-finish
+Closes **any** unfinished SPK (GPS or manual) when planned departure is old enough relative to trip distance:
+- Distance: max haversine (Departure zone centroid → middle/finish zone centroids); missing polygons → fallback days
+- **≤60 km → 3 days**, **≤100 km → 7 days**, **>100 km → 10 days**, unknown → **3 days**
+- Deadline: `departure_datetime + N days`; insert finish with `gps_time = NOW()`
+- Does not invent middle-stop hits; UI shows **Geofence dilewati** for unhit middles
+- Prefer GPS/manual finish first (runs later in the same cycle)
+
+### Password security
+- Login: bcrypt dual-mode. New passwords hashed with bcrypt (12 rounds). Legacy plaintext passwords auto-upgrade on first successful login.
+- Admin CREATE/UPDATE: passwords always hashed before DB write.
+- Admin GET responses: `password` field never included in response payload.
+
+### Sales Cost step schedule (smart upsert)
+- PUT handler uses smart upsert — stops with existing `id` are UPDATEd (preserving ID), new stops are INSERTed, removed stops are DELETEd only if they have no `sales_cost_route_history` records.
+- This prevents `id_sc_stop` references in route_history from becoming orphaned when the user edits a Sales Cost with an active delivery timeline.
+
+### Schedule Pengiriman filter behavior
+- Date range filter is based on `departure_datetime` only — no hidden `arrival_datetime >= TODAY` restriction.
+- Default range: 7 days ago to 7 days ahead.
+- Status filter can be server-side via `?status=` (see Updates 2026-07-21).
+- Only transactions with `sales_cost_step_schedule` configured appear with GPS-tracked status; others appear as `waiting` or `on_trip` based on dates only.
+
+### Schedule Pengiriman Excel export (duration / selisih)
+- File: `node_backend/routes/schedulePengiriman.js` `GET /export` → `schedule-pengiriman_YYYY-MM-DD.xlsx`.
+- **19 columns**; merge SPK fields **1–11** (includes **Jumlah Hari (Aktual)**).
+- **Jumlah Hari (Aktual):** actual departure hit → actual finish (`formatDurationId` → `X hari Y jam Z mnt`); incomplete → `-`. Finish time from finish-stop hit or `system:finish_order.gps_time`.
+- **Selisih Waktu (Est vs Aktual):** per stop, `formatSignedDurationId` on (aktual − estimasi) minutes — e.g. `1 jam 56 mnt`, `-45 mnt`, `tepat`; missing times → `-`. Positive = late vs estimate.
+
+---
+
+## Updates (2026-07-20 continued)
+
+### Sales Cost — Delivery Stop Smart Upsert
+- `salesCost.js` — PUT handler replaced DELETE-all + re-INSERT delivery stops with smart upsert:
+  - Steps with existing `id` are UPDATEd in place (preserves `id` so `sales_cost_route_history.id_sc_stop` remains valid)
+  - Steps removed from payload are DELETEd only if they have no route history records (safety guard)
+  - New steps (no `id`) are INSERTed with new IDs
+- This fixes the bug where editing & saving a Sales Cost would reset the delivery timeline (green visited stops turning back to pending).
+
+### Sales Cost — Import H14 Date Ordering Validation
+- `salesCost.js` Excel import handler — added date ordering validation after parsing all dates:
+  - `arrivalDate < deliveryDate` → reject with `INVALID_DATE_ORDER`
+  - `finishDate < arrivalDate` → reject with `INVALID_DATE_ORDER`
+  - `finishDate < deliveryDate` → reject with `INVALID_DATE_ORDER` (edge case: no arrival)
+- Consistent with POST/PUT handler validation added earlier.
+
+### Sales Cost — Manual Check-in Finish Stop
+- `salesCost.js POST /:id/check-in` — when `stop.is_finish = 1`, automatically writes:
+  - `system:finish_order` record to `sales_cost_route_history` (idempotent — only if not already present)
+  - Updates `finish_order_datetime` on `sales_cost` (idempotent guard)
+- Ensures manual Finish check-in has same effect as GPS-triggered finish for Monitoring Kendaraan consistency.
+
+### Database Migration — Nullable Wialon Fields
+- `20260720000009_nullable_wialon_fields_route_history.sql` — `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name` in `sales_cost_route_history` changed from `NOT NULL` to `NULL DEFAULT NULL`.
+- Required for manual check-in on stops without Wialon geofence configuration.
+
+### Schedule Pengiriman — Filter Improvements
+- `schedulePengiriman.js` — removed hardcoded `arrival_datetime >= TODAY` condition that was hiding all past transactions regardless of the date range filter the user selected.
+- `SchedulePengiriman.vue` — default date range changed from `today → +7 days` to `-7 days → +7 days` so active deliveries from the past week are visible by default.
+- `SchedulePengiriman.vue` — added **Status filter** dropdown (Semua / Menunggu / Dalam Perjalanan / Terlambat / Selesai / Belum Lengkap) as a client-side filter on top of server-side results.
+- `SchedulePengiriman.vue` — `filteredRows` computed property filters `rows` by `filters.status`; template uses `filteredRows` instead of `rows` for display.
+
+### Monitoring Kendaraan — on_trip Status Alignment
+- `monitoringKendaraan.js` — `onTripSql` no longer requires `finish_order_datetime IS NULL`. Single source of truth is `NOT EXISTS system:finish_order in route_history`.
+- `monitoringKendaraan.js` — added `AND EXISTS (SELECT 1 FROM sales_cost_step_schedule)` filter so only GPS-configured deliveries appear as `on_trip`; legacy transactions without step schedule remain in `transaksi`.
+- `monitoringKendaraan.js` — `is_overdue` now uses `finish_order_datetime < NOW()` (not `arrival_datetime`) and guards against completed trips (`NOT EXISTS system:finish_order`).
+
+### Schedule Pengiriman — Overdue Deadline Fix
+- `schedulePengiriman.js:resolveScheduleStatus` — uses `finish_order_datetime` as `overdueDeadline` when available; falls back to `arrival_datetime` for backwards compatibility.
+- Overdue condition now requires `!finishHit` — completed deliveries cannot be overdue.
+- Caller passes `finishOrderDatetime: row.finish_order_datetime` to `resolveScheduleStatus`.
+
+### Security Fixes (Kelompok 3)
+- `routes/auth.js` — bcrypt dual-mode login with auto-upgrade of legacy plaintext passwords.
+- `routes/admin.js` — passwords hashed on CREATE/UPDATE; `password` field excluded from all responses.
+- `server.js` — CORS conditional via `ALLOWED_ORIGIN` env var; CORS preflight uses same config.
+- `server.js` — `/doc-data-truck`, `/doc-data-chasis`, `/doc-supir` protected by `authenticateToken`; `/img` left public (browser `<img>` cannot send auth headers).
+- `middleware/rbac.js` — hybrid `req.user` + `jwt.verify` fallback pattern.
+- `.env` cleaned and `.env.example` updated to match all required keys.
+- `bcrypt@5.1.1` added to dependencies.
+
+---
+
+## Updates (2026-07-20 — Departure Geofence Tracking)
+
+### Departure Stops Are Now GPS-Tracked
+- `geofenceTrackingService.js` — removed the `if (Number(stop.is_departure) === 1) continue;` guard from **both** tracking paths:
+  - `syncGeofenceRouteHistory()` (realtime sync loop, every `GEOFENCE_TRACKING_INTERVAL_MS`)
+  - `runBackfill()` (historical GPS replay from Wialon raw messages)
+- **Behavior:** a departure stop is now inserted into `sales_cost_route_history` (step key `stop:{scss.id}`) as soon as the truck is detected inside its geofence — exactly like any middle stop. Previously departure was always skipped and could only appear as "passed" via UI inference.
+- **Rationale:** restores the original design where departure is GPS-verifiable (proves the truck actually left the origin), not just inferred.
+- **`inferred_passed` fallback retained:** `schedulePengiriman.js` and `DetailSalesCost.vue` still mark departure as passed when a later stop is hit but departure has no history row — covering trucks that skip the departure point or depart before the Sales Cost is created.
+- **Finish guard unchanged:** `deliveryStops` used by the finish-order check still excludes departure (`stops.filter((s) => Number(s.is_departure) !== 1)`), so `system:finish_order` is only recorded after all middle (delivery) stops are visited. Departure never blocks finish.
+- **Verified:** SPK #43632 (departure geofence `Sankyu`) recorded its departure row immediately on the first sync cycle after the change.
+
+---
+
+## Updates (2026-07-20 — Session Fixes & UI Enhancements)
+
+### Bug Fixes
+
+#### Geofence Dropdown — Hapus Suffix Resource Name
+- `AreaMaster.vue` (line 573) dan `SalesCostForm.vue` (line 1003) — label dropdown geofence diubah dari `` `${row.zone_name} (${row.resource_name})` `` menjadi `row.zone_name` saja. Field `resource_name` tetap ada di object option untuk keperluan search, hanya teks tampilan yang dipersingkat.
+
+#### Monitoring Kendaraan — Status "Idle" setelah Finish Order
+- `monitoringKendaraan.js` — `trxConditions` bug fix: kondisi `finish_order_datetime > todayString` menyebabkan truk yang sudah selesai (dengan `finish_order_datetime` di hari yang sama tapi jam berbeda) masih muncul sebagai "Transaksi". Root cause: perbandingan `DATETIME > DATE` di MySQL cast `DATE` ke `YYYY-MM-DD 00:00:00`, sehingga jam 20:49 masih dianggap "masa depan".
+- **Fix:** `trxConditions` sekarang hanya memasukkan truk sebagai "Transaksi" jika `finish_order_datetime IS NULL OR = '0000-00-00'`. Jika `finish_order_datetime` sudah diisi (apapun nilainya), truk dianggap selesai dan masuk "Idle".
+
+#### Master Admin — Ganti Password Internal Server Error
+- `admin` table — kolom `password` diperlebar dari `VARCHAR(50)` ke `VARCHAR(255)` via migration `20260720000011_extend_admin_password_column.sql`. bcrypt hash (60 karakter) tidak bisa disimpan di `VARCHAR(50)`.
+- Migration dijalankan langsung via Node.js karena `dbmate` tidak tersedia di PATH.
+
+#### Schedule Pengiriman — Karakter "?" pada DN Text
+- `SchedulePengiriman.vue` (line 447) — separator antara `almt_pickup` dan `almt_drop` di expanded DN card diubah dari literal `?` menjadi `→`. Karakter `→` mengalami encoding corruption saat disimpan.
+
+### Monitoring Kendaraan — Multi-SPK Aktif per Truk
+
+**Problem:** 1 truk bisa memiliki 2–4 SPK aktif dalam 1 hari. Map `transaksiByTruck` dan `onTripByTruck` hanya menyimpan 1 row per truk (first-wins), sehingga SPK lainnya hilang diam-diam.
+
+**Fix:**
+- `monitoringKendaraan.js` — `transaksiByTruck` dan `onTripByTruck` diubah dari `Map<key, row>` menjadi `Map<key, row[]>`. Semua SPK aktif per truk dikumpulkan, primary row = `array[0]` (paling baru, karena query `ORDER BY departure_datetime DESC`).
+- Dua field baru ditambahkan ke setiap item `transaksi` dan `on_trip`:
+  - `active_spk_count: number` — jumlah SPK aktif untuk truk tersebut
+  - `active_spk_ids: number[]` — array ID semua SPK aktif
+- `MonitoringKendaraan.vue` — badge warning `"N SPK aktif →"` ditambahkan di card header `on_trip` dan `transaksi`. Badge ditampilkan jika `active_spk_count >= 1` (berlaku untuk 1 SPK maupun lebih).
+- Badge adalah `<button>` dengan `@click.stop="navigateToSpk(item)"` yang navigate ke `/schedule-pengiriman?spk_ids=43633,43634` dengan filter otomatis.
+
+### Schedule Pengiriman — Navigasi dari Badge SPK
+
+**Feature:** Klik badge "N SPK aktif" di Monitoring Kendaraan langsung membuka Schedule Pengiriman dengan filter otomatis menampilkan semua SPK terkait.
+
+- `schedulePengiriman.js` — param baru `?spk_ids=43633,43634,43635`: parse comma-separated list, filter `WHERE sc.id_sales_cost IN (...)` dengan parameterized query (SQL injection safe). Saat `spk_ids` diisi, date range filter di-skip.
+- `SchedulePengiriman.vue` — baca `route.query.spk_ids` saat `onMounted`. Jika ada: `spkIdsActive` ref di-set, date range default di-skip. Jika tidak ada: perilaku normal tidak berubah.
+- `SchedulePengiriman.vue` — `buildParams()` include `spk_ids` ke API call saat `spkIdsActive` non-empty.
+- `SchedulePengiriman.vue` — dismissable banner warning kuning muncul saat filter aktif: "Menampilkan N SPK aktif dari Monitoring Kendaraan". Tombol "× Hapus filter" clear `spkIdsActive` dan reload data normal.
+- `MonitoringKendaraan.vue` — `useRouter` import + fungsi `navigateToSpk(item)` menggunakan `item.active_spk_ids?.join(',')`.
+
+### Lokasi Truk — UI/UX Enhancements
+
+6 perubahan di `TruckLocationMap.vue`:
+
+1. **Animasi detail panel** — `<Transition>` slide+fade 220ms masuk / 160ms keluar saat panel Vehicle Detail muncul/hilang.
+2. **Kartu truk redesign** — status bar vertikal 3px di sisi kiri kartu (warna solid per GPS status), 3 baris info: plat+badge, driver+rute, speed (jika moving)+waktu GPS terakhir. Fungsi `statusBarClass` ditambahkan.
+3. **Loading address skeleton** — saat `selectedTruckAddressLoading = true`, tampilkan skeleton shimmer `animate-pulse` bukan teks + koordinat mentah. Koordinat hanya tampil di branch error fallback (`selectedTruckAddressError`).
+4. **Debounce search** — `watch([searchInput, gpsFilter])` dipecah menjadi dua watcher: `gpsFilter` instant, `searchInput` debounced 250ms via `useDebounceFn` dari `@vueuse/core`.
+5. **Legend GPS interaktif** — 4 badge (Moving/Idle/Offline/Belum Terhubung) diubah dari `<span>` dekoratif menjadi `<button>` yang toggle `gpsFilter`. Klik lagi reset ke `'all'`. Active state solid color.
+6. **Moving truck pulse** — CSS `@keyframes status-pulse` pada `.status-bar--moving` (opacity 1→0.45, 2s loop). `@media (prefers-reduced-motion: reduce)` menonaktifkan animasi.
+- `@vueuse/core` ditambahkan ke `package.json` secara resmi via `npm install`.
+
+### Database Migrations
+- `20260720000011_extend_admin_password_column.sql` — `ALTER TABLE admin MODIFY COLUMN password VARCHAR(255) NOT NULL`.
+
+### Key Business Logic Rules (tambahan)
+
+#### Multi-SPK per Truk
+- Jika 1 truk memiliki beberapa SPK aktif (`finish_order_datetime IS NULL`) dalam waktu bersamaan, Monitoring Kendaraan menampilkan SPK paling baru sebagai primary di card. Count total SPK aktif tersedia via `active_spk_count`, semua ID via `active_spk_ids`.
+- Badge `"N SPK aktif →"` tampil di semua card yang punya `active_spk_count >= 1`.
+
+#### Schedule Pengiriman spk_ids Mode
+- Saat URL mengandung `?spk_ids=`, filter date range default di-skip. Backend query menggunakan `WHERE sc.id_sales_cost IN (...)`.
+- Dismiss banner → clear `spkIdsActive` → reload data → kembali ke filter date range normal.
+- URL param name: `spk_ids` (konsisten dari `router.push` → `route.query` → `buildParams` → `req.query`).
+
+---
+
+## Updates (2026-07-21 — Print SPK, Export Excel, Bug Fixes)
+
+### Print Sales Cost — Label "Tiba di Tujuan"
+- `PrintSalesCost.vue` — tambah label `"Tiba di Tujuan"` tepat di bawah `"Total Trip"` di print SPK.
+- Data diambil dari stop pertama yang bukan departure dan bukan finish (`delivery_stops` → first middle stop).
+- Format: `HH.MM (D Bulan YYYY)` — contoh: `10.25 (21 Juli 2026)`.
+- Perubahan: `DeliveryStopPrint` type, `formatIndonesianDateTime()` helper, `getFirstDestination()` helper, CSS positioning `top: 112mm` (7mm di bawah `label-trip`).
+- `SalesCostPrintDetail` type ditambahkan field `delivery_stops?: DeliveryStopPrint[]` — API sudah return field ini, hanya belum dipakai di print.
+
+### Sales Cost — Mode Manual Fallback Jadwal Pengiriman
+- `SalesCostForm.vue` — toggle `"Mode Manual"` di header section Jadwal Pengiriman sebagai fallback saat server GPS Wialon error/offline.
+- State: `useManualMode = ref(false)`, reset ke `false` setiap form dibuka via `applyInitialData`.
+- Saat mode manual aktif: geofence picker (`SearchableSelect`) disembunyikan di semua stop (Departure, Middle, Finish), diganti teks italic abu-abu `"Geofence tidak dikonfigurasi (mode manual)"`.
+- Validasi: guard `!useManualMode.value` ditambahkan pada validasi `wialon_zone_id` — geofence tidak wajib di mode manual. `stop_name` dan `estimated_arrival` tetap wajib.
+- Backend tidak perlu diubah — `wialon_zone_id/resource_id/zone_name` sudah nullable di `sales_cost_step_schedule`.
+- Info banner warning kuning muncul saat mode manual aktif.
+
+#### Flow Bisnis Mode Manual
+- Sales Cost dengan mode manual tetap bisa disimpan dan tampil di Schedule Pengiriman dengan timeline stops (status semua "Pending").
+- Status `on_trip` di Monitoring Kendaraan tetap aktif (karena cek `EXISTS sales_cost_step_schedule`, tidak peduli geofence NULL).
+- GPS tracking otomatis tidak berjalan (Wialon tidak mengenal zone-nya).
+- Progression status harus dilakukan manual via check-in di Schedule Pengiriman.
+- `system:finish_order` hanya masuk via manual Finish check-in.
+
+### Notifikasi Pengiriman — Scrollable Fix
+- `DeliveryNotificationBell.vue` — `<ul>` list notifikasi diubah dari `h-auto overflow-y-auto` menjadi `flex-1 min-h-0 overflow-y-auto`. `flex-1` mengisi sisa tinggi dropdown (480px - header - footer), `min-h-0` memungkinkan flex child shrink sehingga `overflow-y-auto` aktif.
+
+### Schedule Pengiriman — Export Excel (current — Jul 2026)
+**Backend:** `node_backend/routes/schedulePengiriman.js` → `GET /export` (sebelum `GET /`).
+- Params: `start_date`, `end_date` (YYYY-MM-DD). Tanpa param = semua data.
+- Per-stop via `resolveStopTimelineSummary`; filename `schedule-pengiriman_YYYY-MM-DD.xlsx`.
+- **19 kolom**; satu baris per stop; **merge kolom 1–11** (info SPK + **Jumlah Hari (Aktual)**) untuk SPK multi-stop.
+- Alternating group colors per SPK; merged cells `vertical: "top"`.
+
+**Helpers (export duration / selisih):**
+- `formatDurationId` — Aktual Departure → Aktual Finish → `X hari Y jam Z mnt` (atau `-` jika salah satu belum hit). Finish actual: stop finish hit, fallback `system:finish_order.gps_time`.
+- `diffMinutes` / `formatSignedDurationId` / `formatDiffMinutes` — selisih per stop: aktual − estimasi; human-readable omit-zero units.
+
+**Frontend:** `SchedulePengiriman.vue` — tombol Export Excel + modal (Per Bulan / Per Tahun / Semua Data) → blob download.
+
+**Kolom Excel (current):**
+
+| # | Kolom | Level | Source / notes |
+|---|---|---|---|
+| 1–10 | No. … Status SPK | SPK (merge) | identity + `schedule_status` |
+| 11 | **Jumlah Hari (Aktual)** | SPK (merge) | Actual dep → actual finish: `0 hari 3 jam 15 mnt`; `-` if incomplete |
+| 12 | Stop | stop | `stop_name` |
+| 13 | Nama Geofence | stop | `wialon_zone_name` |
+| 14 | Estimasi Tiba | stop | `estimated_arrival` |
+| 15 | Aktual Tiba | stop | `actual_arrival` (GPS/manual) |
+| 16 | **Selisih Waktu (Est vs Aktual)** | stop | human-readable: `1 jam 56 mnt`, `-45 mnt`, `tepat`, `-`; **+** = late vs est, **−** = early |
+| 17 | Status Stop | stop | see labels below |
+| 18 | Sumber Aktual | stop | GPS / Manual / - |
+| 19 | Koordinat GPS | stop | `lat, lon` 6 decimals if hit |
+
+**Status Stop labels:**
+- `"Tercapai"` — hit
+- `"Geofence dilewati"` — middle never hit after finish
+- `"Terlewati (Otomatis)"` — inferred departure
+- `"Terlambat"` — overdue, not hit
+- `"Pending"` — not hit, not overdue
+
+### Important Routes (tambahan)
+- `GET /api/schedule-pengiriman/export?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+  - Export Schedule Pengiriman ke `.xlsx` (per-stop est/aktual + durasi SPK + selisih waktu)
+  - Merge kolom 1–11; alternating group colors per SPK
+
+---
+
+## Updates (2026-07-21 continued — Export Enhancements, DB Deployment, Status Filter, Selesaikan Semua)
+
+### Schedule Pengiriman Export — Kolom Tambahan (superseded by current 19-col layout)
+
+- History export selects `lat`, `lon`; timeline exposes `gps_lat` / `gps_lon`.
+- Added **Nama Geofence** + **Koordinat GPS**; later **Jumlah Hari (Aktual)** + **Selisih Waktu (Est vs Aktual)** (see current table above).
+- Merge range expanded to columns **1–11** when Jumlah Hari was added.
+- Status label **"Terlewati (Otomatis)"** for inferred departure; **"Geofence dilewati"** for skipped middles after finish.
+
+### Schedule Pengiriman — Status Filter: Client-Side → Server-Side
+
+**Problem:** Filter status (`filters.status`) sebelumnya murni client-side (`filteredRows` computed) — hanya menyaring data yang sudah ter-load di halaman aktif. Jika transaksi dengan status "Selesai" tidak ada di rentang tanggal/halaman yang sedang ditampilkan, filter tidak menemukannya sama sekali.
+
+**Fix — Opsi A (server-side dengan in-memory pagination saat status filter aktif):**
+- `schedulePengiriman.js` (`GET /`) — terima param `?status=` (valid: `waiting`, `on_trip`, `overdue`, `completed`, `incomplete_finish`).
+- Response mapping logic diekstrak ke helper `buildResponseRows(rows)` agar reusable oleh kedua path.
+- **Tanpa `status`**: perilaku lama tidak berubah — SQL `LIMIT/OFFSET` pagination di level database.
+- **Dengan `status`**: fetch SEMUA rows yang match date/search/spk_ids (tanpa `LIMIT`), hitung `schedule_status` per row via `resolveScheduleStatus`, filter in-memory, baru paginate hasil filter tersebut.
+- `meta.status` selalu disertakan di response (null jika tidak difilter).
+- `SchedulePengiriman.vue` — `filteredRows` computed disederhanakan menjadi `computed(() => rows.value)` (tidak filter lagi di client). `buildParams()` kini mengirim `status` ke API. Status dropdown mendapat `@change="applyFilter"` agar memilih status langsung memicu reload data dari page 1.
+
+**Trade-off:** saat status filter aktif, backend fetch seluruh dataset tanpa limit — bisa lebih berat untuk dataset sangat besar, tapi memastikan akurasi penuh (tidak ada status yang "hilang" karena berada di luar halaman aktif).
+
+### Sales Cost — Fitur "Selesaikan Semua" (Admin Only)
+
+**Fitur:** Admin bisa menekan satu tombol di card Schedule Pengiriman untuk menyelesaikan seluruh timeline pengiriman suatu SPK sekaligus (semua stop yang belum `hit` di-check-in otomatis), tanpa perlu check-in satu-per-satu secara manual.
+
+**Backend — `POST /api/sales-costs/:id/complete-all`:**
+- Role guard: hanya `req.user.level === 'admin'` (403 untuk role lain).
+- Fetch semua `sales_cost_step_schedule` untuk SPK terkait, filter stop yang **bukan departure** dan **belum ada di `sales_cost_route_history`**.
+- Untuk tiap pending stop (urut `stop_order`): `arrived_at` = `estimated_arrival` jika di masa lalu, atau `now` jika `estimated_arrival` di masa depan (tidak boleh > sekarang, sesuai constraint check-in manual).
+- Timestamp dijaga **monoton naik** — jika `arrived_at` hasil hitung ≤ stop sebelumnya, ditambah 1 menit, agar tidak melanggar validasi "arrived_at tidak boleh kurang dari stop sebelumnya".
+- Stop Finish: menulis `system:finish_order` (idempotent, skip jika sudah ada) dan update `finish_order_datetime` (idempotent guard) — **dibungkus try/catch terpisah** dari INSERT stop utama, sehingga kegagalan di langkah finish (mis. `system:finish_order` sudah ada dari GPS trigger sebelumnya) tidak membuat stop tersebut ikut masuk daftar `errors` meski INSERT stop utamanya sudah berhasil.
+- Response: `{ message, completed, errors? }` — jika sebagian stop gagal, `errors` berisi detail per stop yang gagal.
+
+**Bug ditemukan & diperbaiki saat testing:** Awalnya INSERT `system:finish_order` berada di dalam try block yang sama dengan INSERT stop biasa — jika finish_order INSERT gagal (duplicate karena sudah pernah tercatat via GPS), exception tertangkap oleh catch yang sama dan **seluruh stop Finish dianggap gagal** meski INSERT utamanya sukses, menghasilkan pesan salah seperti "1 sukses, 1 gagal" padahal proses sebenarnya berhasil penuh. Diperbaiki dengan memisahkan try/catch untuk bagian finish-order (kegagalan di situ hanya di-log sebagai warning, tidak membatalkan status sukses stop).
+
+**Frontend:**
+- `salesCostService.js` — method baru `completeAll(id)` → `POST /api/sales-costs/:id/complete-all`.
+- `SchedulePengiriman.vue`:
+  - `isAdmin = computed(() => authUser.value?.level === 'admin')`
+  - `completingIds = ref<Set<number>>(new Set())` — tracking loading state per card (mendukung multiple card diproses independen)
+  - `hasPendingStops(row)` — true jika ada stop non-departure yang belum `hit` di `delivery_stops_summary`
+  - `handleCompleteAll(row)` — call service, toast feedback, `loadData()` untuk refresh
+  - Tombol **"Selesaikan Semua"** (hijau/success, dengan spinner saat loading) di card footer, sebelah kiri tombol "Detail" — `v-if="isAdmin && row.schedule_status !== 'completed' && hasPendingStops(row)"`, `@click.stop` agar tidak trigger expand/collapse card.
+
+### Local Production Deployment — PM2 Autorun
+
+**Problem:** Autorun PM2 yang ada (`autorun.bat` + `ecosystem.config.js`) hanya untuk development mode (backend `NODE_ENV=development` + Vite dev server terpisah di `:5173`). Dibutuhkan mode production untuk infra lokal yang serve frontend build sebagai static file dari backend Express (`:3000` saja, sesuai desain `server.js` yang sudah serve `dist/`).
+
+**File baru:**
+- `ecosystem.prod.config.js` — PM2 config khusus production, hanya 1 app (`transport-backend-prod`), `NODE_ENV=production`. Tidak ada proses Vite — frontend sudah di-compile ke static files.
+- `autorun-prod.bat` — 3 langkah: (1) build frontend dengan `npm run build-only -- --mode local-prod`, (2) sinkronisasi DB via `node scripts/fix-missing-tables.js`, (3) `pm2 startOrRestart ecosystem.prod.config.js` + `pm2 save`.
+- `tailadmin-vuejs-1.0.0/.env.local-prod` — env file baru khusus mode lokal, **tidak** men-set `VITE_API_URL` sehingga `api.js` fallback ke `window.location.origin` (bekerja untuk akses via `localhost:3000` ATAU IP LAN seperti `192.168.x.x:3000`).
+
+**Root cause bug yang ditemukan:** `npm run build-only` default membaca `.env.production`, yang berisi `VITE_API_URL=https://sankyu-transport.fun` (untuk deploy Cloudflare Tunnel). Saat dipakai untuk build infra lokal, semua API call ter-hardcode ke domain Cloudflare — menyebabkan CORS error `blocked by CORS policy` saat akses via IP lokal (origin mismatch: browser di `192.168.x.x:3000` tapi fetch ke `sankyu-transport.fun`).
+
+**Solusi:** Dua env file terpisah, tidak saling mempengaruhi:
+| Mode | Build command | Env file dibaca | API URL hasil |
+|---|---|---|---|
+| Local infra | `npm run build-only -- --mode local-prod` | `.env.local-prod` | `window.location.origin` (dinamis) |
+| Cloudflare deploy | `npm run build-only` (default) | `.env.production` | `https://sankyu-transport.fun` (statis) |
+
+`.env.production` tidak disentuh — build untuk Cloudflare Tunnel tetap berjalan seperti sebelumnya, kompatibel dengan akses `sankyu-transport.fun` maupun jika suatu saat tunnel tersebut mem-forward ke backend lokal yang sama.
+
+**Catatan:** `npm run build` (dengan `type-check` via `vue-tsc`) gagal dengan 133 TypeScript errors pre-existing (module declaration issues di banyak file `.js` service). `autorun-prod.bat` sengaja memakai `build-only` untuk skip type-check di deployment lokal — bukan untuk CI/CD publik, jadi trade-off ini diterima untuk saat ini.
+
+### Database Deployment — Sync dari Production Dump
+
+**Problem:** Skenario umum — drop database lokal, import dump database dari server production yang **belum punya perubahan skema** yang sudah dilakukan di repo ini (kolom rename, tabel baru, dll). Menjalankan `npm run migrate` langsung gagal karena dbmate mendeteksi tabel `schema_migrations` kosong/tidak ada dan mencoba re-run SEMUA migration dari awal — termasuk migration rename kolom yang sudah pernah dijalankan di lingkungan lain, menyebabkan `ER_BAD_FIELD_ERROR` (`Unknown column 'delivery_order'` dst.) atau `ER_NO_DEFAULT_FOR_FIELD`.
+
+**Investigasi bertahap yang dilakukan:**
+1. `npm run migrate:adopt-existing` (script lama) — menandai SEMUA migration pending sebagai "applied" tanpa verifikasi aktual, sehingga migration yang membuat tabel baru (`delivery_notifications`, `sales_cost_step_schedule`, `delivery_notification_read`) ditandai selesai padahal tabelnya belum pernah dibuat.
+2. Ditemukan bug case-sensitivity: `information_schema.tables` di Windows MySQL mengembalikan kolom `TABLE_NAME` (uppercase), bukan `table_name` — `adopt-existing-migrations.js` sempat salah membaca ini sebagai `undefined` untuk semua row, membuat `matchesLatestTrackedSchema` selalu return `false`. **Fix:** case-insensitive lookup via `row.table_name ?? row.TABLE_NAME ?? Object.values(row)[0]`.
+3. MySQL 8.4 `STRICT_TRANS_TABLES` mode memblokir `ALTER TABLE ... CHANGE COLUMN` pada `sales_cost` karena ada data ENUM tidak valid di kolom lain (`jenis_trip` dengan value `''` duplikat) — solusi: `SET SESSION sql_mode` tanpa `STRICT_TRANS_TABLES` sebelum ALTER.
+4. `id_area_route_step` di `sales_cost_step_schedule` (kolom lama, sisa dari struktur sebelum restructure) tidak bisa di-`DROP COLUMN` karena terikat foreign key constraint — solusi: biarkan kolom itu ada tapi ubah jadi `NULL DEFAULT NULL` agar INSERT baru (yang tidak menyertakan kolom ini) tidak gagal dengan `ER_NO_DEFAULT_FOR_FIELD`.
+
+**Solusi final — script baru `node_backend/scripts/fix-missing-tables.js`** (`npm run migrate:fix-missing`):
+- Idempotent — aman dijalankan berkali-kali, setiap step di-`try/catch` dan `[SKIP]` jika sudah ada (`ER_TABLE_EXISTS_ERROR`, `ER_DUP_FIELDNAME`, `ER_DUP_KEYNAME`, atau pesan "Duplicate column/key").
+- Set `sql_mode` tanpa strict mode di awal.
+- Urutan operasi mengikuti urutan migration: rename `delivery_order/arrival_order/finish_order` → `departure_datetime/arrival_datetime/finish_order_datetime`; create `delivery_notifications`; create+restructure `sales_cost_step_schedule` (drop kolom lama, tambah kolom baru, buat `id_area_route_step` nullable); tambah `id_sc_stop`/`is_manual` ke `sales_cost_route_history`; tambah GPS cache columns ke `truck`; nullable wialon fields; create `delivery_notification_read`; extend `admin.password` ke `VARCHAR(255)`.
+- Setiap step yang berhasil juga `INSERT IGNORE` versi migration terkait ke `schema_migrations` agar status konsisten dengan `npm run migrate:status`.
+
+**Flow deploy DB yang benar (dicatat untuk referensi ke depan):**
+```bash
+cd node_backend
+npm run migrate:fix-missing   # idempotent, aman dijalankan berkali-kali
+npm run migrate:status        # verifikasi Applied: 22, Pending: 0
+```
+
+**Catatan penting:** `npm run migrate:adopt-existing` (script lama) TIDAK disarankan lagi untuk skenario "import dump production lama" karena menandai migration sebagai selesai tanpa verifikasi efek aktual di DB. `migrate:fix-missing` adalah pendekatan yang lebih aman — tiap operasi dicoba secara langsung dan hanya di-skip jika benar-benar sudah ada.
+
+---
+
+## Updates (2026-07-21 — Bug Fixes, HIGH/MEDIUM Audit Fixes, Confirm Dialog)
+
+### Notifikasi Pengiriman — Auto-delete >30 Hari
+
+- `geofenceTrackingService.js` — fungsi baru `purgeOldDeliveryNotifications()` dijalankan di dalam `runSyncCycle()` (throttle 1x per jam via `lastPurgeAt`).
+- Hard-delete `delivery_notifications WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`.
+- Sekaligus cleanup orphan rows di `delivery_notification_read` yang referensinya sudah dihapus.
+- Error di langkah purge hanya di-log sebagai warning — tidak menghentikan sync cycle utama.
+
+### Schedule Pengiriman — Konfirmasi "Selesaikan Semua"
+
+- `SchedulePengiriman.vue` — tombol "Selesaikan Semua" kini membuka modal konfirmasi sebelum eksekusi.
+- State baru: `confirmCompleteRow = ref<any>(null)` — menyimpan row yang menunggu konfirmasi.
+- Klik tombol → set `confirmCompleteRow = row` (bukan langsung eksekusi).
+- Modal `<Teleport to="body">` dengan info SPK (No. SPK, Truk, Driver, Rute), warning banner kuning, tombol Batal dan "Ya, Selesaikan Semua".
+- Klik "Ya" → `handleCompleteAll(confirmCompleteRow)` + reset `confirmCompleteRow = null`.
+- Memakai `fade-export` transition yang sudah ada.
+
+### Audit Bug Fixes — HIGH (7 issues)
+
+Semua HIGH bugs dari `docs/superpowers/plans/audit-bug-report.md` diselesaikan:
+
+- **H2** — `repairService.js:createRepair` — MySQL `SELECT ... FOR UPDATE` + `BEGIN/COMMIT` untuk cegah race condition dua request assign truk yang sama ke repair/sales cost bersamaan.
+- **H5** — `monitoringKendaraan.js` — window on_trip dikurangi dari `INTERVAL 60 DAY` ke `INTERVAL 14 DAY` (C5 sudah stable).
+- **H7** — `monitoringKendaraan.js` — tambah `meta.has_more` per kategori (`on_trip`, `transaksi`, `repair`, `idle`) agar frontend tahu data lebih banyak dari yang ditampilkan.
+- **H8** — `geofenceTrackingService.js:stopGeofenceTracking` — diubah menjadi async, polling `syncInProgress` sampai false atau timeout 5s sebelum return.
+- **H9** — `geofenceTrackingService.js:getActiveSalesCostCandidates` — hapus dedup `pickedByTruck`, semua SPK aktif per truk kini di-track (bukan hanya yang paling baru). Fix salah trigger finish untuk truk multi-pengiriman aktif.
+- **H10** — `wialonService.js:wialonRequest` — re-login hanya untuk error code 1/401/403 (session-related); kode lain di-log dan re-throw tanpa login storm.
+- **H11** — `geofenceTrackingService.js` — tandai RESOLVED: tracking sudah konsisten pakai `id_sc_stop` sejak refactor Juli 2026.
+
+### Audit Bug Fixes — MEDIUM (6 issues)
+
+- **M1** — `salesCost.js` — delivery_stops upsert (PUT handler) dibungkus dalam `db.getConnection()` + `BEGIN/COMMIT` transaction agar partial failure tidak korup stops.
+- **M4** — `salesCost.js` — tambah helper `escapeLikeParam(value)` yang escape `%`, `_`, `\` dari input user sebelum dipakai di `LIKE` clause (dua lokasi search handler).
+- **M5** — `salesCost.js:PUT /:id/dn` — tambah guard: verifikasi sales cost exists + month-lock check sebelum overwrite DN list.
+- **M6** — `repairService.js:normalizeDateOnly` — ganti `new Date(string)` ke manual parse `YYYY-MM-DD` via regex untuk hindari UTC midnight timezone shift WIB (off-by-one-day bug).
+- **M7** — `rbac.js` — ganti `path.startsWith(route.path)` ke `path === route.path || path.startsWith(route.path + '/')` di kedua checker (CS dan Patcher) untuk cegah prefix bypass.
+- **M11** — `geofenceTrackingService.js:toMySqlDateTime` — tambah guard `if (value === null || value === undefined) return null` di baris pertama. Sebelumnya `new Date(null)` = epoch `1970-01-01`, bukan null.
+
+### Audit Bug Fixes — MEDIUM yang di-Resolve (bukan bug aktif)
+
+- **M2** — `isValidIsoDateTime()` sudah ada dan dipakai di POST/PUT handler — resolved.
+- **M9** — `.filter(k => k !== ':')` sudah mitigasi key collision NULL+NULL — resolved.
+- **M10** — Fixed by C6 fix (finish_geofence_* di-pass dari area table) — resolved.
+
+### Important Usage Rules (tambahan)
+
+#### Delivery Stop Upsert (Sales Cost PUT)
+- Smart upsert sekarang dibungkus transaction — kegagalan di tengah loop rollback semua perubahan stops agar tidak partial.
+- `escapeLikeParam()` wajib dipakai untuk semua input user yang masuk ke `LIKE` clause.
+
+#### RBAC Path Matching
+- Gunakan `path === route.path || path.startsWith(route.path + '/')` — **bukan** bare `startsWith(route.path)` — untuk whitelist RBAC. Pola lama bisa di-bypass dengan path yang diawali nama route yang sama.
+
+---
+
+## Updates (2026-07-23 / 2026-07-24 / 2026-07-25 — Delivery Timeline Overhaul)
+
+Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plans live under `.opencode/plans/` (e.g. sequential zones, loose finish, manual ETA, audit C1/H1–H4, false-finish same-zone, multi-SPK M2 audit, early leave #44394, age/distance auto-finish).
+
+### GPS polygon & sequential stops
+- `fetchZonePolygons`: Wialon flags **28 → 0 → 8** (flags:4 alone returns bounds without points — root cause of empty polygons / zero hits).
+- Live polygon map: correctly reads `Map<zoneId, {name, points}>` (not bare points array).
+- `msg.t` treated as **Unix seconds** (not ms).
+- `assignStopHits` + `seedConsumptionFromHistory`: repeated zones get distinct timestamps; history seeded each cycle.
+- Stop order **loose** (Opsi B): field visit order need not match `stop_order`.
+- Message window: planned departure **−12h** buffer so early GPS still counts.
+- Backfill uses the **same** assigner (no more first-hit-only reuse).
+
+### Finish GPS — loose + same-zone min-away (anti #44390 / early leave #44394)
+- Default: finish **without** requiring all middle stops (`GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH=0`).
+- Schedule: `completed` when `system:finish_order` exists; skipped middles → **Geofence dilewati**.
+- **Hard gate:** `now >= planned departure` before finish may be recorded.
+- **Same-zone finish** (Departure zone = Finish zone, typical Sankyu): require either:
+  - meaningful leave within lookback before planned dep: **≥20 min** outside and/or **≥1 km** from base centroid, **or**
+  - ≥1 middle stop GPS-hit in that lookback window  
+  then re-entry = finish (re-entry may be **before** planned dep). Blocks ignition/idle false finish (#44390); allows early trip+return (#44394).
+- Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000), `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default **14400** = 4h).
+- Helpers: `analyzeBaseExit`, `resolveFinishGpsHit` (exported for tests in `scripts/test-geofence-assign.js`).
+
+### Manual mode / no-GPS auto-finish by ETA
+- Column `sales_cost.is_manual_mode` (migration `20260723000012`; also in `fix-missing-tables.js`).
+- Form `SalesCostForm.vue` sends `is_manual_mode` on create/update.
+- `applyDueManualEtaHits()` in each tracking cycle: auto-hit due stops; finish ETA due → `system:finish_order` (`is_manual=1`, `gps_time` = ETA).
+- Eligible: `is_manual_mode=1` **or** empty `wialon_unit_id` only (not “GPS truck with empty zones”).
+
+### Age / distance auto-finish (all active SPKs) — 2026-07-25
+- After GPS + manual ETA each cycle: `applyDueDistanceAgeFinish()` in `runSyncCycle`.
+- Timer: `departure_datetime + N days` where N from trip distance (max haversine centroid Departure → middle/finish zones).
+- Bracket: **≤60 km → 3 days**, **≤100 km → 7 days**, **>100 km → 10 days**; no polygon distance → **fallback 3 days**.
+- Scan window: unfinished SPKs with dep in last **60 days** and at least **min bracket days** old (SQL prefilter).
+- Inserts `system:finish_order` (`is_manual=1`, snapshot name `Auto Finish (Jarak/Umur)`); middle stops stay **Geofence dilewati** if never hit.
+- Env: `GEOFENCE_AGE_FINISH_*` (km/days/lookback); `GEOFENCE_AGE_FINISH_DRY_RUN=1` logs only (no INSERT).
+- Helpers: `computeTripDistanceKm`, `resolveAgeFinishDays`, `isDueForAgeFinish` (exported; covered in `test-geofence-assign.js`).
+
+### Critical / High audit fixes (C1, H1–H4)
+- **C1:** map `departure_datetime` onto GPS candidates; skip invalid departure.
+- **H2:** GPS candidates limited to last **30 days**.
+- **H4:** manual ETA eligibility tightened (see above).
+- **H1:** Schedule/Monitoring overdue prefer finish-stop ETA; active transaksi uses **no** `system:finish_order` (not `finish_order_datetime IS NULL`); transaksi list requires **exists** step_schedule (fixes empty-timeline SPKs #44335/#44336 showing as Transaksi after H1).
+
+### Monitoring / Schedule UI labels
+- Badge **Geofence dilewati** for middle stops after finish without GPS hit (Schedule + Detail SC + Excel export).
+- Finish longgar product: skip tujuan + return base can complete SPK when min-away (or middle hit) satisfied.
+
+### Multi-SPK same truck (M2) — audited, not fully product-fixed
+- Tracking still finishes **each** active SPK independently with loose finish → shared Sankyu re-entry can close multiple SPKs (documented in `.opencode/plans/audit-m2-multi-spk-finish.md`).
+- Recommended future policy **D**: multi-active → require all middle hits before auto-finish; single-active keep loose. **Not implemented yet.**
+
+### Case notes (ops reference)
+- **#44363** Daikin: empty polygons (flags) + early visit window — fixed by polygon flags + buffer.
+- **#44368** Finish Sankyu: membership-only finish + null area finish cols — fixed by timeline finish + scss/Sankyu fallback.
+- **#44361** stuck GPS unit: no trip trail in Wialon — data issue, not app finish logic.
+- **#44360** skip Jotun, return Sankyu: loose finish + insert verified.
+- **#44390** false finish at base on ignition: same-zone min-away guard (this section).
+- **#44394** early leave/return before planned dep (B 9979 SYM): leave lookback so re-entry ~minutes before dep still finishes after `now >= dep`; no LAFI polygon hit → Tujuan **Geofence dilewati**.
+
+### Deploy / DB notes (unchanged path)
+- Local prod frontend: `vite --mode local-prod` (no forced `VITE_API_URL`).
+- After production dump import: prefer `npm run migrate:fix-missing` over bare adopt-existing.
+- WIB = UTC+7 for backfill windows when diagnosing Wialon times.
+
+### Tests
+- `node_backend/scripts/test-geofence-assign.js` — sequential zones, loose finish, same-zone min-away / #44390-like cases, early leave/return #44394, age-finish bracket/distance/due helpers.
+- Run: `cd node_backend && node scripts/test-geofence-assign.js`
+
+### Schedule export duration columns (2026-07-25)
+- Excel **19 columns**: merge **1–11** includes **Jumlah Hari (Aktual)** (`X hari Y jam Z mnt` from actual dep→finish).
+- Per-stop **Selisih Waktu (Est vs Aktual)**: human-readable signed duration (`1 jam 56 mnt` / `-…` / `tepat`); positive = late vs estimate.
+- Helpers: `formatDurationId`, `formatSignedDurationId`, `formatDiffMinutes` in `schedulePengiriman.js`.
+
+### Subcontractor — Jadwal manual, CS, export, print (2026-07-25)
+
+#### Schema & API
+- Table `sub_contractor_step_schedule` (migration `20260725000013` / `fix-missing-tables`): multi-stop planned times **without** Wialon/geofence.
+- `GET/POST/PUT` handle `delivery_stops`; replace-all stops on PUT when array provided.
+- `sub_contractor.nik_admin` = creator **`id_admin`** (numeric). POST sets from JWT `id_admin`; PUT **does not** overwrite creator.
+- Detail GET: `LEFT JOIN admin` → `created_by_name`, `created_by_nik`.
+- DELETE remains `requireAdmin`.
+
+#### Form (`SubcontractorForm.vue`)
+- Always **manual** timeline (Departure / Tujuan / Finish): `stop_name` + datetime; no geofence / GPS toggle.
+- Header `delivery_date` / `arrival_date` (DATE) synced from stops; `tujuan_pengiriman` auto-filled from **Finish stop name** (fallback join middle names).
+- Field **Tujuan Pengiriman** removed from UI (covered by jadwal).
+- Optional free-text: No. Polisi, Jenis Kendaraan, Tonase, Driver, No. Surat Jalan (not required).
+- Layout: 4 TailAdmin section cards — **Mitra & Pesanan**, **Kendaraan & Dokumen**, **Jadwal Pengiriman**, **Biaya & Tagihan**.
+
+#### CS privilege
+- Nav: Transaksi → Subcontractor; routes `allowCS: true` (list/new/edit/detail/**print**).
+- RBAC `isAllowedForCs`: GET/POST/PUT `/subcontractor` + GET `/warehouses`, `/customers`, `/subconts` (no DELETE, no export unless later whitelisted).
+
+#### Excel export (`GET /export`)
+- One row per transaction.
+- After Arrival Date: **Departure (Nama/Waktu)**, **Tujuan 1…N (Nama/Waktu)** (N = max middle stops in export batch), **Finish (Nama/Waktu)**.
+- Removed combined “Jadwal Pengiriman” string / Est. Departure-only columns.
+
+#### Print A4 Portrait
+- Route `/subcontractor/:id/print` → `PrintSubcontractor.vue`.
+- Title **Laporan Subcontractor**; operational summary + schedule table; **no** Cost/Sales/GP.
+- Entry: Detail **Print** button + list row action **Print**.
+- `@page { size: A4 portrait }`; flow layout (not absolute SPK clone).
+
+#### Detail page
+- **Dibuat Oleh**: `created_by_name (created_by_nik)`; `-` if `nik_admin` 0 / missing admin.
+- Optional list of planned stops when `delivery_stops` present.

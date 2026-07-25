@@ -485,6 +485,14 @@
                               Details
                             </RouterLink>
                             <RouterLink
+                              :to="`/subcontractor/${item.id_subcontractor}/print`"
+                              target="_blank"
+                              class="block px-3 py-2 text-xs font-medium text-emerald-600 hover:bg-gray-50 dark:text-emerald-400 dark:hover:bg-white/[0.03]"
+                              @click="closeActionMenu"
+                            >
+                              Print
+                            </RouterLink>
+                            <RouterLink
                               :to="`/subcontractor/${item.id_subcontractor}/edit`"
                               class="block px-3 py-2 text-xs font-medium text-amber-600 hover:bg-gray-50 dark:text-amber-400 dark:hover:bg-white/[0.03]"
                               @click="closeActionMenu"

@@ -75,7 +75,7 @@ const user = ref(authService.getUser())
 const isAdmin = computed(() => user.value?.level === 'admin')
 
 const deliveryDate = computed(() => {
-  const value = initialData.value?.delivery_order
+  const value = initialData.value?.departure_datetime
   if (!value || typeof value !== 'string') {
     return null
   }

@@ -5,12 +5,22 @@
       <ComponentCard title="Rincian Transaksi Sub Contractor">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">Detail Transaksi</div>
-          <RouterLink
-            to="/subcontractor"
-            class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
-          >
-            Kembali
-          </RouterLink>
+          <div class="flex flex-wrap items-center gap-2">
+            <RouterLink
+              v-if="detailId"
+              :to="`/subcontractor/${detailId}/print`"
+              target="_blank"
+              class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-white/5 dark:focus:ring-offset-gray-900"
+            >
+              Print
+            </RouterLink>
+            <RouterLink
+              to="/subcontractor"
+              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900"
+            >
+              Kembali
+            </RouterLink>
+          </div>
         </div>
 
         <p
@@ -51,6 +61,10 @@
                 <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">No. Surat Jalan</p>
                 <p class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ formatText(detail.no_surat_jalan) }}</p>
               </div>
+              <div class="p-4">
+                <p class="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Dibuat Oleh</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ formatCreatedBy(detail) }}</p>
+              </div>
             </div>
           </div>
 
@@ -87,7 +101,7 @@
               </svg>
               <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Timeline Pengiriman</p>
             </div>
-            <div class="grid gap-x-8 gap-y-3 sm:grid-cols-3">
+            <div class="grid gap-x-8 gap-y-3 sm:grid-cols-3 mb-4">
               <div>
                 <span class="text-xs text-gray-400 dark:text-gray-500">Delivery Date</span>
                 <p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatDate(detail.delivery_date) }}</p>
@@ -100,6 +114,22 @@
                 <span class="text-xs text-gray-400 dark:text-gray-500">Trip</span>
                 <p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ formatText(detail.trip) }}</p>
               </div>
+            </div>
+            <div v-if="deliveryStops.length" class="border-t border-gray-100 pt-4 dark:border-gray-800">
+              <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-400">Jadwal Stop (Estimasi)</p>
+              <ul class="space-y-2">
+                <li
+                  v-for="(stop, idx) in deliveryStops"
+                  :key="stop.id || idx"
+                  class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-white/[0.03]"
+                >
+                  <span class="font-medium text-gray-800 dark:text-gray-100">
+                    <span class="mr-2 text-xs text-gray-400">{{ stopLabel(stop) }}</span>
+                    {{ stop.stop_name || '-' }}
+                  </span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(stop.estimated_arrival) }}</span>
+                </li>
+              </ul>
             </div>
           </div>
 
@@ -159,6 +189,15 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import ComponentCard from '@/components/common/ComponentCard.vue'
 import { subcontractorService } from '@/services/subcontractorService'
 
+type DeliveryStopRow = {
+  id?: number
+  stop_order?: number
+  stop_name?: string
+  is_departure?: number
+  is_finish?: number
+  estimated_arrival?: string | null
+}
+
 type DetailData = {
   nama_customer: string
   nama_subcont: string
@@ -178,6 +217,9 @@ type DetailData = {
   sales: number
   trip: string
   gross_profit: number
+  created_by_name?: string | null
+  created_by_nik?: string | null
+  delivery_stops?: DeliveryStopRow[]
 }
 
 const currentPageTitle = ref('Detail Sub Contractor')
@@ -207,10 +249,35 @@ const detail = ref<DetailData>({
 
 const grossProfitNum = computed(() => Number(detail.value.gross_profit) || 0)
 
+const deliveryStops = computed(() => {
+  const list = detail.value.delivery_stops
+  if (!Array.isArray(list)) return [] as DeliveryStopRow[]
+  return [...list].sort((a, b) => Number(a.stop_order || 0) - Number(b.stop_order || 0))
+})
+
+const stopLabel = (stop: DeliveryStopRow) => {
+  if (Number(stop.is_departure) === 1) return 'Dep'
+  if (Number(stop.is_finish) === 1) return 'Fin'
+  return 'Stop'
+}
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '-'
+  const s = String(value).trim().replace('T', ' ')
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(s)) {
+    const [datePart, timePart] = s.split(' ')
+    const dateLabel = formatDate(datePart)
+    return `${dateLabel} ${timePart.slice(0, 5)}`
+  }
+  return formatDate(value)
+}
+
 const resolveIdParam = () => {
   const raw = route.params.id
   return Array.isArray(raw) ? raw[0] : raw
 }
+
+const detailId = computed(() => resolveIdParam() || '')
 
 const formatWarehouse = (data: DetailData) => {
   if (!data.kode_warehouse && !data.nm_warehouse) return '-'
@@ -220,6 +287,15 @@ const formatWarehouse = (data: DetailData) => {
 const formatText = (value: string | number | null | undefined) => {
   if (value === null || value === undefined || value === '') return '-'
   return String(value)
+}
+
+const formatCreatedBy = (data: DetailData) => {
+  const name = (data.created_by_name || '').trim()
+  const nik = (data.created_by_nik || '').trim()
+  if (name && nik) return `${name} (${nik})`
+  if (name) return name
+  if (nik) return nik
+  return '-'
 }
 
 const formatNumber = (value: number) => {

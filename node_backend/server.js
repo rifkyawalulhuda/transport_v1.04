@@ -24,38 +24,48 @@ const dataSupirRouter = require("./routes/dataSupir");
 const schedulePengirimanRouter = require("./routes/schedulePengiriman");
 const wialonRouter = require("./routes/wialon");
 const { restrictCsAccess, restrictPatcherAccess } = require("./middleware/rbac");
+const { authenticateToken } = require("./middleware/auth");
 const addressBookRouter = require("./routes/addressBook");
 const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 const bbsRouter = require("./routes/bbs");
+const deliveryNotificationsRouter = require("./routes/deliveryNotifications");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
-const { startGeofenceTracking } = require("./services/geofenceTrackingService");
+const { startGeofenceTracking, detectAndRunStartupBackfill } = require("./services/geofenceTrackingService");
 
 const app = express();
 
-app.use(
-  cors({
-    origin: true, // terima semua origin (dev only)
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+// CORS: allow all origins in dev (ALLOWED_ORIGIN not set), restrict in production
+const corsOrigin = process.env.ALLOWED_ORIGIN || true;
+app.use(cors({
+  origin: corsOrigin,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+}));
 
-app.options("*", cors());
+app.options("*", cors({
+  origin: corsOrigin,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+}));
 app.use(express.json());
 app.use("/api", restrictCsAccess);
 app.use("/api", restrictPatcherAccess);
 app.use("/img", express.static(path.join(__dirname, "img")));
 app.use(
   "/doc-data-truck",
+  authenticateToken,
   express.static(path.join(__dirname, "upload", "doc-data-truck"))
 );
 app.use(
   "/doc-data-chasis",
+  authenticateToken,
   express.static(path.join(__dirname, "upload", "doc-data-chasis"))
 );
 app.use(
   "/doc-supir",
+  authenticateToken,
   express.static(path.join(__dirname, "upload", "doc-supir"))
 );
 
@@ -73,6 +83,7 @@ app.use("/api/subcontractor", subcontractorRouter);
 app.use("/api/master", masterImportRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/delivery-notifications", deliveryNotificationsRouter);
 app.use("/api/data-trucks", dataTruckRouter);
 app.use("/api/data-chasis", dataChasisRouter);
 app.use("/api/data-supir", dataSupirRouter);
@@ -112,7 +123,9 @@ const startServer = async () => {
 
     app.listen(PORT, HOST, () => {
       console.log(`Node backend listening on ${HOST}:${PORT}`);
-      startGeofenceTracking();
+      detectAndRunStartupBackfill().finally(() => {
+        startGeofenceTracking();
+      });
     });
   } catch (error) {
     console.error("Failed to start backend server", error);

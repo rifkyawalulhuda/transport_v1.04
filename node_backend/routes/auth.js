@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const db = require("../db");
+const bcrypt = require("bcrypt");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -51,15 +52,44 @@ router.post("/login", async (req, res) => {
   }
 
   try {
+    // Step 1: fetch user by nik_admin only (no password in query)
     const [rows] = await db.query(
-      "SELECT id_admin, nik_admin, nama_admin, level, gambar FROM admin WHERE nik_admin=? AND password=? LIMIT 1",
-      [nikAdmin, password]
+      "SELECT id_admin, nik_admin, nama_admin, level, gambar, password FROM admin WHERE nik_admin=? LIMIT 1",
+      [nikAdmin]
     );
 
     if (rows.length === 0) {
-      return res
-        .status(401)
-        .json({ success: false, message: "NIK atau password salah" });
+      return res.status(401).json({ success: false, message: "NIK atau password salah" });
+    }
+
+    const user = rows[0];
+    let passwordMatch = false;
+
+    // Step 2: dual-mode password check
+    if (!user.password) {
+      // NULL password — deny login (account not properly set up)
+      return res.status(401).json({ success: false, message: "NIK atau password salah" });
+    }
+
+    if (user.password.startsWith('$2b$') || user.password.startsWith('$2a$')) {
+      // bcrypt hash — use secure compare
+      passwordMatch = await bcrypt.compare(password, user.password);
+    } else {
+      // plaintext fallback (legacy) — compare then auto-upgrade
+      passwordMatch = (user.password === password);
+      if (passwordMatch) {
+        // Auto-upgrade to bcrypt on successful plaintext login
+        try {
+          const hashed = await bcrypt.hash(password, 12);
+          await db.query("UPDATE admin SET password=? WHERE id_admin=?", [hashed, user.id_admin]);
+        } catch (upgradeErr) {
+          console.error("Password upgrade failed (non-blocking):", upgradeErr.message);
+        }
+      }
+    }
+
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, message: "NIK atau password salah" });
     }
 
     const secret = process.env.JWT_SECRET;
@@ -70,8 +100,6 @@ router.post("/login", async (req, res) => {
         .json({ success: false, message: "JWT secret belum dikonfigurasi" });
     }
 
-    const user = rows[0];
-    // TODO: migrasi password ke hash (bcrypt) dan lakukan compare hash.
     const token = jwt.sign(
       {
         id_admin: user.id_admin,

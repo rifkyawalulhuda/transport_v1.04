@@ -9,10 +9,13 @@
     "migrate:status": "node scripts/run-dbmate.js status",
     "migrate:new": "node scripts/run-dbmate.js new",
     "migrate:adopt-existing": "node scripts/adopt-existing-migrations.js",
+    "migrate:sync-from-prod": "node scripts/sync-from-production.js",
+    "migrate:fix-missing": "node scripts/fix-missing-tables.js",
     "migrate:dump": "node scripts/dump-schema.js",
     "migrate:baseline:build": "node scripts/build-baseline-migration.js"
   },
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",

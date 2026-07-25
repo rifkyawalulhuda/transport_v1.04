@@ -83,26 +83,50 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2 text-[11px] font-medium">
-              <span
-                class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+              <button
+                type="button"
+                title="Filter: Moving"
+                class="inline-flex cursor-pointer items-center rounded-full px-2.5 py-1 transition-all"
+                :class="gpsFilter === 'moving'
+                  ? 'bg-emerald-500 text-white shadow-sm'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20'"
+                @click="gpsFilter = gpsFilter === 'moving' ? 'all' : 'moving'"
               >
                 Moving
-              </span>
-              <span
-                class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+              </button>
+              <button
+                type="button"
+                title="Filter: Idle"
+                class="inline-flex cursor-pointer items-center rounded-full px-2.5 py-1 transition-all"
+                :class="gpsFilter === 'idle'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20'"
+                @click="gpsFilter = gpsFilter === 'idle' ? 'all' : 'idle'"
               >
                 Idle
-              </span>
-              <span
-                class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              </button>
+              <button
+                type="button"
+                title="Filter: Offline"
+                class="inline-flex cursor-pointer items-center rounded-full px-2.5 py-1 transition-all"
+                :class="gpsFilter === 'offline'
+                  ? 'bg-slate-500 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'"
+                @click="gpsFilter = gpsFilter === 'offline' ? 'all' : 'offline'"
               >
                 Offline
-              </span>
-              <span
-                class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
+              </button>
+              <button
+                type="button"
+                title="Filter: Belum Terhubung"
+                class="inline-flex cursor-pointer items-center rounded-full px-2.5 py-1 transition-all"
+                :class="gpsFilter === 'attention'
+                  ? 'bg-amber-500 text-white shadow-sm'
+                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20'"
+                @click="gpsFilter = gpsFilter === 'attention' ? 'all' : 'attention'"
               >
                 Belum Terhubung
-              </span>
+              </button>
             </div>
           </div>
 
@@ -138,6 +162,14 @@
           </div>
         </section>
 
+        <Transition
+          enter-active-class="transition-all duration-[220ms] ease-out"
+          enter-from-class="opacity-0 -translate-x-3"
+          enter-to-class="opacity-100 translate-x-0"
+          leave-active-class="transition-all duration-[160ms] ease-in"
+          leave-from-class="opacity-100 translate-x-0"
+          leave-to-class="opacity-0 -translate-x-3"
+        >
         <section
           v-if="detailPanelVisible"
           class="rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03] xl:h-[78vh] xl:self-start xl:flex xl:flex-col"
@@ -319,17 +351,31 @@
                     <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
                       {{ selectedTruckLocationValue }}
                     </p>
-                    <p
+                    <!-- Skeleton shimmer while loading -->
+                    <div
                       v-if="selectedTruckAddressLoading"
-                      class="mt-2 text-xs text-gray-500 dark:text-gray-400"
-                    >
-                      Mengambil nama lokasi...
-                    </p>
+                      class="mt-2 h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700"
+                    ></div>
+
+                    <!-- Address result -->
                     <p
-                      v-else-if="selectedTruckAddressError && hasCoordinates(selectedTruck)"
-                      class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+                      v-else-if="selectedTruckAddress"
+                      class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90"
                     >
-                      Menampilkan koordinat. {{ selectedTruckAddressError }}
+                      {{ selectedTruckAddress }}
+                    </p>
+
+                    <!-- Error fallback: coords only when load is done and failed -->
+                    <p
+                      v-else-if="selectedTruckAddressError"
+                      class="mt-2 text-xs text-gray-400 dark:text-gray-500"
+                    >
+                      {{ selectedTruck?.gps?.lat?.toFixed(5) }}, {{ selectedTruck?.gps?.lon?.toFixed(5) }}
+                    </p>
+
+                    <!-- No GPS coordinates -->
+                    <p v-else class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                      Koordinat tidak tersedia
                     </p>
                   </div>
 
@@ -379,21 +425,21 @@
                     </div>
                     <div>
                       <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">
-                        Delivery Order
+                        Departure
                       </p>
                       <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                        {{ formatDate(selectedTruck.transaksi.delivery_order) }}
+                        {{ formatDate(selectedTruck.transaksi.departure_datetime) }}
                       </p>
                     </div>
                     <div>
                       <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70">
-                        Finish Order
+                        Arrival
                       </p>
                       <p class="mt-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
                         {{
                           formatDate(
-                            selectedTruck.transaksi.finish_order ||
-                              selectedTruck.transaksi.arrival_order,
+                            selectedTruck.transaksi.finish_order_datetime ||
+                              selectedTruck.transaksi.arrival_datetime,
                           )
                         }}
                       </p>
@@ -470,9 +516,9 @@
                       </p>
                     </div>
                     <div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">Delivery Order</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">Departure</p>
                       <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">
-                        {{ formatDate(selectedTruck.last_transaction.delivery_order) }}
+                        {{ formatDate(selectedTruck.last_transaction.departure_datetime) }}
                       </p>
                     </div>
                   </div>
@@ -481,6 +527,7 @@
             </div>
           </div>
         </section>
+        </Transition>
 
         <aside
           class="rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03] xl:h-[78vh] xl:self-start xl:flex xl:flex-col"
@@ -593,28 +640,55 @@
                   "
                   @click="focusTruck(truck)"
                 >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div class="flex items-center gap-2">
-                        <span
-                          class="inline-flex h-2.5 w-2.5 shrink-0 rounded-full"
-                          :class="gpsDotClass(truck.status)"
-                        ></span>
-                        <h3
-                          class="truncate text-base font-semibold text-gray-900 dark:text-white/90"
-                        >
+                  <!-- Status bar vertikal + content -->
+                  <div class="flex min-h-0 items-stretch gap-0 overflow-hidden rounded-xl">
+                    <!-- Left status bar -->
+                    <div
+                      class="w-1 shrink-0 rounded-l-xl transition-colors duration-300"
+                      :class="[statusBarClass(truck.status), truck.status === 'moving' ? 'status-bar--moving' : '']"
+                    ></div>
+
+                    <!-- Card content -->
+                    <div class="min-w-0 flex-1 px-3 py-2.5">
+                      <!-- Row 1: plat + GPS badge -->
+                      <div class="flex items-center justify-between gap-2">
+                        <h3 class="truncate text-sm font-bold text-gray-900 dark:text-white/90">
                           {{ truck.no_police || `Truck ${truck.id_truck}` }}
                         </h3>
+                        <span
+                          class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          :class="statusBadgeClass(truck.status)"
+                        >
+                          {{ statusLabel(truck.status) }}
+                        </span>
                       </div>
-                    </div>
 
-                    <div class="flex items-center">
-                      <span
-                        class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
-                        :class="statusBadgeClass(truck.status)"
-                      >
-                        {{ statusLabel(truck.status) }}
-                      </span>
+                      <!-- Row 2: driver name + rute -->
+                      <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                        <span v-if="truck.driver_name">{{ truck.driver_name }}</span>
+                        <span v-else class="italic text-gray-400 dark:text-gray-500">Tidak ada driver</span>
+                        <template v-if="truck.transaksi?.route">
+                          <span class="mx-1 text-gray-300 dark:text-gray-600">·</span>
+                          <span class="text-gray-400 dark:text-gray-500">{{ truck.transaksi.route }}</span>
+                        </template>
+                      </p>
+
+                      <!-- Row 3: speed (moving only) + last GPS time -->
+                      <div class="mt-1.5 flex items-center gap-3 text-[10px] text-gray-400 dark:text-gray-500">
+                        <span
+                          v-if="truck.status === 'moving' && truck.gps?.speed != null"
+                          class="font-semibold text-emerald-600 dark:text-emerald-400"
+                        >
+                          {{ truck.gps.speed }} km/h
+                        </span>
+                        <span class="truncate">
+                          {{ truck.gps?.device_time
+                            ? formatDateTime(truck.gps.device_time)
+                            : truck.synced_at
+                              ? formatDateTime(truck.synced_at)
+                              : '-' }}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -636,6 +710,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import * as L from 'leaflet'
 import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
@@ -659,9 +734,9 @@ type TruckGps = {
 type TruckTransaction = {
   id_sales_cost: number | null
   no_spk: number | null
-  delivery_order: string | null
-  arrival_order: string | null
-  finish_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
+  finish_order_datetime: string | null
   trip: string | null
   jenis_trip: string | null
   no_po: string | null
@@ -684,9 +759,9 @@ type TruckRepair = {
 
 type TruckLastTransaction = {
   id_sales_cost: number | null
-  delivery_order: string | null
-  arrival_order: string | null
-  finish_order: string | null
+  departure_datetime: string | null
+  arrival_datetime: string | null
+  finish_order_datetime: string | null
   driver_name: string | null
   route: string | null
 }
@@ -1122,6 +1197,22 @@ const statusBadgeClass = (status: GpsStatus) => {
       return 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
     default:
       return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  }
+}
+
+const statusBarClass = (status: GpsStatus) => {
+  switch (status) {
+    case 'moving':
+      return 'bg-emerald-500'
+    case 'idle':
+      return 'bg-blue-500'
+    case 'offline':
+      return 'bg-slate-400'
+    case 'no_position':
+    case 'unlinked':
+      return 'bg-amber-400'
+    default:
+      return 'bg-gray-300'
   }
 }
 
@@ -1800,18 +1891,23 @@ watch(selectedTruckId, () => {
   updateMarkerSelection()
 })
 
-watch([searchInput, gpsFilter], async () => {
+// gpsFilter changes are instant — no debounce
+watch(gpsFilter, async () => {
   alignSelectedTruck()
-  if (!hasInitialized.value) {
-    return
-  }
-
+  if (!hasInitialized.value) return
   await nextTick()
-  syncMarkers({
-    focusSelected: false,
-    openPopupForSelected: false,
-  })
+  syncMarkers({ focusSelected: false, openPopupForSelected: false })
 })
+
+// searchInput is debounced 250ms — avoids marker rebuild on every keystroke
+const debouncedSyncOnSearch = useDebounceFn(async () => {
+  alignSelectedTruck()
+  if (!hasInitialized.value) return
+  await nextTick()
+  syncMarkers({ focusSelected: false, openPopupForSelected: false })
+}, 250)
+
+watch(searchInput, debouncedSyncOnSearch)
 
 onMounted(async () => {
   hydrateAddressCache()
@@ -1959,5 +2055,21 @@ onBeforeUnmount(() => {
 
 .cluster-pin--unknown {
   background: linear-gradient(135deg, #64748b, #334155);
+}
+
+/* Moving truck pulse — left status bar in fleet list */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.status-bar--moving {
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-bar--moving {
+    animation: none;
+  }
 }
 </style>

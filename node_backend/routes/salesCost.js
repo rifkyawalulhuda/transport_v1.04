@@ -49,6 +49,22 @@ function isValidIsoDate(value) {
   );
 }
 
+// Escape special LIKE wildcard chars to prevent wildcard injection (M4 fix)
+function escapeLikeParam(value) {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
+function isValidIsoDateTime(value) {
+  if (typeof value !== 'string') return false;
+  // Accept YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM or YYYY-MM-DD HH:MM
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (!match) return false;
+  const d = new Date(value.replace('T', ' '));
+  return !Number.isNaN(d.getTime());
+}
+
 function parseExcelDate(value) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -541,7 +557,7 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
               temp_id: row.tempId || null,
               rowNumber: row.rowNumber,
               reasonCode: "INVALID_DELIVERY_ORDER_FORMAT",
-              reason: "invalid delivery_order format"
+              reason: "invalid departure_datetime format"
             });
             continue;
           }
@@ -553,7 +569,7 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
               temp_id: row.tempId || null,
               rowNumber: row.rowNumber,
               reasonCode: "INVALID_FINISH_ORDER_FORMAT",
-              reason: "invalid finish_order format"
+              reason: "invalid finish_order_datetime format"
             });
             continue;
           }
@@ -585,6 +601,38 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
               });
               continue;
             }
+          }
+
+          // H14: Validate date ordering — departure ≤ arrival ≤ finish_order
+          if (arrivalDate && deliveryDate && arrivalDate < deliveryDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_DATE_ORDER",
+              reason: "Tanggal tiba tidak boleh lebih awal dari tanggal berangkat."
+            });
+            continue;
+          }
+          if (arrivalDate && finishDate && finishDate < arrivalDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_DATE_ORDER",
+              reason: "Tanggal selesai order tidak boleh lebih awal dari tanggal tiba."
+            });
+            continue;
+          }
+          if (finishDate && deliveryDate && finishDate < deliveryDate) {
+            failures.push({
+              sheet: "SalesCost",
+              temp_id: row.tempId || null,
+              rowNumber: row.rowNumber,
+              reasonCode: "INVALID_DATE_ORDER",
+              reason: "Tanggal selesai order tidak boleh lebih awal dari tanggal berangkat."
+            });
+            continue;
           }
 
           // Parse IDs
@@ -674,7 +722,7 @@ router.post("/import", authenticateToken, upload.single("file"), async (req, res
           const [res] = await connection.query(
             `INSERT INTO sales_cost (
                tgl_order, id_truck, id_driver, id_area, id_customer, id_admin,
-               delivery_order, arrival_order, finish_order, bills, lift_on, lift_of, container_depot,
+               departure_datetime, arrival_datetime, finish_order_datetime, bills, lift_on, lift_of, container_depot,
                no_po, no_aju, no_container, tax, admin_charge, materai,
                trip, jenis_trip, container_size, price, container_repair,
                demurrage_chargers, detention_chargers, extend_gate_pass,
@@ -778,7 +826,7 @@ router.get("/", async (req, res) => {
     const column = String(req.query.column || "all").trim().toLowerCase();
 
     let sql =
-      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.price, sales_cost.bills, sales_cost.lift_on, sales_cost.lift_of, sales_cost.ops_cost, sales_cost.additional_cost, sales_cost.total, sales_cost.margin, sales_cost.id_print, customer.nama_customer, area.nama_area, driver.nama_driver, truck.no_police FROM sales_cost LEFT JOIN customer ON sales_cost.id_customer = customer.id_customer LEFT JOIN area ON sales_cost.id_area = area.id_area LEFT JOIN driver ON sales_cost.id_driver = driver.id_driver LEFT JOIN truck ON sales_cost.id_truck = truck.id_truck";
+      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.departure_datetime, sales_cost.arrival_datetime, sales_cost.price, sales_cost.bills, sales_cost.lift_on, sales_cost.lift_of, sales_cost.ops_cost, sales_cost.additional_cost, sales_cost.total, sales_cost.margin, sales_cost.id_print, customer.nama_customer, area.nama_area, driver.nama_driver, truck.no_police FROM sales_cost LEFT JOIN customer ON sales_cost.id_customer = customer.id_customer LEFT JOIN area ON sales_cost.id_area = area.id_area LEFT JOIN driver ON sales_cost.id_driver = driver.id_driver LEFT JOIN truck ON sales_cost.id_truck = truck.id_truck";
 
     const conditions = [];
     const params = [];
@@ -798,22 +846,22 @@ router.get("/", async (req, res) => {
     };
 
     if (startDate) {
-      conditions.push("sales_cost.delivery_order >= ?");
+      conditions.push("sales_cost.departure_datetime >= ?");
       params.push(startDate);
     }
 
     if (endDate) {
-      conditions.push("sales_cost.delivery_order <= ?");
+      conditions.push("sales_cost.departure_datetime <= ?");
       params.push(endDate + " 23:59:59");
     }
 
     if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
-      conditions.push("YEAR(sales_cost.delivery_order) = ?");
+      conditions.push("YEAR(sales_cost.departure_datetime) = ?");
       params.push(year);
     }
 
     if (keyword) {
-      const likeKeyword = `%${keyword}%`;
+      const likeKeyword = `%${escapeLikeParam(keyword)}%`;
       if (column !== "all" && searchableColumns[column]) {
         conditions.push(`${searchableColumns[column]} LIKE ?`);
         params.push(likeKeyword);
@@ -874,22 +922,22 @@ router.get("/export", authenticateToken, async (req, res) => {
     };
 
     if (startDate) {
-      conditions.push("sales_cost.delivery_order >= ?");
+      conditions.push("sales_cost.departure_datetime >= ?");
       params.push(startDate);
     }
 
     if (endDate) {
-      conditions.push("sales_cost.delivery_order <= ?");
+      conditions.push("sales_cost.departure_datetime <= ?");
       params.push(endDate + " 23:59:59");
     }
 
     if (yearParam && Number.isInteger(year) && year >= 1900 && year <= 9999) {
-      conditions.push("YEAR(sales_cost.delivery_order) = ?");
+      conditions.push("YEAR(sales_cost.departure_datetime) = ?");
       params.push(year);
     }
 
     if (keyword) {
-      const likeKeyword = `%${keyword}%`;
+      const likeKeyword = `%${escapeLikeParam(keyword)}%`;
       if (column !== "all" && searchableColumns[column]) {
         conditions.push(`${searchableColumns[column]} LIKE ?`);
         params.push(likeKeyword);
@@ -934,9 +982,9 @@ router.get("/export", authenticateToken, async (req, res) => {
     worksheet.columns = [
       { header: "No.", key: "no", width: 6 },
       { header: "Tanggal Order", key: "tgl_order", width: 16 },
-      { header: "Delivery Order", key: "delivery_order", width: 16 },
-      { header: "Arrival Order", key: "arrival_order", width: 16 },
-      { header: "Finish Order", key: "finish_order", width: 16 },
+      { header: "Departure", key: "departure_datetime", width: 18 },
+      { header: "Arrival", key: "arrival_datetime", width: 18 },
+      { header: "Finish Order", key: "finish_order_datetime", width: 18 },
       { header: "Waktu Pengiriman", key: "waktu_pengiriman", width: 18 },
       { header: "No. SPK", key: "no_spk", width: 18 },
       { header: "Area", key: "nama_area", width: 20 },
@@ -1000,6 +1048,14 @@ router.get("/export", authenticateToken, async (req, res) => {
       return `${year}-${month}-${day}`;
     };
 
+    const formatDateTime = (date) => {
+      if (!date) return '';
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
     const parseDateOnly = (value) => {
       if (!value) return null;
       if (value instanceof Date) {
@@ -1057,10 +1113,10 @@ router.get("/export", authenticateToken, async (req, res) => {
       const excelRow = worksheet.addRow({
         no: index + 1,
         tgl_order: formatDate(row.tgl_order),
-        delivery_order: formatDate(row.delivery_order),
-        arrival_order: formatDate(row.arrival_order),
-        finish_order: formatDate(row.finish_order),
-        waktu_pengiriman: buildShippingDuration(row.delivery_order, row.arrival_order),
+        departure_datetime: formatDateTime(row.departure_datetime),
+        arrival_datetime: formatDateTime(row.arrival_datetime),
+        finish_order_datetime: formatDateTime(row.finish_order_datetime),
+        waktu_pengiriman: buildShippingDuration(row.departure_datetime, row.arrival_datetime),
         no_spk: `${row.id_sales_cost} /SPK/CLC`,
         nama_area: row.nama_area,
         nama_customer: row.nama_customer,
@@ -1133,7 +1189,7 @@ router.get("/export", authenticateToken, async (req, res) => {
     // Definisi Kolom DN List
     sheetDN.columns = [
       { header: "ID Sales Cost", key: "id_sales_cost", width: 12 },
-      { header: "Delivery Order", key: "delivery_order", width: 16 }, // NEW
+      { header: "Departure", key: "departure_datetime", width: 18 }, // NEW
       { header: "No. SPK", key: "no_spk", width: 18 },
       { header: "No. PO", key: "no_po", width: 16 },
       { header: "No. Police", key: "no_police", width: 14 },
@@ -1199,7 +1255,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       const parentSPK = parent ? `${parent.id_sales_cost} /SPK/CLC` : "";
       const parentPolice = parent ? (parent.no_police || "") : "";
       const parentCustomer = parent ? (parent.nama_customer || "") : "";
-      const parentDeliveryOrder = parent ? formatDate(parent.delivery_order) : "";
+      const parentDeliveryOrder = parent ? formatDateTime(parent.departure_datetime) : "";
       
       // Jenis Kendaraan Logic
       let parentVehicle = parent ? (parent.jenis_kendaraan || "") : "";
@@ -1216,7 +1272,7 @@ router.get("/export", authenticateToken, async (req, res) => {
 
       const row = sheetDN.addRow({
         id_sales_cost: item.salesCostId,
-        delivery_order: parentDeliveryOrder,
+        departure_datetime: parentDeliveryOrder,
         no_spk: parentSPK,
         no_po: parentNoPO,
         no_police: parentPolice,
@@ -1255,9 +1311,9 @@ router.get("/export", authenticateToken, async (req, res) => {
 router.get("/years", async (_req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT DISTINCT YEAR(delivery_order) AS year
+      `SELECT DISTINCT YEAR(departure_datetime) AS year
        FROM sales_cost
-       WHERE delivery_order IS NOT NULL
+       WHERE departure_datetime IS NOT NULL
        ORDER BY year DESC`
     );
 
@@ -1315,6 +1371,8 @@ router.get("/:id", async (req, res) => {
           id_sales_cost,
           id_area,
           id_area_route_step,
+          id_sc_stop,
+          is_manual,
           step_key,
           system_step_code,
           id_truck,
@@ -1331,6 +1389,16 @@ router.get("/:id", async (req, res) => {
         WHERE id_sales_cost = ?
         ORDER BY gps_time ASC, id_sales_cost_route_history ASC
       `,
+      [id]
+    );
+
+    const [deliveryStopRows] = await db.query(
+      `SELECT id, id_sales_cost, stop_order, stop_name,
+              wialon_resource_id, wialon_zone_id, wialon_zone_name,
+              is_departure, is_finish, estimated_arrival
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost = ?
+       ORDER BY stop_order ASC`,
       [id]
     );
 
@@ -1351,6 +1419,18 @@ router.get("/:id", async (req, res) => {
             : null,
           wialon_zone_name: finishGeofenceName
         },
+      delivery_stops: deliveryStopRows.map(r => ({
+        id: Number(r.id),
+        id_sales_cost: Number(r.id_sales_cost),
+        stop_order: Number(r.stop_order),
+        stop_name: r.stop_name || '',
+        wialon_resource_id: r.wialon_resource_id ? Number(r.wialon_resource_id) : null,
+        wialon_zone_id: r.wialon_zone_id ? Number(r.wialon_zone_id) : null,
+        wialon_zone_name: r.wialon_zone_name || null,
+        is_departure: Number(r.is_departure),
+        is_finish: Number(r.is_finish),
+        estimated_arrival: r.estimated_arrival || null
+      })),
       route_history: historyRows.map((row) => ({
         id_sales_cost_route_history: Number(row.id_sales_cost_route_history),
         id_sales_cost: Number(row.id_sales_cost),
@@ -1359,12 +1439,17 @@ router.get("/:id", async (req, res) => {
           row.id_area_route_step === null || row.id_area_route_step === undefined
             ? null
             : Number(row.id_area_route_step),
+        id_sc_stop:
+          row.id_sc_stop === null || row.id_sc_stop === undefined
+            ? null
+            : Number(row.id_sc_stop),
         step_key:
           row.step_key ||
           (row.id_area_route_step === null || row.id_area_route_step === undefined
             ? "system:finish_order"
             : `route:${Number(row.id_area_route_step)}`),
         system_step_code: row.system_step_code || null,
+        is_manual: Number(row.is_manual) === 1,
         id_truck: Number(row.id_truck),
         step_order: Number(row.step_order_snapshot),
         step_name: row.step_name_snapshot || "",
@@ -1400,9 +1485,15 @@ router.post("/", authenticateToken, async (req, res) => {
     const idDriver = body.id_driver || null;
     const idArea = body.id_area || null;
     const idCustomer = body.id_customer || null;
-    const deliveryOrder = body.delivery_order || null;
-    const arrivalOrder = body.arrival_order || null;
-    const finishOrder = body.finish_order || null;
+    const departureDatetime = body.departure_datetime || null;
+    const arrivalDatetime = body.arrival_datetime || null;
+    const finishOrderDatetime = body.finish_order_datetime || null;
+    const isManualMode =
+      body.is_manual_mode === true ||
+      body.is_manual_mode === 1 ||
+      body.is_manual_mode === "1"
+        ? 1
+        : 0;
     const noDn = body.no_dn || "";
     const containerDepot = body.container_depot || "";
     const noPo = body.no_po || "";
@@ -1419,11 +1510,11 @@ router.post("/", authenticateToken, async (req, res) => {
     const idPrint = body.id_print || "";
     const idAdmin = req.user.id_admin;
 
-    if (!finishOrder) {
+    if (!finishOrderDatetime) {
       return res.status(400).json({ message: "Finish Order wajib diisi." });
     }
-    if (!isValidIsoDate(finishOrder)) {
-      return res.status(400).json({ message: "Format Finish Order harus YYYY-MM-DD." });
+    if (!isValidIsoDateTime(finishOrderDatetime)) {
+      return res.status(400).json({ message: "Format Finish Order harus YYYY-MM-DD HH:MM." });
     }
 
     // Alamat pickup & drop sekarang adalah TEXT, bukan angka.
@@ -1457,6 +1548,22 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const margin = price - total;
 
+    // Validate date ordering
+    if (departureDatetime && arrivalDatetime) {
+      if (new Date(arrivalDatetime) < new Date(departureDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal tiba tidak boleh lebih awal dari tanggal berangkat."
+        });
+      }
+    }
+    if (arrivalDatetime && finishOrderDatetime) {
+      if (new Date(finishOrderDatetime) < new Date(arrivalDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal selesai order tidak boleh lebih awal dari tanggal tiba."
+        });
+      }
+    }
+
     const truckStatus = await getTruckStatus(idTruck);
     if (!truckStatus) {
       return res.status(400).json({ message: "Truck tidak ditemukan." });
@@ -1485,7 +1592,7 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     const [result] = await db.query(
-      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, delivery_order, arrival_order, finish_order, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, departure_datetime, arrival_datetime, finish_order_datetime, is_manual_mode, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [
         tglOrder,
         idTruck,
@@ -1493,9 +1600,10 @@ router.post("/", authenticateToken, async (req, res) => {
         idArea,
         idCustomer,
         idAdmin,
-        deliveryOrder,
-        arrivalOrder,
-        finishOrder,
+        departureDatetime,
+        arrivalDatetime,
+        finishOrderDatetime,
+        isManualMode,
         bills,
         liftOn,
         liftOf,
@@ -1522,8 +1630,32 @@ router.post("/", authenticateToken, async (req, res) => {
       ]
     );
 
+    // Save delivery stops
+    const deliveryStops = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
+    for (const stop of deliveryStops) {
+      if (stop.stop_order === undefined || stop.stop_order === null) continue;
+      const estimatedArrival = stop.estimated_arrival || null;
+      if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
+      await db.query(
+        `INSERT INTO sales_cost_step_schedule
+          (id_sales_cost, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          result.insertId,
+          Number(stop.stop_order),
+          String(stop.stop_name || ''),
+          stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+          stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+          stop.wialon_zone_name || null,
+          stop.is_departure ? 1 : 0,
+          stop.is_finish ? 1 : 0,
+          estimatedArrival || null
+        ]
+      );
+    }
+
     const [rows] = await db.query(
-      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.finish_order, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
+      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.departure_datetime, sales_cost.arrival_datetime, sales_cost.finish_order_datetime, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
       [result.insertId]
     );
 
@@ -1538,6 +1670,180 @@ router.post("/", authenticateToken, async (req, res) => {
   }
 });
 
+router.post("/:id/check-in", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const idSalesCost = Number(req.params.id);
+    const body = req.body || {};
+    const idScStop = Number.parseInt(String(body.id_sc_stop || ""), 10);
+    const arrivedAt = body.arrived_at;
+
+    if (!Number.isInteger(idScStop) || idScStop <= 0) {
+      return res.status(400).json({ message: "Stop pengiriman tidak valid." });
+    }
+    if (!arrivedAt) {
+      return res.status(400).json({ message: "Waktu tiba wajib diisi." });
+    }
+    if (!isValidIsoDateTime(arrivedAt)) {
+      return res.status(400).json({ message: "Format waktu tiba harus YYYY-MM-DD HH:MM." });
+    }
+
+    const [stopRows] = await db.query(
+      `SELECT
+         sc.id_area,
+         sc.id_truck,
+         stop.id,
+         stop.stop_order,
+         stop.stop_name,
+         stop.wialon_resource_id,
+         stop.wialon_zone_id,
+         stop.wialon_zone_name,
+         stop.is_departure,
+         stop.is_finish
+       FROM sales_cost_step_schedule stop
+       INNER JOIN sales_cost sc ON sc.id_sales_cost = stop.id_sales_cost
+       WHERE stop.id = ? AND stop.id_sales_cost = ?
+       LIMIT 1`,
+      [idScStop, idSalesCost]
+    );
+
+    if (stopRows.length === 0) {
+      return res.status(404).json({ message: "Stop pengiriman tidak ditemukan." });
+    }
+
+    const stop = stopRows[0];
+
+    if (Number(stop.is_departure) === 1) {
+      return res.status(400).json({ message: "Stop keberangkatan tidak bisa ditandai tiba manual." });
+    }
+
+    const [existingHistoryRows] = await db.query(
+      "SELECT 1 FROM sales_cost_route_history WHERE id_sc_stop = ? LIMIT 1",
+      [idScStop]
+    );
+
+    if (existingHistoryRows.length > 0) {
+      return res.status(400).json({ message: "Stop ini sudah ditandai tiba sebelumnya." });
+    }
+
+    const arrivedAtDate = new Date(String(arrivedAt).replace("T", " "));
+    if (arrivedAtDate.getTime() > Date.now()) {
+      return res.status(400).json({ message: "Waktu tiba tidak boleh lebih dari waktu sekarang." });
+    }
+
+    const [previousStopRows] = await db.query(
+      `SELECT id, stop_order
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost = ? AND stop_order < ?
+       ORDER BY stop_order DESC
+       LIMIT 1`,
+      [idSalesCost, Number(stop.stop_order)]
+    );
+
+    if (previousStopRows.length > 0) {
+      const previousStop = previousStopRows[0];
+      const [previousHistoryRows] = await db.query(
+        `SELECT gps_time
+         FROM sales_cost_route_history
+         WHERE id_sc_stop = ? AND gps_time IS NOT NULL
+         ORDER BY gps_time DESC, id_sales_cost_route_history DESC
+         LIMIT 1`,
+        [previousStop.id]
+      );
+
+      if (previousHistoryRows.length > 0 && previousHistoryRows[0].gps_time) {
+        const previousGpsTime = new Date(previousHistoryRows[0].gps_time);
+        if (arrivedAtDate.getTime() < previousGpsTime.getTime()) {
+          return res.status(400).json({ message: "Waktu tiba tidak boleh kurang dari stop sebelumnya." });
+        }
+      }
+    }
+
+    await db.query(
+      `INSERT INTO sales_cost_route_history
+        (
+          id_sales_cost,
+          id_area,
+          id_sc_stop,
+          step_key,
+          system_step_code,
+          id_truck,
+          step_order_snapshot,
+          step_name_snapshot,
+          wialon_resource_id,
+          wialon_zone_id,
+          wialon_zone_name,
+          gps_time,
+          is_manual,
+          lat,
+          lon
+        )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        idSalesCost,
+        Number(stop.id_area),
+        Number(stop.id),
+        `stop:${Number(stop.id)}`,
+        null,
+        Number(stop.id_truck),
+        Number(stop.stop_order),
+        stop.stop_name || "",
+        stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+        stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+        stop.wialon_zone_name || null,
+        arrivedAt,
+        1,
+        null,
+        null
+      ]
+    );
+
+    // Jika stop ini adalah finish stop (is_finish=1), tulis system:finish_order
+    // sebagai sumber kebenaran tunggal untuk "pengiriman selesai" — konsisten dengan geofence tracking
+    if (Number(stop.is_finish) === 1) {
+      const [finishHistoryRows] = await db.query(
+        "SELECT 1 FROM sales_cost_route_history WHERE id_sales_cost = ? AND step_key = 'system:finish_order' LIMIT 1",
+        [idSalesCost]
+      );
+
+      if (finishHistoryRows.length === 0) {
+        // Tulis system:finish_order ke route_history (is_manual=1)
+        await db.query(
+          `INSERT INTO sales_cost_route_history
+            (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+             id_truck, step_order_snapshot, step_name_snapshot,
+             wialon_resource_id, wialon_zone_id, wialon_zone_name,
+             gps_time, is_manual, lat, lon)
+           VALUES (?, ?, NULL, 'system:finish_order', 'finish_order',
+                   ?, ?, 'Finish Order',
+                   NULL, NULL, NULL,
+                   ?, 1, NULL, NULL)`,
+          [idSalesCost, Number(stop.id_area), Number(stop.id_truck),
+           Number(stop.stop_order) + 1, arrivedAt]
+        );
+
+        // Update finish_order_datetime di sales_cost (idempotent — hanya jika belum ter-set)
+        await db.query(
+          `UPDATE sales_cost
+             SET finish_order_datetime = ?
+           WHERE id_sales_cost = ?
+             AND (finish_order_datetime IS NULL
+                  OR CAST(finish_order_datetime AS CHAR) = '0000-00-00 00:00:00')`,
+          [arrivedAt, idSalesCost]
+        );
+      }
+    }
+
+    res.json({ message: "Check-in manual berhasil disimpan." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const id = req.params.id;
@@ -1545,15 +1851,15 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     if (req.user && req.user.level === "user") {
       const [lockRows] = await db.query(
-        "SELECT delivery_order FROM sales_cost WHERE id_sales_cost = ?",
+        "SELECT departure_datetime FROM sales_cost WHERE id_sales_cost = ?",
         [id]
       );
       if (lockRows.length === 0) {
         return res.status(404).json({ message: "Sales cost not found" });
       }
-      const deliveryOrder = lockRows[0].delivery_order;
-      if (deliveryOrder) {
-        const deliveryDate = new Date(deliveryOrder);
+      const departureDatetime = lockRows[0].departure_datetime;
+      if (departureDatetime) {
+        const deliveryDate = new Date(departureDatetime);
         if (!Number.isNaN(deliveryDate.getTime())) {
           const now = new Date();
           const deliveryYear = deliveryDate.getFullYear();
@@ -1574,9 +1880,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
     const idDriver = body.id_driver || null;
     const idArea = body.id_area || null;
     const idCustomer = body.id_customer || null;
-    const deliveryOrder = body.delivery_order || null;
-    const arrivalOrder = body.arrival_order || null;
-    const finishOrder = body.finish_order || null;
+    const departureDatetime = body.departure_datetime || null;
+    const arrivalDatetime = body.arrival_datetime || null;
+    const finishOrderDatetime = body.finish_order_datetime || null;
     const noDn = body.no_dn || "";
     const containerDepot = body.container_depot || "";
     const noPo = body.no_po || "";
@@ -1591,8 +1897,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
         : body.container_size;
     let containerSize = rawContainerSize ? rawContainerSize : null;
 
-    if (finishOrder && !isValidIsoDate(finishOrder)) {
-      return res.status(400).json({ message: "Format Finish Order harus YYYY-MM-DD." });
+    if (finishOrderDatetime && !isValidIsoDateTime(finishOrderDatetime)) {
+      return res.status(400).json({ message: "Format Finish Order harus YYYY-MM-DD HH:MM." });
     }
     
     // Alamat pickup & drop (Text)
@@ -1625,6 +1931,22 @@ router.put("/:id", authenticateToken, async (req, res) => {
       liftOf;
 
     const margin = price - total;
+
+    // Validate date ordering
+    if (departureDatetime && arrivalDatetime) {
+      if (new Date(arrivalDatetime) < new Date(departureDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal tiba tidak boleh lebih awal dari tanggal berangkat."
+        });
+      }
+    }
+    if (arrivalDatetime && finishOrderDatetime) {
+      if (new Date(finishOrderDatetime) < new Date(arrivalDatetime)) {
+        return res.status(400).json({
+          message: "Tanggal selesai order tidak boleh lebih awal dari tanggal tiba."
+        });
+      }
+    }
 
     const [currentRows] = await db.query(
       "SELECT id_truck, id_driver FROM sales_cost WHERE id_sales_cost = ?",
@@ -1663,16 +1985,63 @@ router.put("/:id", authenticateToken, async (req, res) => {
       containerSize = null;
     }
 
+    const isManualModePut =
+      body.is_manual_mode === true ||
+      body.is_manual_mode === 1 ||
+      body.is_manual_mode === "1"
+        ? 1
+        : body.is_manual_mode === false ||
+            body.is_manual_mode === 0 ||
+            body.is_manual_mode === "0"
+          ? 0
+          : null;
+
     const [result] = await db.query(
-      "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, delivery_order = ?, arrival_order = ?, finish_order = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?",
-      [
+      isManualModePut === null
+        ? "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, departure_datetime = ?, arrival_datetime = ?, finish_order_datetime = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?"
+        : "UPDATE sales_cost SET id_truck = ?, id_driver = ?, id_area = ?, id_customer = ?, departure_datetime = ?, arrival_datetime = ?, finish_order_datetime = ?, is_manual_mode = ?, bills = ?, lift_on = ?, lift_of = ?, container_depot = ?, no_po = ?, no_aju = ?, no_container = ?, tax = ?, admin_charge = ?, materai = ?, trip = ?, jenis_trip = ?, container_size = ?, price = ?, container_repair = ?, demurrage_chargers = ?, detention_chargers = ?, extend_gate_pass = ?, additional_cost = ?, ops_cost = ?, total = ?, margin = ? WHERE id_sales_cost = ?",
+      isManualModePut === null
+        ? [
         idTruck,
         idDriver,
         idArea,
         idCustomer,
-        deliveryOrder,
-        arrivalOrder,
-        finishOrder,
+        departureDatetime,
+        arrivalDatetime,
+        finishOrderDatetime,
+        bills,
+        liftOn,
+        liftOf,
+        containerDepot,
+        noPo,
+        noAju,
+        noContainer,
+        tax,
+        adminCharge,
+        materai,
+        trip,
+        jenisTrip,
+        containerSize,
+        price,
+        containerRepair,
+        demurrageChargers,
+        detentionChargers,
+        extendGatePass,
+        additionalCost,
+        opsCost,
+        total,
+        margin,
+        id
+      ]
+        : [
+        idTruck,
+        idDriver,
+        idArea,
+        idCustomer,
+        departureDatetime,
+        arrivalDatetime,
+        finishOrderDatetime,
+        isManualModePut,
         bills,
         liftOn,
         liftOf,
@@ -1703,6 +2072,90 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Sales cost not found" });
     }
 
+    // Smart upsert delivery stops — preserve existing IDs to avoid orphaning sales_cost_route_history
+    // Wrapped in a transaction so partial failure doesn't leave stops in an inconsistent state (M1 fix)
+    const deliveryStopsPut = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
+
+    const stopsConn = await db.getConnection();
+    try {
+      await stopsConn.beginTransaction();
+
+      // Step 1: Fetch existing stop IDs from DB
+      const [existingStopRows] = await stopsConn.query(
+        'SELECT id FROM sales_cost_step_schedule WHERE id_sales_cost = ?',
+        [id]
+      );
+      const existingIds = new Set(existingStopRows.map(s => Number(s.id)));
+      const incomingIds = new Set(
+        deliveryStopsPut.filter(s => s.id).map(s => Number(s.id))
+      );
+
+      // Step 2: DELETE stops removed from payload, but only if they have no route_history
+      const toDelete = [...existingIds].filter(eid => !incomingIds.has(eid));
+      if (toDelete.length > 0) {
+        // Guard: skip deleting stops that already have route_history records
+        const placeholders = toDelete.map(() => '?').join(',');
+        const [historyCheck] = await stopsConn.query(
+          `SELECT DISTINCT id_sc_stop FROM sales_cost_route_history WHERE id_sc_stop IN (${placeholders})`,
+          toDelete
+        );
+        const idsWithHistory = new Set(historyCheck.map(r => Number(r.id_sc_stop)));
+        const safeToDelete = toDelete.filter(eid => !idsWithHistory.has(eid));
+        if (safeToDelete.length > 0) {
+          await stopsConn.query(
+            `DELETE FROM sales_cost_step_schedule WHERE id IN (${safeToDelete.map(() => '?').join(',')})`,
+            safeToDelete
+          );
+        }
+      }
+
+      // Step 3: UPDATE or INSERT each stop from payload
+      for (const stop of deliveryStopsPut) {
+        if (stop.stop_order === undefined || stop.stop_order === null) continue;
+        const estimatedArrival = stop.estimated_arrival || null;
+        if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
+
+        const stopValues = [
+          Number(stop.stop_order),
+          String(stop.stop_name || ''),
+          stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+          stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+          stop.wialon_zone_name || null,
+          stop.is_departure ? 1 : 0,
+          stop.is_finish ? 1 : 0,
+          estimatedArrival || null
+        ];
+
+        if (stop.id && existingIds.has(Number(stop.id))) {
+          // UPDATE existing stop — preserves ID so route_history references remain valid
+          await stopsConn.query(
+            `UPDATE sales_cost_step_schedule
+               SET stop_order=?, stop_name=?, wialon_resource_id=?,
+                   wialon_zone_id=?, wialon_zone_name=?, is_departure=?,
+                   is_finish=?, estimated_arrival=?
+             WHERE id = ? AND id_sales_cost = ?`,
+            [...stopValues, Number(stop.id), Number(id)]
+          );
+        } else {
+          // INSERT new stop
+          await stopsConn.query(
+            `INSERT INTO sales_cost_step_schedule
+               (id_sales_cost, stop_order, stop_name, wialon_resource_id,
+                wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [Number(id), ...stopValues]
+          );
+        }
+      }
+
+      await stopsConn.commit();
+    } catch (stopsErr) {
+      await stopsConn.rollback();
+      throw stopsErr;
+    } finally {
+      stopsConn.release();
+    }
+
     logAuditEvent("sales_cost_update", {
       id_sales_cost: id,
       id_admin: req.user?.id_admin,
@@ -1720,7 +2173,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     });
 
     const [rows] = await db.query(
-      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.delivery_order, sales_cost.arrival_order, sales_cost.finish_order, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
+      "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.departure_datetime, sales_cost.arrival_datetime, sales_cost.finish_order_datetime, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
       [id]
     );
 
@@ -1734,6 +2187,30 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const id = req.params.id;
+
+    // Lock check — same rule as PUT: records from past months cannot be deleted
+    const [lockRows] = await db.query(
+      "SELECT departure_datetime FROM sales_cost WHERE id_sales_cost = ?",
+      [id]
+    );
+    if (lockRows.length === 0) {
+      return res.status(404).json({ message: "Sales cost not found" });
+    }
+    const depDatetime = lockRows[0].departure_datetime;
+    if (depDatetime) {
+      const deliveryDate = new Date(depDatetime);
+      if (!Number.isNaN(deliveryDate.getTime())) {
+        const now = new Date();
+        const locked =
+          now.getFullYear() > deliveryDate.getFullYear() ||
+          (now.getFullYear() === deliveryDate.getFullYear() &&
+           now.getMonth() > deliveryDate.getMonth());
+        if (locked) {
+          return res.status(403).json({ message: "Data terkunci. Tidak bisa dihapus." });
+        }
+      }
+    }
+
     const [result] = await db.query(
       "DELETE FROM sales_cost WHERE id_sales_cost = ?",
       [id]
@@ -1781,6 +2258,27 @@ router.put("/:id/dn", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "Items must be an array" });
     }
 
+    // M5 fix: verify sales cost exists and apply month-lock check
+    const [scRows] = await db.query(
+      "SELECT departure_datetime FROM sales_cost WHERE id_sales_cost = ?",
+      [Number(id)]
+    );
+    if (scRows.length === 0) {
+      return res.status(404).json({ message: "Sales cost not found" });
+    }
+    const depDateRaw = scRows[0].departure_datetime;
+    if (depDateRaw) {
+      const dep = new Date(depDateRaw);
+      if (!Number.isNaN(dep.getTime())) {
+        const now = new Date();
+        const depYear = dep.getFullYear();
+        const depMonth = dep.getMonth();
+        if (depYear < now.getFullYear() || (depYear === now.getFullYear() && depMonth < now.getMonth())) {
+          return res.status(403).json({ message: "Data terkunci. Tidak bisa mengubah DN bulan lalu." });
+        }
+      }
+    }
+
     const dnDoc = await SalesCostDN.findOneAndUpdate(
       { salesCostId: Number(id) },
       { items: items },
@@ -1791,6 +2289,173 @@ router.put("/:id/dn", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Error saving DN list:", error);
     res.status(500).json({ message: "Failed to save DN list", error: error.message });
+  }
+});
+
+router.post("/:id/complete-all", authenticateToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (req.user.level !== "admin") {
+      return res.status(403).json({ message: "Hanya admin yang dapat menyelesaikan semua stop." });
+    }
+
+    const idSalesCost = Number(req.params.id);
+    if (!Number.isFinite(idSalesCost) || idSalesCost <= 0) {
+      return res.status(400).json({ message: "ID transaksi tidak valid." });
+    }
+
+    // Fetch all stops ordered by stop_order
+    const [allStops] = await db.query(
+      `SELECT id, stop_order, stop_name, is_departure, is_finish,
+              wialon_resource_id, wialon_zone_id, wialon_zone_name, estimated_arrival
+       FROM sales_cost_step_schedule
+       WHERE id_sales_cost = ?
+       ORDER BY stop_order ASC`,
+      [idSalesCost]
+    );
+
+    if (allStops.length === 0) {
+      return res.status(404).json({ message: "Tidak ada stop pengiriman untuk transaksi ini." });
+    }
+
+    // Fetch existing route history to know which stops are already hit
+    const [existingHistory] = await db.query(
+      `SELECT id_sc_stop, gps_time
+       FROM sales_cost_route_history
+       WHERE id_sales_cost = ? AND id_sc_stop IS NOT NULL`,
+      [idSalesCost]
+    );
+    const hitStopIds = new Set(existingHistory.map(h => Number(h.id_sc_stop)));
+
+    // Only process stops that are NOT departure and NOT already hit
+    const pendingStops = allStops.filter(s =>
+      Number(s.is_departure) !== 1 && !hitStopIds.has(Number(s.id))
+    );
+
+    if (pendingStops.length === 0) {
+      return res.status(200).json({ message: "Semua stop sudah diselesaikan.", completed: 0 });
+    }
+
+    // Fetch sales cost for area/truck info
+    const [[scRow]] = await db.query(
+      "SELECT id_area, id_truck FROM sales_cost WHERE id_sales_cost = ?",
+      [idSalesCost]
+    );
+    if (!scRow) {
+      return res.status(404).json({ message: "Transaksi tidak ditemukan." });
+    }
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmtDate = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    // Seed lastArrivedAt with the latest gps_time from existing history
+    let lastArrivedAt = null;
+    if (existingHistory.length > 0) {
+      const sorted = existingHistory
+        .map(h => h.gps_time ? new Date(h.gps_time) : null)
+        .filter(Boolean)
+        .sort((a, b) => b - a);
+      if (sorted.length > 0) lastArrivedAt = sorted[0];
+    }
+
+    let completed = 0;
+    const errors = [];
+
+    for (const stop of pendingStops) {
+      // Use estimated_arrival if in the past, otherwise now
+      let arrivedAt;
+      if (stop.estimated_arrival) {
+        const estimated = new Date(stop.estimated_arrival);
+        arrivedAt = estimated <= now ? new Date(estimated) : new Date(now);
+      } else {
+        arrivedAt = new Date(now);
+      }
+
+      // Ensure monotonically increasing timestamps
+      if (lastArrivedAt && arrivedAt <= lastArrivedAt) {
+        arrivedAt = new Date(lastArrivedAt.getTime() + 60000);
+      }
+      // Cap to current time
+      if (arrivedAt > now) arrivedAt = new Date(now);
+
+      const arrivedAtStr = fmtDate(arrivedAt);
+      const stepKey = `stop:${stop.id}`;
+
+      try {
+        await db.query(
+          `INSERT INTO sales_cost_route_history
+            (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+             id_truck, step_order_snapshot, step_name_snapshot,
+             wialon_resource_id, wialon_zone_id, wialon_zone_name,
+             gps_time, is_manual, lat, lon)
+           VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL)`,
+          [
+            idSalesCost, scRow.id_area, stop.id, stepKey,
+            scRow.id_truck, Number(stop.stop_order), stop.stop_name || "",
+            stop.wialon_resource_id || null, stop.wialon_zone_id || null,
+            stop.wialon_zone_name || null, arrivedAtStr,
+          ]
+        );
+
+        // If finish stop: write system:finish_order and update finish_order_datetime
+        // Use separate try/catch so errors here don't mark the stop as failed
+        if (Number(stop.is_finish) === 1) {
+          try {
+            const [existingFinish] = await db.query(
+              `SELECT 1 FROM sales_cost_route_history
+               WHERE id_sales_cost = ? AND step_key = 'system:finish_order' LIMIT 1`,
+              [idSalesCost]
+            );
+            if (existingFinish.length === 0) {
+              await db.query(
+                `INSERT INTO sales_cost_route_history
+                  (id_sales_cost, id_area, id_sc_stop, step_key, system_step_code,
+                   id_truck, step_order_snapshot, step_name_snapshot,
+                   wialon_resource_id, wialon_zone_id, wialon_zone_name,
+                   gps_time, is_manual, lat, lon)
+                 VALUES (?, ?, NULL, 'system:finish_order', 'finish_order',
+                         ?, 999, 'Finish Order', ?, ?, ?, ?, 1, NULL, NULL)`,
+                [
+                  idSalesCost, scRow.id_area, scRow.id_truck,
+                  stop.wialon_resource_id || null, stop.wialon_zone_id || null,
+                  stop.wialon_zone_name || null, arrivedAtStr,
+                ]
+              );
+            }
+            await db.query(
+              `UPDATE sales_cost SET finish_order_datetime = ?
+               WHERE id_sales_cost = ?
+                 AND (finish_order_datetime IS NULL OR finish_order_datetime = '0000-00-00 00:00:00')`,
+              [arrivedAtStr, idSalesCost]
+            );
+          } catch (finishErr) {
+            // Log but don't fail the stop — finish_order insert is best-effort
+            console.warn(`[complete-all] finish_order step warning for SC ${idSalesCost}:`, finishErr.message);
+          }
+        }
+
+        lastArrivedAt = arrivedAt;
+        hitStopIds.add(Number(stop.id));
+        completed++;
+      } catch (stopErr) {
+        errors.push({ stop_id: stop.id, stop_name: stop.stop_name, error: stopErr.message });
+      }
+    }
+
+    return res.json({
+      message: errors.length === 0
+        ? `${completed} stop berhasil diselesaikan.`
+        : `${completed} stop diselesaikan, ${errors.length} gagal.`,
+      completed,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error("Complete-all error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 

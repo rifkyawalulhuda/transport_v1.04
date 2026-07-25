@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("../db");
+const bcrypt = require("bcrypt");
 const { authenticateToken } = require("../middleware/auth");
 const { createNotification, getActorFromRequest } = require("../services/notificationService");
 
@@ -29,7 +30,7 @@ const notifyMasterChange = async ({ req, type, title, action, identifier, entity
 router.get("/", async (req, res) => {
   try {
     const [rows] = await db.query(
-      "SELECT id_admin, nik_admin, nama_admin, password, level, email, nomor_telp, jabatan, gambar FROM admin ORDER BY id_admin ASC"
+      "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin ORDER BY id_admin ASC"
     );
     res.json(rows);
   } catch (err) {
@@ -42,7 +43,7 @@ router.get("/:id", async (req, res) => {
   try {
     const id = req.params.id;
     const [rows] = await db.query(
-      "SELECT id_admin, nik_admin, nama_admin, password, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ?",
+      "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ?",
       [id]
     );
     if (rows.length === 0) {
@@ -77,13 +78,16 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "NIK Admin sudah terdaftar" });
     }
 
+    // Hash password before storing
+    const hashedPassword = password ? await bcrypt.hash(password, 12) : "";
+
     const [result] = await db.query(
       "INSERT INTO admin (nik_admin, nama_admin, password, level, email, nomor_telp, jabatan, gambar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [nikAdmin, namaAdmin, password, level, email, nomor_telp, jabatan, gambar]
+      [nikAdmin, namaAdmin, hashedPassword, level, email, nomor_telp, jabatan, gambar]
     );
 
     const [rows] = await db.query(
-      "SELECT id_admin, nik_admin, nama_admin, password, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ?",
+      "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ?",
       [result.insertId]
     );
 
@@ -127,9 +131,19 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "Data NIK sudah ada, tolong cek kembali" });
     }
 
+    // Hash password before storing (only if password field provided and non-empty)
+    let hashedPassword;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 12);
+    } else {
+      // Preserve existing password — fetch current value
+      const [existing] = await db.query("SELECT password FROM admin WHERE id_admin = ?", [id]);
+      hashedPassword = existing[0]?.password || "";
+    }
+
     const [result] = await db.query(
       "UPDATE admin SET nik_admin = ?, nama_admin = ?, password = ?, level = ?, email = ?, nomor_telp = ?, jabatan = ?, gambar = ? WHERE id_admin = ?",
-      [nikAdmin, namaAdmin, password, level, email, nomor_telp, jabatan, gambar, id]
+      [nikAdmin, namaAdmin, hashedPassword, level, email, nomor_telp, jabatan, gambar, id]
     );
 
     if (result.affectedRows === 0) {
@@ -137,7 +151,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     const [rows] = await db.query(
-      "SELECT id_admin, nik_admin, nama_admin, password, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ?",
+      "SELECT id_admin, nik_admin, nama_admin, level, email, nomor_telp, jabatan, gambar FROM admin WHERE id_admin = ?",
       [id]
     );
 

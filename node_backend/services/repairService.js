@@ -97,6 +97,16 @@ const normalizeDateOnly = (value) => {
   if (value === null || value === undefined || value === "") {
     return null;
   }
+  const trimmed = String(value).trim();
+  // Parse YYYY-MM-DD as local date parts to avoid UTC midnight timezone shift (M6 fix)
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = String(parseInt(match[2], 10)).padStart(2, "0");
+    const day = String(parseInt(match[3], 10)).padStart(2, "0");
+    if (year && month && day) return `${year}-${month}-${day}`;
+  }
+  // Fallback for other date formats (non-YYYY-MM-DD)
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -190,28 +200,66 @@ const createRepair = async (payload = {}) => {
     tgl_selesai: statusRepair === "PROSES" ? null : resolvedTglSelesai
   };
 
-  const [result] = await db.query(
-    "INSERT INTO repair (kategori_repair, id_truck, tgl_input, tgl_kerusakan, no_spk_perbaikan, kilometer, jenis_kerusakan, spare_part, jadwal_berkala, keterangan, biaya_perbaikan, nik_admin, status_repair, tgl_proses, tgl_selesai) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-      data.kategori_repair,
-      data.id_truck,
-      data.tgl_input,
-      data.tgl_kerusakan,
-      data.no_spk_perbaikan,
-      data.kilometer,
-      data.jenis_kerusakan,
-      data.spare_part,
-      data.jadwal_berkala,
-      data.keterangan,
-      data.biaya_perbaikan,
-      data.nik_admin,
-      data.status_repair,
-      data.tgl_proses,
-      data.tgl_selesai
-    ]
-  );
+  // Use a dedicated connection + transaction with SELECT FOR UPDATE to prevent
+  // race conditions where two concurrent requests both pass the on_trip check
+  // and both INSERT a repair for the same truck. (H2 fix)
+  const conn = await db.getConnection();
+  let insertId;
+  try {
+    await conn.beginTransaction();
 
-  return fetchRepairById(result.insertId);
+    if (payload.id_truck) {
+      // Lock the truck's active sales cost rows during this transaction
+      const [onTripRows] = await conn.query(
+        `SELECT sc.id_sales_cost FROM sales_cost sc
+         WHERE sc.id_truck = ?
+           AND sc.finish_order_datetime IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM sales_cost_route_history scrh
+             WHERE scrh.id_sales_cost = sc.id_sales_cost
+               AND scrh.step_key = 'system:finish_order'
+           )
+         LIMIT 1
+         FOR UPDATE`,
+        [payload.id_truck]
+      );
+      if (onTripRows.length > 0) {
+        const error = new Error("Kendaraan sedang dalam perjalanan. Tidak bisa membuat repair.");
+        error.status = 409;
+        throw error;
+      }
+    }
+
+    const [result] = await conn.query(
+      "INSERT INTO repair (kategori_repair, id_truck, tgl_input, tgl_kerusakan, no_spk_perbaikan, kilometer, jenis_kerusakan, spare_part, jadwal_berkala, keterangan, biaya_perbaikan, nik_admin, status_repair, tgl_proses, tgl_selesai) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        data.kategori_repair,
+        data.id_truck,
+        data.tgl_input,
+        data.tgl_kerusakan,
+        data.no_spk_perbaikan,
+        data.kilometer,
+        data.jenis_kerusakan,
+        data.spare_part,
+        data.jadwal_berkala,
+        data.keterangan,
+        data.biaya_perbaikan,
+        data.nik_admin,
+        data.status_repair,
+        data.tgl_proses,
+        data.tgl_selesai
+      ]
+    );
+    insertId = result.insertId;
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  return fetchRepairById(insertId);
 };
 
 const updateRepair = async (id, payload = {}) => {
@@ -229,6 +277,12 @@ const updateRepair = async (id, payload = {}) => {
       throw error;
     }
     statusRepair = normalized;
+    // One-way state machine: SELESAI cannot revert to PROSES
+    if (existing.status_repair === 'SELESAI' && statusRepair === 'PROSES') {
+      const error = new Error("Status repair SELESAI tidak bisa dikembalikan ke PROSES.");
+      error.status = 400;
+      throw error;
+    }
   }
 
   const tglProsesValue = normalizeDateOnly(payload.tgl_proses);
@@ -262,21 +316,21 @@ const updateRepair = async (id, payload = {}) => {
   }
 
   const data = {
-    kategori_repair: payload.kategori_repair || "",
-    id_truck: payload.id_truck || null,
-    tgl_input: normalizeDateValue(payload.tgl_input),
-    tgl_kerusakan: tglKerusakanValue,
-    no_spk_perbaikan: payload.no_spk_perbaikan || "",
-    kilometer: payload.kilometer || "",
-    jenis_kerusakan: payload.jenis_kerusakan || "",
-    spare_part: payload.spare_part || "",
-    jadwal_berkala: normalizeDateValue(payload.jadwal_berkala),
-    keterangan: payload.keterangan || "",
-    biaya_perbaikan: parseNumber(payload.biaya_perbaikan),
-    nik_admin: payload.nik_admin || null,
-    status_repair: statusRepair,
-    tgl_proses: resolvedTglProses,
-    tgl_selesai: resolvedTglSelesai
+    kategori_repair:  payload.kategori_repair  !== undefined ? payload.kategori_repair  : (existing.kategori_repair  || ""),
+    id_truck:         (payload.id_truck         !== undefined && payload.id_truck         != null) ? payload.id_truck         : existing.id_truck,
+    tgl_input:        normalizeDateValue(payload.tgl_input !== undefined ? payload.tgl_input : existing.tgl_input),
+    tgl_kerusakan:    tglKerusakanValue,
+    no_spk_perbaikan: payload.no_spk_perbaikan !== undefined ? payload.no_spk_perbaikan : (existing.no_spk_perbaikan || ""),
+    kilometer:        payload.kilometer        !== undefined ? payload.kilometer        : (existing.kilometer        || ""),
+    jenis_kerusakan:  payload.jenis_kerusakan  !== undefined ? payload.jenis_kerusakan  : (existing.jenis_kerusakan  || ""),
+    spare_part:       payload.spare_part       !== undefined ? payload.spare_part       : (existing.spare_part       || ""),
+    jadwal_berkala:   normalizeDateValue(payload.jadwal_berkala !== undefined ? payload.jadwal_berkala : existing.jadwal_berkala),
+    keterangan:       payload.keterangan       !== undefined ? payload.keterangan       : (existing.keterangan       || ""),
+    biaya_perbaikan:  payload.biaya_perbaikan  !== undefined ? parseNumber(payload.biaya_perbaikan) : parseNumber(existing.biaya_perbaikan),
+    nik_admin:        (payload.nik_admin        !== undefined && payload.nik_admin        != null) ? payload.nik_admin        : existing.nik_admin,
+    status_repair:    statusRepair,
+    tgl_proses:       resolvedTglProses,
+    tgl_selesai:      resolvedTglSelesai
   };
 
   const [result] = await db.query(

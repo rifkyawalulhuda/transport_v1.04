@@ -392,9 +392,24 @@ const wialonRequest = async (svc, params) => {
     return await requestWialon(svc, params, sid);
   } catch (error) {
     if (error instanceof WialonError) {
-      clearSession();
-      const retrySid = await getSessionId();
-      return requestWialon(svc, params, retrySid);
+      // Only retry with re-login for session-related errors:
+      // Wialon error code 1 = invalid/expired session
+      // HTTP 401/403 = auth failure
+      const code = error.code;
+      const isSessionError =
+        code === 1 ||         // Wialon: invalid session
+        code === 401 ||       // HTTP: Unauthorized
+        code === 403;         // HTTP: Forbidden
+
+      if (isSessionError) {
+        clearSession();
+        const retrySid = await getSessionId();
+        return requestWialon(svc, params, retrySid);
+      }
+
+      // Non-session WialonError (rate limit, server error, bad request, etc.)
+      // Log and re-throw without triggering a re-login storm
+      console.warn(`[wialon] non-session error (code=${code}), not retrying login`);
     }
     throw error;
   }
@@ -1433,9 +1448,9 @@ const fetchOperationalContext = async () => {
       sc.id_sales_cost,
       sc.id_truck,
       sc.id_driver,
-      sc.delivery_order,
-      sc.arrival_order,
-      sc.finish_order,
+      sc.departure_datetime,
+      sc.arrival_datetime,
+      sc.finish_order_datetime,
       sc.trip,
       sc.jenis_trip,
       sc.no_po,
@@ -1448,15 +1463,15 @@ const fetchOperationalContext = async () => {
     LEFT JOIN area a ON sc.id_area = a.id_area
     WHERE sc.id_truck IS NOT NULL
       AND (
-        (sc.finish_order IS NOT NULL AND CAST(sc.finish_order AS CHAR) <> '0000-00-00' AND sc.finish_order > ?)
+        (sc.finish_order_datetime IS NOT NULL AND CAST(sc.finish_order_datetime AS CHAR) <> '0000-00-00' AND sc.finish_order_datetime > ?)
         OR
         (
-          (sc.finish_order IS NULL OR CAST(sc.finish_order AS CHAR) = '0000-00-00')
+          (sc.finish_order_datetime IS NULL OR CAST(sc.finish_order_datetime AS CHAR) = '0000-00-00')
           AND
-          (sc.arrival_order IS NULL OR CAST(sc.arrival_order AS CHAR) = '0000-00-00' OR sc.arrival_order >= ?)
+          (sc.arrival_datetime IS NULL OR CAST(sc.arrival_datetime AS CHAR) = '0000-00-00' OR sc.arrival_datetime >= ?)
         )
       )
-    ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+    ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
   `;
 
   const lastSql = `
@@ -1464,21 +1479,21 @@ const fetchOperationalContext = async () => {
       sc.id_sales_cost,
       sc.id_truck,
       sc.id_driver,
-      sc.delivery_order,
-      sc.arrival_order,
-      sc.finish_order,
+      sc.departure_datetime,
+      sc.arrival_datetime,
+      sc.finish_order_datetime,
       d.nama_driver,
       a.nama_area
     FROM sales_cost sc
     INNER JOIN (
-      SELECT id_truck, MAX(delivery_order) AS max_delivery
+      SELECT id_truck, MAX(departure_datetime) AS max_delivery
       FROM sales_cost
       WHERE id_truck IS NOT NULL
       GROUP BY id_truck
-    ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.delivery_order
+    ) last ON last.id_truck = sc.id_truck AND last.max_delivery = sc.departure_datetime
     LEFT JOIN driver d ON sc.id_driver = d.id_driver
     LEFT JOIN area a ON sc.id_area = a.id_area
-    ORDER BY sc.delivery_order DESC, sc.id_sales_cost DESC
+    ORDER BY sc.departure_datetime DESC, sc.id_sales_cost DESC
   `;
 
   const [[repairRows], [trxRows], [lastRows]] = await Promise.all([
@@ -1530,9 +1545,9 @@ const buildOperationalDetails = (truck, operationalContext) => {
   const lastTransaction = last
     ? {
         id_sales_cost: last.id_sales_cost ?? null,
-        delivery_order: toDateString(last.delivery_order),
-        arrival_order: toDateString(last.arrival_order),
-        finish_order: toDateString(last.finish_order),
+        departure_datetime: toDateString(last.departure_datetime),
+        arrival_datetime: toDateString(last.arrival_datetime),
+        finish_order_datetime: toDateString(last.finish_order_datetime),
         driver_name: last.nama_driver || null,
         route: last.nama_area || null
       }
@@ -1566,9 +1581,9 @@ const buildOperationalDetails = (truck, operationalContext) => {
       transaksi: {
         id_sales_cost: transaksi.id_sales_cost ?? null,
         no_spk: transaksi.id_sales_cost ?? null,
-        delivery_order: toDateString(transaksi.delivery_order),
-        arrival_order: toDateString(transaksi.arrival_order),
-        finish_order: toDateString(transaksi.finish_order),
+        departure_datetime: toDateString(transaksi.departure_datetime),
+        arrival_datetime: toDateString(transaksi.arrival_datetime),
+        finish_order_datetime: toDateString(transaksi.finish_order_datetime),
         trip: transaksi.trip || null,
         jenis_trip: transaksi.jenis_trip || null,
         no_po: transaksi.no_po || null,
@@ -1969,6 +1984,153 @@ const autoMapTruckWialonUnits = async ({ overwrite = false } = {}) => {
   };
 };
 
+
+// ============================================================
+// HISTORICAL BACKFILL UTILITIES
+// ============================================================
+
+/**
+ * Ray-casting point-in-polygon algorithm.
+ * polygon: array of {x, y} (lon, lat) points
+ * point: {x: lon, y: lat}
+ */
+const pointInPolygon = (point, polygon) => {
+  if (!Array.isArray(polygon) || polygon.length < 3) return false;
+  const x = point.x;
+  const y = point.y;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x;
+    const yi = polygon[i].y;
+    const xj = polygon[j].x;
+    const yj = polygon[j].y;
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+/**
+ * Fetch zone polygon data for a specific resource.
+ * Returns Map<zoneId(string), {name, points: [{x,y}]}>
+ */
+const fetchZonePolygons = async (resourceId, sid) => {
+  const safeResourceId = normalizePositiveIntString(resourceId);
+  if (!safeResourceId) return new Map();
+
+  // Wialon zone flags (bitmask): 0x1 area, 0x2 perimeter, 0x4 bounds, 0x8 points, 0x10 base.
+  // flags:4 returns only bounds (b) — NOT polygon points. Use 28 (0x1C = base+points+bounds)
+  // which matches fetchResourceZoneData; fall back to 0 (all fields) then 8 (points only).
+  const flagAttempts = [28, 0, 8];
+
+  try {
+    let rows = [];
+    for (const flags of flagAttempts) {
+      const payload = await requestWialon(
+        "resource/get_zone_data",
+        { itemId: Number(safeResourceId), flags },
+        sid
+      );
+      rows = normalizeZoneDataRows(payload);
+      const hasPoints = rows.some((zone) => {
+        const raw = Array.isArray(zone?.p) ? zone.p : Array.isArray(zone?.points) ? zone.points : [];
+        return raw.length >= 3;
+      });
+      if (hasPoints) break;
+    }
+
+    const result = new Map();
+
+    rows.forEach((zone) => {
+      const zoneId = normalizePositiveIntString(zone?.id ?? zone?.i ?? zone?.zone_id);
+      const zoneName = String(zone?.n ?? zone?.nm ?? zone?.name ?? "").trim();
+      // Points may be in zone.p or zone.points — each point has x (lon) and y (lat)
+      const rawPoints = Array.isArray(zone?.p) ? zone.p
+        : Array.isArray(zone?.points) ? zone.points
+        : [];
+      if (!zoneId || rawPoints.length < 3) return;
+
+      const points = rawPoints
+        .map((pt) => ({
+          x: Number(pt?.x ?? pt?.lon ?? 0),
+          y: Number(pt?.y ?? pt?.lat ?? 0)
+        }))
+        .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+
+      if (points.length >= 3) {
+        result.set(zoneId, { name: zoneName, points });
+      }
+    });
+
+    return result;
+  } catch {
+    return new Map();
+  }
+};
+
+/**
+ * Load raw GPS messages for a unit in a time range.
+ * timeFrom, timeTo: Unix timestamps (seconds)
+ * Returns array of {t, lat, lon} � one entry per GPS message
+ */
+const fetchRawMessagesForUnit = async ({ sid, unitId, timeFrom, timeTo }) => {
+  const safeUnitId = normalizePositiveIntString(unitId);
+  if (!safeUnitId) return [];
+
+  try {
+    // Cleanup any previous loaded messages for this session slot
+    try { await requestWialon("messages/unload", {}, sid); } catch { /* ignore */ }
+
+    // Load messages for the interval
+    const loadResult = await requestWialon(
+      "messages/load_interval",
+      {
+        itemId: Number(safeUnitId),
+        timeFrom,
+        timeTo,
+        flags: 0x0000,   // all messages with position data
+        flagsMask: 0xFF00,
+        loadCount: 0xffffffff
+      },
+      sid
+    );
+
+    const messageCount = Number(loadResult?.count ?? loadResult ?? 0);
+    if (!messageCount) return [];
+
+    // Retrieve loaded messages
+    const messagesPayload = await requestWialon(
+      "messages/get_messages",
+      { indexFrom: 0, indexTo: messageCount - 1 },
+      sid
+    );
+
+    const messages = Array.isArray(messagesPayload)
+      ? messagesPayload
+      : Array.isArray(messagesPayload?.messages)
+        ? messagesPayload.messages
+        : [];
+
+    const result = [];
+    messages.forEach((msg) => {
+      const pos = msg?.pos ?? msg?.p;
+      if (!pos) return;
+      const lat = Number(pos.y ?? pos.lat);
+      const lon = Number(pos.x ?? pos.lon);
+      const ts = Number(msg.t ?? msg.time);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(ts) && lat !== 0 && lon !== 0) {
+        result.push({ t: ts, lat, lon });
+      }
+    });
+
+    return result;
+  } catch {
+    return [];
+  } finally {
+    try { await requestWialon("messages/unload", {}, sid); } catch { /* ignore */ }
+  }
+};
 module.exports = {
   getTruckLocations,
   getTruckMonthlyDistance,
@@ -1978,5 +2140,10 @@ module.exports = {
   fetchWialonGeofences,
   fetchUnitsInZonesByResource,
   getUnitPositionMap,
-  clearSession
+  clearSession,
+  fetchRawMessagesForUnit,
+  fetchZonePolygons,
+  pointInPolygon,
+  loginIsolatedSession,
+  logoutIsolatedSession
 };
