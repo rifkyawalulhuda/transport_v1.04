@@ -5,6 +5,7 @@ export default defineConfig({
   description: 'Documentation for Sankyu Transport Management System (TMS)',
   base: '/transport_v1.04/',
   lastUpdated: false,
+  srcExclude: ['PROJECT_CONTEXT.md', '**/PROJECT_CONTEXT.md'],
 
   themeConfig: {
     nav: [
