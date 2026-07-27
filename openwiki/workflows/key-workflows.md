@@ -123,6 +123,32 @@ Two distinct fleet visibility pages exist in the Monitoring domain:
 - Adding new geofence actions: extend the event handler in `geofenceTrackingService.js`.
 - Schema changes for `route_history`: add a `dbmate` migration **and** update `schemaSyncService.js`.
 
+### Geofence Guards (anti false positive)
+
+Two guards added to `assignStopHits` (2026-07-27) to prevent false positive hits:
+
+- **Departure pre-window guard** (`GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC` = 8h default): rejects Departure zone entries that occurred more than 8 hours before the planned `departure_datetime`. Prevents re-entry from a prior trip being assigned as Departure for a new SPK (#44442).
+- **Same-zone inter-stop gap guard** (`GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC` = 10min default): for shuttle routes where the same zone appears multiple times (e.g. Tujuan 1, 3, 5 all KIIC), rejects a second assignment to the same zone if the gap from the previous hit is less than the threshold. Prevents rapid re-assignment during the same tracking cycle (#44415).
+
+Both guards are implemented in `assignStopHits()` in `geofenceTrackingService.js`. Set env vars to `0` to disable. Unit tests: `node_backend/scripts/test-geofence-assign.js` (29 cases).
+
+### GPS Trail Playback
+
+A separate on-demand GPS trail API (`GET /api/sales-costs/:id/gps-trail`) fetches historical GPS messages from Wialon for a specific SPK:
+
+- Window: `depTs - GPS_TRAIL_PRE_BUFFER_SEC` (2h) to `finishTs || now`
+- GPS messages downsampled via `downsampleTrailPoints` (max `GPS_TRAIL_MAX_POINTS`, default 800)
+- `planned_stops[]` includes geofence centroid + simplified polygon for each step (via `gpsTrailGeometry.js`)
+- UI: `DetailSalesCost.vue` — Leaflet map with trail polyline, polygon fills, layer toggles, and time scrubber playback
+
+### Backfill Geofence
+
+When a stop's `wialon_zone_id` is changed mid-trip, `POST /api/sales-costs/:id/backfill-stop` performs retroactive GPS hit lookup:
+- Fetches Wialon messages for the SPK window, runs `buildZoneEntryTimeline` + `assignStopHits` with all guards
+- Manual override: `{ manual: true, manual_gps_time }` inserts with `is_manual=1`
+- Idempotent: skips if stop already has `route_history`
+- UI triggered via post-save dialog in `EditSalesCost.vue` and "Cari Hit GPS" button in `DetailSalesCost.vue`
+
 ---
 
 ## Schedule Pengiriman

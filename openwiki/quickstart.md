@@ -28,6 +28,8 @@ cd node_backend
 cp .env.example .env
 # Fill in DB_HOST, DB_USER, DB_PASS, DB_NAME, JWT_SECRET,
 # WIALON_TOKEN, GEOAPIFY_API_KEY, and MONGO_URI (not in .env.example — add it manually)
+# Optional GPS trail vars: GPS_TRAIL_PRE_BUFFER_SEC, GPS_TRAIL_MAX_POINTS, GPS_TRAIL_POLYGON_MAX_POINTS
+# Optional geofence guards: GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC, GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC
 ```
 
 Key env vars — see [Operations Runbook](./operations/runbook.md) for the full table.

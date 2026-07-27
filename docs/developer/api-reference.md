@@ -255,6 +255,127 @@ Authorization: Bearer <token>
 | GET | `/api/schedule-pengiriman` | Schedule pengiriman (accessible by CS) |
 | GET | `/api/address-book` | Address book |
 
+## GPS & Tracking
+
+### GPS Trail
+
+```http
+GET /api/sales-costs/:id/gps-trail
+Authorization: Bearer <token>
+```
+
+Mengambil jejak GPS perjalanan truk untuk satu SPK. Soft-fail — selalu HTTP 200.
+
+**Response:**
+```json
+{
+  "id_sales_cost": 44413,
+  "wialon_unit_id": "26365312",
+  "no_police": "B 9567 FXS",
+  "from": 1753570800,
+  "to": 1753610000,
+  "point_count_raw": 1243,
+  "point_count": 800,
+  "downsampled": true,
+  "points": [
+    { "t": 1753571000, "lat": -6.391, "lon": 107.158, "speed": 0 }
+  ],
+  "markers": [
+    {
+      "type": "history",
+      "label": "Tujuan 1",
+      "step_key": "stop:273",
+      "t": 1753590000,
+      "lat": -6.356,
+      "lon": 107.281
+    }
+  ],
+  "planned_stops": [
+    {
+      "id": 273,
+      "stop_order": 1,
+      "label": "Tujuan 1",
+      "kind": "middle",
+      "middle_index": 1,
+      "wialon_zone_name": "Fuji Trans GIIC",
+      "lat": -6.356098,
+      "lon": 107.281455,
+      "polygon": [[-6.354, 107.279], [-6.357, 107.283]],
+      "hit": true
+    }
+  ],
+  "reason": null
+}
+```
+
+**Field `reason`:** `null` (OK), `no_truck`, `no_wialon_unit`, `no_departure`, `wialon_empty`, `wialon_error`, `invalid_window`
+
+Lihat [GPS Trail Playback](/developer/gps-trail) untuk dokumentasi lengkap.
+
+---
+
+### Backfill Stop
+
+```http
+POST /api/sales-costs/:id/backfill-stop
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+Mencari hit GPS retroaktif untuk stop yang geofence-nya diubah.
+
+**Body GPS-based:**
+```json
+{ "id_sc_stop": 273 }
+```
+
+**Body manual override:**
+```json
+{
+  "id_sc_stop": 273,
+  "manual": true,
+  "manual_gps_time": "2026-07-27 09:00:00"
+}
+```
+
+**Response:**
+```json
+{ "found": true, "gps_time": "2026-07-27 09:12:34" }
+```
+atau
+```json
+{ "found": false, "warning": "GPS tidak mengkonfirmasi kunjungan..." }
+```
+atau
+```json
+{ "skipped": true, "reason": "already_hit" }
+```
+
+Lihat [Backfill Geofence](/developer/backfill-geofence) untuk dokumentasi lengkap.
+
+---
+
+### PUT /api/sales-costs/:id — Perubahan Response
+
+Jika `wialon_zone_id` sebuah middle stop berubah, response sekarang menyertakan:
+
+```json
+{
+  "geofence_changed_stops": [
+    {
+      "id": 273,
+      "stop_name": "Tujuan 1",
+      "stop_order": 1,
+      "old_zone_id": 85,
+      "new_zone_id": 107,
+      "new_zone_name": "Fuji Trans GIIC",
+      "already_hit": false
+    }
+  ]
+}
+```
+
+
 ## Error Responses
 
 Semua error mengikuti format:
