@@ -2098,7 +2098,8 @@ const runBackfill = async (fromTs, toTs) => {
         const assignments = assignStopHits({
           stops,
           zoneTimeline,
-          existingHistory: scHistory
+          existingHistory: scHistory,
+          departureTs  // guard: reject Departure hits too long before planned dep (#44442)
           // requirePreviousStopHit defaults to Opsi B (loose) via env/default
         });
 
@@ -2234,5 +2235,6 @@ module.exports = {
   resolveAgeFinishDays,
   isDueForAgeFinish,
   haversineMeters,
-  polygonCentroid
+  polygonCentroid,
+  toMySqlDateTime
 };

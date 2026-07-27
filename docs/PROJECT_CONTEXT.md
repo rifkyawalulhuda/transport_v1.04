@@ -1324,6 +1324,19 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - Out of scope still: print map SPK, multi-SPK M2 policy.
 - Tests: `scripts/test-gps-trail-downsample.js`, `scripts/test-gps-trail-polygon.js`.
 
+### Sales Cost — Backfill Geofence Diubah (2026-07-27)
+- **`POST /api/sales-costs/:id/backfill-stop`** (auth): GPS-based retroactive hit recording for a single middle stop whose `wialon_zone_id` was changed mid-trip.
+  - Body: `{ id_sc_stop: number }` for GPS-based; `{ id_sc_stop, manual: true, manual_gps_time: "YYYY-MM-DD HH:MM:SS" }` for manual override.
+  - GPS window: `depTs − 12h` to `finishTs || now`. Uses `buildZoneEntryTimeline` + `assignStopHits` with all guards.
+  - Idempotent: returns `{ skipped: true, reason: "already_hit" }` if stop already has `route_history`.
+  - Manual: `is_manual=1`, no GPS coordinates.
+  - Returns `{ found: true, gps_time }` or `{ found: false, warning: "..." }`.
+- **PUT `/:id` response** now includes `geofence_changed_stops[]` when a middle stop's `wialon_zone_id` changed during update.
+- **FE: `EditSalesCost.vue`** shows a post-save dialog when geofence changed stops are detected. States: idle → GPS fetch → found/not_found → manual override. Navigates away only after all changed stops are processed or skipped.
+- **FE: `DetailSalesCost.vue`** shows "Cari Hit GPS" button for unhit middle stops. On success, reloads detail.
+- **`salesCostService.backfillStop(id, stopId, options?)`** added.
+- Only middle stops eligible (not `is_departure`, not `is_finish`). Finish (`system:finish_order`) is never touched by backfill.
+
 ### Subcontractor — Jadwal manual, CS, export, print (2026-07-25)
 
 #### Schema & API

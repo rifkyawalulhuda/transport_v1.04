@@ -70,6 +70,15 @@ export const salesCostService = {
     })
     return handleJson(res)
   },
+  async backfillStop(id, idScStop, options = {}) {
+    const body = { id_sc_stop: Number(idScStop), ...options }
+    const res = await authFetch(`${API_BASE}/sales-costs/${id}/backfill-stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return handleJson(res)
+  },
   async fetchDNList(id) {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}/dn`)
     return handleJson(res)

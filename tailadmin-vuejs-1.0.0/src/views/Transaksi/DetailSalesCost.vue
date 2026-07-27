@@ -286,14 +286,43 @@
                           Menunggu
                         </span>
                         <button
-                          v-if="!stop.hit && !stop.geofence_skipped && !stop.is_departure"
-                          type="button"
-                          class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                          @click="openCheckIn(stop)"
-                        >
-                          Tandai Tiba
-                        </button>
-                      </div>
+                           v-if="!stop.hit && !stop.geofence_skipped && !stop.is_departure"
+                           type="button"
+                           class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                           @click="openCheckIn(stop)"
+                         >
+                           Tandai Tiba
+                         </button>
+                         <template v-if="!stop.hit && stop.is_departure === 0 && stop.is_finish === 0">
+                           <button
+                             v-if="backfillStopStatus[stop.id] !== 'found'"
+                             type="button"
+                             :disabled="backfillStopStatus[stop.id] === 'loading'"
+                             class="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium border border-brand-300 text-brand-600 hover:bg-brand-50 disabled:opacity-50 dark:border-brand-700 dark:text-brand-400 dark:hover:bg-brand-900/30"
+                             @click="triggerBackfillForStop(stop.id)"
+                           >
+                             {{ backfillStopStatus[stop.id] === 'loading' ? 'Mencari...' : 'Cari Hit GPS' }}
+                           </button>
+                           <span
+                             v-if="backfillStopStatus[stop.id] === 'not_found'"
+                             class="text-[11px] text-amber-600 dark:text-amber-400"
+                           >
+                             GPS tidak ditemukan
+                           </span>
+                           <span
+                             v-if="backfillStopStatus[stop.id] === 'error'"
+                             class="text-[11px] text-red-500 dark:text-red-400"
+                           >
+                             Error
+                           </span>
+                           <span
+                             v-if="backfillStopStatus[stop.id] === 'found' && backfillStopResult[stop.id]"
+                             class="text-[11px] text-emerald-600 dark:text-emerald-400"
+                           >
+                             ✓ {{ backfillStopResult[stop.id] }}
+                           </span>
+                         </template>
+                       </div>
                     </div>
                   </div>
                 </div>
@@ -933,6 +962,33 @@ let gpsTruckMarker: L.CircleMarker | null = null
 let gpsProgressLine: L.Polyline | null = null
 let gpsPlaybackTimer: ReturnType<typeof setInterval> | null = null
 let gpsPlaybackLatLngs: L.LatLng[] = []
+
+// Backfill stop state (button in delivery stops timeline)
+const backfillStopStatus = ref<Record<number, 'idle' | 'loading' | 'found' | 'not_found' | 'error'>>({})
+const backfillStopResult = ref<Record<number, string | null>>({})
+
+const triggerBackfillForStop = async (stopId: number) => {
+  const idParam = resolveIdParam()
+  if (!idParam) return
+  backfillStopStatus.value = { ...backfillStopStatus.value, [stopId]: 'loading' }
+  try {
+    const res = await salesCostService.backfillStop(idParam, stopId)
+    if (res.skipped) {
+      backfillStopStatus.value = { ...backfillStopStatus.value, [stopId]: 'found' }
+      backfillStopResult.value = { ...backfillStopResult.value, [stopId]: 'Sudah tercatat' }
+    } else if (res.found) {
+      backfillStopStatus.value = { ...backfillStopStatus.value, [stopId]: 'found' }
+      backfillStopResult.value = { ...backfillStopResult.value, [stopId]: res.gps_time }
+      // Reload detail to reflect the new hit
+      await loadDetail()
+    } else {
+      backfillStopStatus.value = { ...backfillStopStatus.value, [stopId]: 'not_found' }
+      backfillStopResult.value = { ...backfillStopResult.value, [stopId]: null }
+    }
+  } catch {
+    backfillStopStatus.value = { ...backfillStopStatus.value, [stopId]: 'error' }
+  }
+}
 
 const plannedStopsWithCoords = computed(() => {
   const list = gpsTrail.value?.planned_stops
