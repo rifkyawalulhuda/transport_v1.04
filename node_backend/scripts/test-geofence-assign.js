@@ -684,6 +684,144 @@ function testComputeTripDistanceKm() {
   console.log('OK computeTripDistanceKm');
 }
 
+function testDepartureHitTooEarlyRejected() {
+  // SPK #44442 scenario: truck returns to base 11.8h before planned departure
+  // (returning from previous trip). Departure hit must be rejected.
+  const depTs = 1000000;
+  const earlyEntryTs = depTs - (11 * 3600 + 2880); // ~11.8h before
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+  ];
+  const zoneTimeline = [{ zoneKey: '1:1', entryTs: earlyEntryTs }];
+  const result = assignStopHits({
+    stops,
+    zoneTimeline,
+    existingHistory: [],
+    departureTs: depTs,
+    departureHitMaxPreWindowSec: 28800 // 8h window
+  });
+  assert.strictEqual(result.length, 0, '#44442 departure hit 11.8h early must be rejected');
+  console.log('OK #44442 departure hit too early (11.8h) rejected');
+}
+
+function testDepartureHitInWindowAccepted() {
+  // Truck arrives at base 6h before planned departure — within 8h window, must be accepted.
+  const depTs = 1000000;
+  const validEntryTs = depTs - (6 * 3600); // 6h before — within 8h window
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+  ];
+  const zoneTimeline = [{ zoneKey: '1:1', entryTs: validEntryTs }];
+  const result = assignStopHits({
+    stops,
+    zoneTimeline,
+    existingHistory: [],
+    departureTs: depTs,
+    departureHitMaxPreWindowSec: 28800
+  });
+  assert.strictEqual(result.length, 1, 'Departure hit 6h before dep (within 8h window) must be accepted');
+  assert.strictEqual(result[0].entryTs, validEntryTs);
+  console.log('OK departure hit 6h before accepted (within 8h window)');
+}
+
+function testDepartureHitGuardDisabled() {
+  // When departureHitMaxPreWindowSec = 0, guard is disabled: all hits accepted.
+  const depTs = 1000000;
+  const earlyEntryTs = depTs - (20 * 3600); // 20h before
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+  ];
+  const zoneTimeline = [{ zoneKey: '1:1', entryTs: earlyEntryTs }];
+  const result = assignStopHits({
+    stops,
+    zoneTimeline,
+    existingHistory: [],
+    departureTs: depTs,
+    departureHitMaxPreWindowSec: 0 // guard disabled
+  });
+  assert.strictEqual(result.length, 1, 'When guard disabled (0), early departure hit must be accepted');
+  console.log('OK departure guard disabled (0) accepts early hit');
+}
+
+function testSameZoneRapidReEntryRejected() {
+  // SPK #44415: shuttle KIIC→GIIC→KIIC, Tujuan 3 and 5 both zone 4
+  // Tujuan 3 already hit (seeded in history), Tujuan 5 entry only 67s later → reject
+  const depTs = 1000000;
+  const t3Hit = depTs + 3600;    // Tujuan 3 hit at dep+1h
+  const t5Entry = t3Hit + 67;    // Tujuan 5 entry only 67s later (< 600s gap)
+  const stops = [
+    { id: 10, stop_order: 3, stop_name: 'Tujuan 3', wialon_resource_id: '1', wialon_zone_id: '4', is_departure: 0, is_finish: 0 },
+    { id: 11, stop_order: 5, stop_name: 'Tujuan 5', wialon_resource_id: '1', wialon_zone_id: '4', is_departure: 0, is_finish: 0 },
+  ];
+  // Tujuan 3 is already in history (already hit)
+  const existingHistory = [
+    { id_sc_stop: 10, step_key: 'stop:10', wialon_resource_id: '1', wialon_zone_id: '4',
+      gps_time: new Date(t3Hit * 1000).toISOString() }
+  ];
+  const zoneTimeline = [
+    { zoneKey: '1:4', entryTs: t3Hit },
+    { zoneKey: '1:4', entryTs: t5Entry }
+  ];
+  const result = assignStopHits({
+    stops, zoneTimeline, existingHistory,
+    sameZoneMinInterStopGapSec: 600
+  });
+  assert.strictEqual(result.length, 0, '#44415 rapid same-zone re-entry (67s) must be rejected');
+  console.log('OK #44415 rapid same-zone re-entry (67s) rejected');
+}
+
+function testSameZoneRealReEntryAccepted() {
+  // Truck genuinely returns to KIIC after going to GIIC and back — 2h gap
+  const depTs = 1000000;
+  const t3Hit = depTs + 3600;
+  const t5Entry = t3Hit + 7200; // 2h later — well over 600s
+  const stops = [
+    { id: 10, stop_order: 3, stop_name: 'Tujuan 3', wialon_resource_id: '1', wialon_zone_id: '4', is_departure: 0, is_finish: 0 },
+    { id: 11, stop_order: 5, stop_name: 'Tujuan 5', wialon_resource_id: '1', wialon_zone_id: '4', is_departure: 0, is_finish: 0 },
+  ];
+  const existingHistory = [
+    { id_sc_stop: 10, step_key: 'stop:10', wialon_resource_id: '1', wialon_zone_id: '4',
+      gps_time: new Date(t3Hit * 1000).toISOString() }
+  ];
+  const zoneTimeline = [
+    { zoneKey: '1:4', entryTs: t3Hit },
+    { zoneKey: '1:4', entryTs: t5Entry }
+  ];
+  const result = assignStopHits({
+    stops, zoneTimeline, existingHistory,
+    sameZoneMinInterStopGapSec: 600
+  });
+  assert.strictEqual(result.length, 1, 'Genuine re-entry after 2h gap must be accepted');
+  assert.strictEqual(result[0].stop.id, 11, 'Tujuan 5 (id=11) should be assigned');
+  assert.strictEqual(result[0].entryTs, t5Entry);
+  console.log('OK same-zone real re-entry (2h gap) accepted for Tujuan 5');
+}
+
+function testSameZoneGapGuardDisabled() {
+  // When sameZoneMinInterStopGapSec = 0, guard is off — rapid re-entry accepted
+  const depTs = 1000000;
+  const t3Hit = depTs + 3600;
+  const t5Entry = t3Hit + 67;
+  const stops = [
+    { id: 10, stop_order: 3, stop_name: 'Tujuan 3', wialon_resource_id: '1', wialon_zone_id: '4', is_departure: 0, is_finish: 0 },
+    { id: 11, stop_order: 5, stop_name: 'Tujuan 5', wialon_resource_id: '1', wialon_zone_id: '4', is_departure: 0, is_finish: 0 },
+  ];
+  const existingHistory = [
+    { id_sc_stop: 10, step_key: 'stop:10', wialon_resource_id: '1', wialon_zone_id: '4',
+      gps_time: new Date(t3Hit * 1000).toISOString() }
+  ];
+  const zoneTimeline = [
+    { zoneKey: '1:4', entryTs: t3Hit },
+    { zoneKey: '1:4', entryTs: t5Entry }
+  ];
+  const result = assignStopHits({
+    stops, zoneTimeline, existingHistory,
+    sameZoneMinInterStopGapSec: 0  // disabled
+  });
+  assert.strictEqual(result.length, 1, 'Gap guard disabled: rapid re-entry should be accepted');
+  console.log('OK same-zone gap guard disabled (0) accepts rapid re-entry');
+}
+
 function main() {
   testFullSequence();
   testSeedPartialHistory();
@@ -708,7 +846,13 @@ function main() {
   testResolveAgeFinishDaysBracket();
   testIsDueForAgeFinish();
   testComputeTripDistanceKm();
-  console.log('\nAll geofence assign + loose finish + base-exit + age-finish tests passed.');
+  testDepartureHitTooEarlyRejected();
+  testDepartureHitInWindowAccepted();
+  testDepartureHitGuardDisabled();
+  testSameZoneRapidReEntryRejected();
+  testSameZoneRealReEntryAccepted();
+  testSameZoneGapGuardDisabled();
+  console.log('\nAll geofence assign + loose finish + base-exit + age-finish + departure-guard + same-zone-gap tests passed.');
 }
 
 main();

@@ -1257,6 +1257,8 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
   - ≥1 middle stop GPS-hit in that lookback window  
   then re-entry = finish (re-entry may be **before** planned dep). Blocks ignition/idle false finish (#44390); allows early trip+return (#44394).
 - Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000), `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default **14400** = 4h).
+- **Departure hit pre-window guard (fix #44442):** Departure stop entries earlier than `depTs − GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC` (default **8h = 28800 s**) are rejected in `assignStopHits`. Prevents re-entry from a prior trip being assigned as Departure, which would satisfy the same-zone leave-evidence and trigger false finish. Env: `GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC`.
+- **Same-zone inter-stop gap guard (fix #44415):** For shuttle routes where the same zone appears multiple times (e.g. Tujuan 1, 3, 5 all KIIC zone), a second assignment to the same zone is rejected unless `entryTs − lastHitTs ≥ GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC` (default **10 min = 600 s**). Prevents rapid re-assignment within the same tracking cycle when `inZoneMap` resets. Env: `GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC`.
 - Helpers: `analyzeBaseExit`, `resolveFinishGpsHit` (exported for tests in `scripts/test-geofence-assign.js`).
 
 ### Manual mode / no-GPS auto-finish by ETA
