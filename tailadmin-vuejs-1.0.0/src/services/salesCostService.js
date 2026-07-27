@@ -56,6 +56,10 @@ export const salesCostService = {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}`)
     return handleJson(res)
   },
+  async fetchGpsTrail(id) {
+    const res = await authFetch(`${API_BASE}/sales-costs/${id}/gps-trail`)
+    return handleJson(res)
+  },
   async updateSalesCost(id, payload) {
     const res = await authFetch(`${API_BASE}/sales-costs/${id}`, {
       method: 'PUT',
@@ -63,6 +67,15 @@ export const salesCostService = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+    })
+    return handleJson(res)
+  },
+  async backfillStop(id, idScStop, options = {}) {
+    const body = { id_sc_stop: Number(idScStop), ...options }
+    const res = await authFetch(`${API_BASE}/sales-costs/${id}/backfill-stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     })
     return handleJson(res)
   },

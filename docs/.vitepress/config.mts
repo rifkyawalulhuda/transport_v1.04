@@ -29,6 +29,14 @@ export default defineConfig({
         ]
       },
       {
+        text: 'GPS & Tracking',
+        items: [
+          { text: 'GPS Trail Playback', link: '/developer/gps-trail' },
+          { text: 'Geofence Guards', link: '/developer/geofence-guards' },
+          { text: 'Backfill Geofence', link: '/developer/backfill-geofence' }
+        ]
+      },
+      {
         text: 'Guide',
         items: [
           { text: 'Dashboard Overview', link: '/guide/dashboard' },

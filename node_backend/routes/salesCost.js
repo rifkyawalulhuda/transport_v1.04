@@ -7,10 +7,330 @@ const { logAuditEvent } = require("../services/auditLogger");
 const { createNotification, getActorFromRequest } = require("../services/notificationService");
 const SalesCostDN = require("../models/SalesCostDN");
 const { fetchAreaRouteStepsMap } = require("../services/areaRouteService");
+const {
+  loginIsolatedSession,
+  logoutIsolatedSession,
+  fetchRawMessagesForUnit,
+  fetchZonePolygons,
+  downsampleTrailPoints
+} = require("../services/wialonService");
+const {
+  buildPlannedPolygon,
+  DEFAULT_POLYGON_MAX_POINTS
+} = require("../services/gpsTrailGeometry");
+const {
+  buildZoneEntryTimeline,
+  assignStopHits,
+  toMySqlDateTime
+} = require("../services/geofenceTrackingService");
+
+/** Average of polygon vertices (Wialon points: x=lon, y=lat). */
+const polygonCentroid = (points) => {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  let sx = 0;
+  let sy = 0;
+  for (const p of points) {
+    sx += Number(p.x) || 0;
+    sy += Number(p.y) || 0;
+  }
+  return { lon: sx / points.length, lat: sy / points.length };
+};
 
 const DEFAULT_FINISH_GEOFENCE_NAME = String(
   process.env.DEFAULT_FINISH_GEOFENCE_NAME || "Sankyu"
 ).trim();
+
+const GPS_TRAIL_PRE_BUFFER_SEC = (() => {
+  const n = Number.parseInt(process.env.GPS_TRAIL_PRE_BUFFER_SEC || "7200", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 7200;
+})();
+
+const GPS_TRAIL_MAX_POINTS = (() => {
+  const n = Number.parseInt(process.env.GPS_TRAIL_MAX_POINTS || "800", 10);
+  return Number.isFinite(n) && n > 1 ? n : 800;
+})();
+
+const GPS_TRAIL_POLYGON_MAX_POINTS = (() => {
+  const n = Number.parseInt(
+    process.env.GPS_TRAIL_POLYGON_MAX_POINTS || String(DEFAULT_POLYGON_MAX_POINTS),
+    10
+  );
+  return Number.isFinite(n) && n >= 3 ? n : DEFAULT_POLYGON_MAX_POINTS;
+})();
+
+/** @returns {number} unix seconds or 0 */
+const toUnixSeconds = (value) => {
+  if (value == null || value === "") return 0;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return 0;
+  return Math.floor(d.getTime() / 1000);
+};
+
+const normalizePositiveIntString = (value) => {
+  if (value == null || value === "") return null;
+  const n = Number(String(value).trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return String(Math.floor(n));
+};
+
+/**
+ * Resolve planned stop geofence centroids from Wialon polygons.
+ * @returns {Promise<Array<object>>}
+ */
+const resolvePlannedStopMarkers = async (idSalesCost, sid, hitStopIds = new Set()) => {
+  const [stopRows] = await db.query(
+    `SELECT id, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            is_departure, is_finish
+     FROM sales_cost_step_schedule
+     WHERE id_sales_cost = ?
+     ORDER BY stop_order ASC, id ASC`,
+    [idSalesCost]
+  );
+  if (!stopRows.length) return [];
+
+  const resourceIds = [
+    ...new Set(
+      stopRows
+        .map((s) => normalizePositiveIntString(s.wialon_resource_id))
+        .filter(Boolean)
+    )
+  ];
+
+  /** @type {Map<string, Map<string, {name?:string, points:Array}>>} */
+  const polyByResource = new Map();
+  if (sid && resourceIds.length) {
+    for (const rId of resourceIds) {
+      try {
+        const polyMap = await fetchZonePolygons(rId, sid);
+        polyByResource.set(rId, polyMap);
+      } catch (err) {
+        console.warn(`[gps-trail] polygon fetch resource ${rId}:`, err?.message || err);
+      }
+    }
+  }
+
+  let middleIndex = 0;
+  const planned = [];
+  for (const s of stopRows) {
+    const isDep = Number(s.is_departure) === 1;
+    const isFin = Number(s.is_finish) === 1;
+    let kind = "middle";
+    let label = s.stop_name || "Stop";
+    if (isDep) {
+      kind = "departure";
+      label = s.stop_name || "Departure";
+    } else if (isFin) {
+      kind = "finish";
+      label = s.stop_name || "Finish";
+    } else {
+      middleIndex += 1;
+      label = s.stop_name || `Tujuan ${middleIndex}`;
+    }
+
+    const rId = normalizePositiveIntString(s.wialon_resource_id);
+    const zId = normalizePositiveIntString(s.wialon_zone_id);
+    let lat = null;
+    let lon = null;
+    let polygon = null;
+    if (rId && zId && polyByResource.has(rId)) {
+      const zone =
+        polyByResource.get(rId).get(zId) ||
+        polyByResource.get(rId).get(String(Number(zId)));
+      const pts = Array.isArray(zone?.points)
+        ? zone.points
+        : Array.isArray(zone)
+          ? zone
+          : null;
+      const c = polygonCentroid(pts);
+      if (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) {
+        lat = c.lat;
+        lon = c.lon;
+      }
+      polygon = buildPlannedPolygon(pts, GPS_TRAIL_POLYGON_MAX_POINTS);
+    }
+
+    planned.push({
+      id: Number(s.id),
+      stop_order: Number(s.stop_order) || 0,
+      stop_name: s.stop_name || "",
+      label,
+      kind,
+      middle_index: kind === "middle" ? middleIndex : null,
+      wialon_zone_name: s.wialon_zone_name || null,
+      lat,
+      lon,
+      polygon,
+      hit: hitStopIds.has(Number(s.id))
+    });
+  }
+  return planned;
+};
+
+/**
+ * Build GPS trail payload for one Sales Cost (Wialon messages, downsampled).
+ * Soft-fail with reason + empty points (HTTP 200 from route).
+ * Always tries to resolve planned geofence stop pins (Tujuan 1/2/3…).
+ */
+const getSalesCostGpsTrail = async (idSalesCost) => {
+  const id = Number(idSalesCost);
+  const empty = (reason, extra = {}) => ({
+    id_sales_cost: Number.isFinite(id) ? id : null,
+    wialon_unit_id: null,
+    no_police: null,
+    from: 0,
+    to: 0,
+    point_count_raw: 0,
+    point_count: 0,
+    downsampled: false,
+    points: [],
+    markers: [],
+    planned_stops: [],
+    reason,
+    ...extra
+  });
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return empty("invalid_id");
+  }
+
+  const [rows] = await db.query(
+    `SELECT sc.id_sales_cost, sc.id_truck, sc.departure_datetime, sc.is_manual_mode,
+            t.wialon_unit_id, t.no_police
+     FROM sales_cost sc
+     LEFT JOIN truck t ON sc.id_truck = t.id_truck
+     WHERE sc.id_sales_cost = ?
+     LIMIT 1`,
+    [id]
+  );
+  if (!rows.length) {
+    return empty("not_found");
+  }
+  const sc = rows[0];
+  const unitId = String(sc.wialon_unit_id || "").trim();
+  const noPolice = sc.no_police || null;
+
+  const [historyRows] = await db.query(
+    `SELECT step_key, step_name_snapshot, system_step_code, gps_time, lat, lon, id_sc_stop
+     FROM sales_cost_route_history
+     WHERE id_sales_cost = ?
+     ORDER BY gps_time ASC, id_sales_cost_route_history ASC`,
+    [id]
+  );
+
+  let earliestHistTs = 0;
+  let finishTs = 0;
+  const markers = [];
+  const hitStopIds = new Set();
+  for (const h of historyRows) {
+    const ts = toUnixSeconds(h.gps_time);
+    if (ts > 0) {
+      if (!earliestHistTs || ts < earliestHistTs) earliestHistTs = ts;
+      if (h.step_key === "system:finish_order" || h.system_step_code === "finish_order") {
+        if (!finishTs || ts > finishTs) finishTs = ts;
+      }
+    }
+    if (h.id_sc_stop != null) hitStopIds.add(Number(h.id_sc_stop));
+    const lat = h.lat != null ? Number(h.lat) : null;
+    const lon = h.lon != null ? Number(h.lon) : null;
+    if (Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0) {
+      markers.push({
+        type: "history",
+        label: h.step_name_snapshot || h.step_key || "Stop",
+        step_key: h.step_key || null,
+        t: ts || null,
+        lat,
+        lon
+      });
+    }
+  }
+
+  const depTs = toUnixSeconds(sc.departure_datetime);
+  const nowTs = Math.floor(Date.now() / 1000);
+  let timeFrom = depTs > 0 ? Math.max(0, depTs - GPS_TRAIL_PRE_BUFFER_SEC) : 0;
+  if (earliestHistTs > 0 && (timeFrom === 0 || earliestHistTs < timeFrom)) {
+    timeFrom = earliestHistTs;
+  }
+  const timeTo = finishTs > 0 ? finishTs : nowTs;
+
+  let sid = null;
+  let rawPoints = [];
+  let planned_stops = [];
+  let trailReason = null;
+
+  try {
+    sid = await loginIsolatedSession();
+    planned_stops = await resolvePlannedStopMarkers(id, sid, hitStopIds);
+
+    if (!sc.id_truck) {
+      trailReason = "no_truck";
+    } else if (!unitId) {
+      trailReason = "no_wialon_unit";
+    } else if (!depTs) {
+      trailReason = "no_departure";
+    } else if (timeTo < timeFrom) {
+      trailReason = "invalid_window";
+    } else {
+      rawPoints = await fetchRawMessagesForUnit({
+        sid,
+        unitId,
+        timeFrom,
+        timeTo
+      });
+      if (!rawPoints.length) trailReason = "wialon_empty";
+    }
+  } catch (err) {
+    console.warn(`[gps-trail] SC ${id} wialon error:`, err?.message || err);
+    trailReason = "wialon_error";
+    if (!planned_stops.length) {
+      try {
+        // best-effort planned without messages if login partially worked
+        if (sid) planned_stops = await resolvePlannedStopMarkers(id, sid, hitStopIds);
+      } catch {
+        /* ignore */
+      }
+    }
+  } finally {
+    if (sid) {
+      try {
+        await logoutIsolatedSession(sid);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  // If Wialon login failed entirely, still try planned stops without polygons (no lat)
+  if (!planned_stops.length) {
+    try {
+      planned_stops = await resolvePlannedStopMarkers(id, null, hitStopIds);
+    } catch {
+      planned_stops = [];
+    }
+  }
+
+  const { points, rawCount, downsampled } = downsampleTrailPoints(
+    rawPoints,
+    GPS_TRAIL_MAX_POINTS
+  );
+
+  return {
+    id_sales_cost: id,
+    wialon_unit_id: unitId || null,
+    no_police: noPolice,
+    from: timeFrom || 0,
+    to: timeTo || 0,
+    point_count_raw: rawCount,
+    point_count: points.length,
+    downsampled,
+    points,
+    markers,
+    planned_stops,
+    reason: points.length ? null : trailReason
+  };
+};
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -1328,6 +1648,20 @@ router.get("/years", async (_req, res) => {
   }
 });
 
+/**
+ * GPS playback trail for one SPK (Wialon messages, downsampled).
+ * Always 200 with soft reason when trail unavailable.
+ */
+router.get("/:id/gps-trail", authenticateToken, async (req, res) => {
+  try {
+    const payload = await getSalesCostGpsTrail(req.params.id);
+    res.json(payload);
+  } catch (err) {
+    console.error("gps-trail error:", err);
+    res.status(500).json({ message: "Gagal mengambil rute GPS." });
+  }
+});
+
 router.get("/:id", async (req, res) => {
   try {
     const id = req.params.id;
@@ -2109,6 +2443,23 @@ router.put("/:id", authenticateToken, async (req, res) => {
         }
       }
 
+      // Capture old zone_ids before update — for geofence change detection
+      const incomingMiddleStops = deliveryStopsPut.filter(
+        s => s.id && Number(s.is_departure) !== 1 && Number(s.is_finish) !== 1
+      );
+      let oldZoneMap = new Map(); // id → old wialon_zone_id
+      if (incomingMiddleStops.length > 0) {
+        const stopIds = incomingMiddleStops.map(s => Number(s.id));
+        const phPlaceholders = stopIds.map(() => '?').join(',');
+        const [oldStops] = await stopsConn.query(
+          `SELECT id, wialon_zone_id FROM sales_cost_step_schedule WHERE id IN (${phPlaceholders})`,
+          stopIds
+        );
+        for (const old of oldStops) {
+          oldZoneMap.set(Number(old.id), old.wialon_zone_id ? Number(old.wialon_zone_id) : null);
+        }
+      }
+
       // Step 3: UPDATE or INSERT each stop from payload
       for (const stop of deliveryStopsPut) {
         if (stop.stop_order === undefined || stop.stop_order === null) continue;
@@ -2177,9 +2528,285 @@ router.put("/:id", authenticateToken, async (req, res) => {
       [id]
     );
 
-    res.json(rows[0]);
+    // Detect stops where wialon_zone_id changed — used in response for backfill offer
+    // Wrapped in try/catch so a DB hiccup here doesn't 500 the whole PUT response
+    // (data was already committed above)
+    const geofenceChangedStops = [];
+    try {
+      for (const stop of incomingMiddleStops) {
+        const oldZoneId = oldZoneMap.get(Number(stop.id));
+        const newZoneId = stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null;
+        if (oldZoneId !== null && newZoneId !== null && oldZoneId !== newZoneId) {
+          // Check if stop already has route_history
+          const [histCheck] = await db.query(
+            'SELECT COUNT(*) AS cnt FROM sales_cost_route_history WHERE id_sc_stop = ?',
+            [Number(stop.id)]
+          );
+          const alreadyHit = Number(histCheck[0]?.cnt || 0) > 0;
+          geofenceChangedStops.push({
+            id: Number(stop.id),
+            stop_name: stop.stop_name || '',
+            stop_order: Number(stop.stop_order) || 0,
+            old_zone_id: oldZoneId,
+            new_zone_id: newZoneId,
+            new_zone_name: stop.wialon_zone_name || '',
+            already_hit: alreadyHit
+          });
+        }
+      }
+    } catch (zoneDetectErr) {
+      console.warn('[salesCost PUT] zone change detection failed (non-fatal):', zoneDetectErr?.message);
+      // geofenceChangedStops stays [] — backfill dialog won't appear, but PUT succeeded
+    }
+
+    res.json({
+      ...rows[0],
+      geofence_changed_stops: geofenceChangedStops
+    });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * POST /:id/backfill-stop
+ * GPS-based retroactive hit recording for a single stop whose wialon_zone_id was changed.
+ * Body: { id_sc_stop: number } for GPS-based
+ * Body: { id_sc_stop: number, manual: true, manual_gps_time: "YYYY-MM-DD HH:MM:SS" } for manual
+ */
+router.post("/:id/backfill-stop", authenticateToken, async (req, res) => {
+  try {
+    const scId = Number(req.params.id);
+    const { id_sc_stop, manual, manual_gps_time } = req.body || {};
+
+    if (!Number.isFinite(scId) || scId <= 0) {
+      return res.status(400).json({ message: "Invalid sales cost ID" });
+    }
+    if (!id_sc_stop || !Number.isFinite(Number(id_sc_stop))) {
+      return res.status(400).json({ message: "id_sc_stop is required" });
+    }
+    const stopId = Number(id_sc_stop);
+
+    // Load SPK + stop, validate
+    const [scRows] = await db.query(
+      `SELECT sc.id_sales_cost, sc.departure_datetime, sc.finish_order_datetime,
+              t.wialon_unit_id
+       FROM sales_cost sc
+       LEFT JOIN truck t ON sc.id_truck = t.id_truck
+       WHERE sc.id_sales_cost = ?
+       LIMIT 1`,
+      [scId]
+    );
+    if (!scRows.length) {
+      return res.status(404).json({ message: "Sales cost not found" });
+    }
+    const sc = scRows[0];
+
+    const [stopRows] = await db.query(
+      `SELECT id, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name,
+              is_departure, is_finish
+       FROM sales_cost_step_schedule
+       WHERE id = ? AND id_sales_cost = ?
+       LIMIT 1`,
+      [stopId, scId]
+    );
+    if (!stopRows.length) {
+      return res.status(404).json({ message: "Stop not found for this sales cost" });
+    }
+    const stop = stopRows[0];
+
+    // Only middle stops (not departure, not finish)
+    if (Number(stop.is_departure) === 1 || Number(stop.is_finish) === 1) {
+      return res.status(400).json({ message: "Backfill only available for middle stops (Tujuan)" });
+    }
+
+    // Idempotency: skip if already has history
+    const [histRows] = await db.query(
+      'SELECT COUNT(*) AS cnt FROM sales_cost_route_history WHERE id_sc_stop = ?',
+      [stopId]
+    );
+    if (Number(histRows[0]?.cnt || 0) > 0) {
+      return res.json({ skipped: true, reason: "already_hit" });
+    }
+
+    // Manual override path
+    if (manual) {
+      if (!manual_gps_time || !isValidIsoDateTime(String(manual_gps_time))) {
+        return res.status(400).json({ message: "manual_gps_time must be a valid datetime (YYYY-MM-DD HH:MM:SS)" });
+      }
+      const stepKey = `stop:${stopId}`;
+      await db.query(
+        `INSERT INTO sales_cost_route_history
+           (id_sales_cost, id_area, id_sc_stop, step_key, is_manual, id_truck,
+            step_order_snapshot, step_name_snapshot,
+            wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            gps_time, lat, lon)
+         VALUES (?, (SELECT id_area FROM sales_cost WHERE id_sales_cost = ? LIMIT 1),
+                 ?, ?, 1, (SELECT id_truck FROM sales_cost WHERE id_sales_cost = ? LIMIT 1),
+                 ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+        [
+          scId, scId,
+          stopId,
+          stepKey,
+          scId,
+          Number(stop.stop_order) || 0,
+          stop.stop_name || '',
+          stop.wialon_resource_id || null,
+          stop.wialon_zone_id || null,
+          stop.wialon_zone_name || null,
+          manual_gps_time
+        ]
+      );
+      logAuditEvent("sales_cost_backfill_stop_manual", {
+        id_sales_cost: scId, id_sc_stop: stopId, manual_gps_time,
+        id_admin: req.user?.id_admin
+      });
+      return res.json({ found: true, manual: true, gps_time: manual_gps_time });
+    }
+
+    // GPS-based path
+    const unitId = String(sc.wialon_unit_id || '').trim();
+    if (!unitId) {
+      return res.json({
+        found: false,
+        warning: "Unit GPS tidak terhubung ke truk ini. Data GPS tidak tersedia."
+      });
+    }
+
+    const depTs = sc.departure_datetime
+      ? Math.floor(new Date(sc.departure_datetime).getTime() / 1000)
+      : 0;
+    if (!depTs) {
+      return res.json({
+        found: false,
+        warning: "Tanggal keberangkatan SPK tidak valid. Tidak dapat mencari data GPS."
+      });
+    }
+
+    const finishTs = sc.finish_order_datetime
+      ? Math.floor(new Date(sc.finish_order_datetime).getTime() / 1000)
+      : 0;
+    const nowTs = Math.floor(Date.now() / 1000);
+    const timeFrom = Math.max(0, depTs - 43200); // 12h before dep
+    const timeTo = finishTs > 0 ? finishTs : nowTs;
+
+    const rId = stop.wialon_resource_id ? String(stop.wialon_resource_id) : null;
+    const zId = stop.wialon_zone_id ? String(stop.wialon_zone_id) : null;
+    if (!rId || !zId) {
+      return res.json({
+        found: false,
+        warning: "Stop ini tidak memiliki konfigurasi geofence (resource/zone ID kosong)."
+      });
+    }
+
+    let sid = null;
+    try {
+      sid = await loginIsolatedSession();
+
+      // Fetch GPS messages
+      const messages = await fetchRawMessagesForUnit({ sid, unitId, timeFrom, timeTo });
+      if (!messages.length) {
+        return res.json({
+          found: false,
+          warning: "GPS tidak mengkonfirmasi kunjungan ke zone ini. Data GPS tidak tersedia atau truk belum mengunjungi lokasi ini."
+        });
+      }
+
+      // Fetch polygon for this stop's zone only
+      const polygonData = await fetchZonePolygons(rId, sid);
+      const zonePolygonMap = new Map();
+      if (polygonData && polygonData.size > 0) {
+        const zoneKey = `${rId}:${zId}`;
+        const zoneEntry = polygonData.get(zId) || polygonData.get(String(Number(zId)));
+        if (zoneEntry && Array.isArray(zoneEntry.points) && zoneEntry.points.length >= 3) {
+          zonePolygonMap.set(zoneKey, {
+            points: zoneEntry.points,
+            resourceId: rId,
+            zoneId: zId
+          });
+        }
+      }
+
+      if (zonePolygonMap.size === 0) {
+        return res.json({
+          found: false,
+          warning: "Polygon geofence zone tidak dapat dimuat dari Wialon. Coba lagi atau gunakan input manual."
+        });
+      }
+
+      // Build zone entry timeline
+      const zoneTimeline = buildZoneEntryTimeline(messages, zonePolygonMap);
+      if (!zoneTimeline.length) {
+        return res.json({
+          found: false,
+          warning: "GPS tidak mengkonfirmasi kunjungan ke zone ini. Truk mungkin belum mengunjungi lokasi ini."
+        });
+      }
+
+      // Run assignStopHits for this single stop
+      const assignments = assignStopHits({
+        stops: [stop],
+        zoneTimeline,
+        existingHistory: [],
+        departureTs: depTs
+      });
+
+      if (!assignments.length) {
+        return res.json({
+          found: false,
+          warning: "GPS tidak mengkonfirmasi kunjungan ke zone ini. Truk mungkin belum mengunjungi lokasi ini, atau data GPS tidak tersedia untuk periode ini."
+        });
+      }
+
+      const hit = assignments[0];
+      const entryGpsTime = toMySqlDateTime(new Date(hit.entryTs * 1000));
+      const entryMsg = messages.find(m => {
+        const rawT = Number(m.t);
+        const ts = rawT > 1e12 ? Math.floor(rawT / 1000) : Math.floor(rawT);
+        return ts === hit.entryTs;
+      });
+      const stepKey = `stop:${stopId}`;
+
+      await db.query(
+        `INSERT INTO sales_cost_route_history
+           (id_sales_cost, id_area, id_sc_stop, step_key, is_manual, id_truck,
+            step_order_snapshot, step_name_snapshot,
+            wialon_resource_id, wialon_zone_id, wialon_zone_name,
+            gps_time, lat, lon)
+         VALUES (?, (SELECT id_area FROM sales_cost WHERE id_sales_cost = ? LIMIT 1),
+                 ?, ?, 0, (SELECT id_truck FROM sales_cost WHERE id_sales_cost = ? LIMIT 1),
+                 ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          scId, scId,
+          stopId,
+          stepKey,
+          scId,
+          Number(stop.stop_order) || 0,
+          stop.stop_name || '',
+          stop.wialon_resource_id || null,
+          stop.wialon_zone_id || null,
+          stop.wialon_zone_name || null,
+          entryGpsTime,
+          entryMsg?.lat ?? null,
+          entryMsg?.lon ?? null
+        ]
+      );
+
+      logAuditEvent("sales_cost_backfill_stop_gps", {
+        id_sales_cost: scId, id_sc_stop: stopId, gps_time: entryGpsTime,
+        id_admin: req.user?.id_admin
+      });
+      return res.json({ found: true, manual: false, gps_time: entryGpsTime });
+
+    } finally {
+      if (sid) {
+        try { await logoutIsolatedSession(sid); } catch { /* ignore */ }
+      }
+    }
+
+  } catch (err) {
+    console.error("[backfill-stop] error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });

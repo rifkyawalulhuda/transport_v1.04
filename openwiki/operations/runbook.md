@@ -36,6 +36,23 @@ Copy `node_backend/.env.example` to `node_backend/.env` and fill in the values. 
 | `GEOAPIFY_TIMEOUT_MS` | No | `6000` | Reverse geocode HTTP timeout |
 | `REVERSE_GEOCODE_CACHE_TTL_MS` | No | `86400000` (24h) | Backend in-memory cache TTL for reverse geocoded addresses |
 | `GEOFENCE_TRACKING_INTERVAL_MS` | No | `60000` (60s) | How often the background geofence loop polls Wialon |
+| `DEFAULT_FINISH_GEOFENCE_NAME` | No | `Sankyu` | Name of the default finish geofence (fallback when area finish_geofence_* columns are null) |
+| `GEOFENCE_FINISH_MIN_AWAY_SEC` | No | `1200` (20m) | Min seconds outside base zone to count as meaningful leave for same-zone finish |
+| `GEOFENCE_FINISH_MIN_AWAY_M` | No | `1000` (1km) | Min meters from base centroid to count as meaningful leave |
+| `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` | No | `14400` (4h) | Lookback window before planned departure for leave evidence |
+| `GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH` | No | `0` | Set `1` for strict mode — all middle stops must be hit before finish |
+| `GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC` | No | `28800` (8h) | Max seconds before planned departure a Departure hit is accepted. Set `0` to disable (fix #44442) |
+| `GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC` | No | `600` (10m) | Min seconds between two hits at the same zone for different stops. Set `0` to disable (fix #44415) |
+| `GEOFENCE_AGE_FINISH_SHORT_KM` | No | `60` | Trip distance threshold for short auto-finish bracket |
+| `GEOFENCE_AGE_FINISH_MID_KM` | No | `100` | Trip distance threshold for mid auto-finish bracket |
+| `GEOFENCE_AGE_FINISH_DAYS_SHORT` | No | `3` | Days until auto-finish for trips ≤60km |
+| `GEOFENCE_AGE_FINISH_DAYS_MID` | No | `7` | Days until auto-finish for trips ≤100km |
+| `GEOFENCE_AGE_FINISH_DAYS_LONG` | No | `10` | Days until auto-finish for trips >100km |
+| `GEOFENCE_AGE_FINISH_DAYS_FALLBACK` | No | `3` | Days until auto-finish when distance cannot be computed |
+| `GEOFENCE_AGE_FINISH_DRY_RUN` | No | `0` | Set `1` to log-only without inserting finish records |
+| `GPS_TRAIL_PRE_BUFFER_SEC` | No | `7200` (2h) | Buffer before departure for GPS trail message window |
+| `GPS_TRAIL_MAX_POINTS` | No | `800` | Max GPS trail points after downsampling |
+| `GPS_TRAIL_POLYGON_MAX_POINTS` | No | `80` | Max polygon vertices per planned stop geofence |
 | `DEFAULT_FINISH_GEOFENCE_NAME` | No | `Sankyu` | Name of the Wialon geofence that triggers delivery notifications on truck arrival |
 
 ## Running Migrations

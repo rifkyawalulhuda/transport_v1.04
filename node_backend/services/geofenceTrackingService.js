@@ -191,6 +191,27 @@ const FINISH_LEAVE_LOOKBACK_SEC = (() => {
   const n = Number.parseInt(process.env.GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC || "14400", 10);
   return Number.isFinite(n) && n >= 0 ? n : 14400; // 4 h before planned dep
 })();
+// Max seconds before planned departure a Departure stop hit may be accepted.
+// Re-entries earlier than this (trucks returning from a prior trip)
+// are rejected so they cannot trigger false same-zone finish (#44442).
+// Default 8h; set 0 to disable (accept all Departure hits in message window).
+const DEPARTURE_HIT_MAX_PRE_WINDOW_SEC = (() => {
+  const n = Number.parseInt(
+    process.env.GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC || "28800", 10
+  );
+  return Number.isFinite(n) && n >= 0 ? n : 28800; // 8h
+})();
+// Minimum seconds between two consecutive hits at the same zone for different stops.
+// Prevents rapid re-assignment of a zone entry to a later stop in shuttle routes
+// (e.g. KIIC→GIIC→KIIC) when the truck hasn't actually left and returned —
+// caused by inZoneMap resetting each tracking cycle (#44415).
+// Default 10 min. Set 0 to disable.
+const SAME_ZONE_MIN_INTER_STOP_GAP_SEC = (() => {
+  const n = Number.parseInt(
+    process.env.GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC || "600", 10
+  );
+  return Number.isFinite(n) && n >= 0 ? n : 600; // 10 min
+})();
 
 // Auto-finish unfinished SPKs by trip distance (zone centroid) + age since planned dep
 const AGE_FINISH_SHORT_KM = (() => {
@@ -587,7 +608,10 @@ const assignStopHits = ({
   stops,
   zoneTimeline,
   existingHistory = [],
-  requirePreviousStopHit = DEFAULT_REQUIRE_PREVIOUS_STOP
+  requirePreviousStopHit = DEFAULT_REQUIRE_PREVIOUS_STOP,
+  departureTs = 0,
+  departureHitMaxPreWindowSec = DEPARTURE_HIT_MAX_PRE_WINDOW_SEC,
+  sameZoneMinInterStopGapSec = SAME_ZONE_MIN_INTER_STOP_GAP_SEC
 } = {}) => {
   const ordered = Array.isArray(stops)
     ? [...stops]
@@ -627,6 +651,27 @@ const assignStopHits = ({
       // Strict: block later stops. Loose (Opsi B): skip this stop, try others.
       if (requirePreviousStopHit) break;
       continue;
+    }
+
+    // Guard: Reject Departure hits that are too early relative to planned departure.
+    // Prevents re-entry from a prior trip being assigned as Departure (#44442).
+    if (Number(stop.is_departure) === 1 && departureTs > 0 && departureHitMaxPreWindowSec > 0) {
+      const minAllowedTs = departureTs - departureHitMaxPreWindowSec;
+      if (entry.entryTs < minAllowedTs) {
+        if (requirePreviousStopHit) break;
+        continue;
+      }
+    }
+
+    // Guard: Require a minimum time gap between two hits at the same zone
+    // for different stops. Prevents rapid re-assignment within the same
+    // tracking cycle when inZoneMap resets (shuttle routes, #44415).
+    if (sameZoneMinInterStopGapSec > 0) {
+      const lastHitTs = consumedByZone.get(zoneKey) || 0;
+      if (lastHitTs > 0 && entry.entryTs - lastHitTs < sameZoneMinInterStopGapSec) {
+        if (requirePreviousStopHit) break;
+        continue;
+      }
     }
 
     assignments.push({ stop, entryTs: entry.entryTs, zoneKey });
@@ -1124,7 +1169,8 @@ const syncGeofenceRouteHistory = async () => {
     const assignments = assignStopHits({
       stops,
       zoneTimeline,
-      existingHistory: scHistoryRows
+      existingHistory: scHistoryRows,
+      departureTs,   // guard: reject Departure hits too long before planned dep (#44442)
       // requirePreviousStopHit defaults to Opsi B (loose) via env/default
     });
 
@@ -2052,7 +2098,8 @@ const runBackfill = async (fromTs, toTs) => {
         const assignments = assignStopHits({
           stops,
           zoneTimeline,
-          existingHistory: scHistory
+          existingHistory: scHistory,
+          departureTs  // guard: reject Departure hits too long before planned dep (#44442)
           // requirePreviousStopHit defaults to Opsi B (loose) via env/default
         });
 
@@ -2188,5 +2235,6 @@ module.exports = {
   resolveAgeFinishDays,
   isDueForAgeFinish,
   haversineMeters,
-  polygonCentroid
+  polygonCentroid,
+  toMySqlDateTime
 };

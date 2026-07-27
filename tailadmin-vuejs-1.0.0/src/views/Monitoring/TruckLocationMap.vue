@@ -348,34 +348,25 @@
                     >
                       Lokasi
                     </p>
-                    <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
-                      {{ selectedTruckLocationValue }}
-                    </p>
-                    <!-- Skeleton shimmer while loading -->
+                    <!-- Skeleton while reverse-geocode loads -->
                     <div
                       v-if="selectedTruckAddressLoading"
                       class="mt-2 h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700"
                     ></div>
-
-                    <!-- Address result -->
-                    <p
-                      v-else-if="selectedTruckAddress"
-                      class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90"
-                    >
-                      {{ selectedTruckAddress }}
-                    </p>
-
-                    <!-- Error fallback: coords only when load is done and failed -->
+                    <!-- Error: show coords only -->
                     <p
                       v-else-if="selectedTruckAddressError"
                       class="mt-2 text-xs text-gray-400 dark:text-gray-500"
                     >
-                      {{ selectedTruck?.gps?.lat?.toFixed(5) }}, {{ selectedTruck?.gps?.lon?.toFixed(5) }}
+                      {{ selectedTruck?.gps?.lat?.toFixed(5) }},
+                      {{ selectedTruck?.gps?.lon?.toFixed(5) }}
                     </p>
-
-                    <!-- No GPS coordinates -->
-                    <p v-else class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                      Koordinat tidak tersedia
+                    <!-- Address or coordinate fallback (single line) -->
+                    <p
+                      v-else
+                      class="mt-2 text-sm font-medium text-gray-900 dark:text-white/90"
+                    >
+                      {{ selectedTruckLocationValue }}
                     </p>
                   </div>
 

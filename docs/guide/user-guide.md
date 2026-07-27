@@ -317,3 +317,93 @@ Untuk panduan lengkap modul BBS, lihat [BBS Guide](/guide/bbs-guide).
 3. **Bookmark halaman** yang sering diakses
 4. **Hard refresh** (`Ctrl+Shift+R`) jika tampilan tidak update
 5. **Cek Monitoring Kendaraan** untuk overview cepat status armada
+
+## Rute GPS Aktual (GPS Trail)
+
+Halaman **Detail Sales Cost** memiliki section **Rute GPS Aktual** yang menampilkan perjalanan truk dari data GPS Wialon.
+
+### Cara Menggunakan
+
+1. Buka halaman **Detail Sales Cost** untuk SPK yang diinginkan
+2. Scroll ke section **Rute GPS Aktual** di bagian bawah
+3. Klik tombol **Muat ulang** untuk mengambil data GPS dari Wialon
+
+### Layer Peta
+
+| Layer | Warna | Keterangan |
+|-------|-------|-----------|
+| Trail GPS | Biru | Jejak perjalanan aktual dari GPS Wialon |
+| Departure | Ungu (pin D) | Lokasi geofence titik keberangkatan |
+| Tujuan 1, 2, 3… | Oranye (pin 1, 2, 3) | Lokasi geofence setiap tujuan pengiriman |
+| Finish | Abu (pin F) | Lokasi geofence titik selesai (base) |
+| Hit aktual | Hijau | Waktu GPS truk masuk geofence (sudah ter-verifikasi) |
+
+Gunakan **chip toggle** di atas peta untuk show/hide masing-masing layer.
+
+### Time Scrubber (Playback)
+
+Jika trail GPS tersedia, gunakan **slider** di bawah peta untuk playback perjalanan:
+
+- Tombol **Play/Pause** untuk memulai/menghentikan
+- **Speed** 1× / 2× / 4× untuk mengatur kecepatan
+- **Drag slider** untuk loncat ke waktu tertentu
+
+### Peta Tidak Muncul?
+
+Jika peta kosong setelah klik Muat ulang:
+- Pastikan truk memiliki unit GPS Wialon yang terhubung (cek di Master Truck)
+- Periksa apakah SPK memiliki tanggal keberangkatan yang valid
+- Data GPS Wialon mungkin tidak tersedia untuk periode tersebut (truk offline)
+
+---
+
+## Backfill Geofence
+
+Ketika geofence tujuan diubah setelah truk berangkat, gunakan fitur backfill untuk mencari hit GPS secara retroaktif.
+
+### Saat Edit SPK
+
+1. Edit SPK dan ubah geofence tujuan yang diinginkan
+2. Klik **Simpan** — jika geofence berubah, muncul dialog:
+
+   > "Geofence Tujuan 1 telah diubah ke Fuji Trans GIIC. Ingin mencari hit GPS aktual?"
+
+3. Klik **Cek GPS & Backfill** — sistem akan mencari di data GPS Wialon
+
+**Jika GPS ditemukan:** waktu kunjungan dicatat otomatis  
+**Jika GPS tidak ditemukan:** muncul opsi input waktu manual
+
+### Dari Detail SPK
+
+Di section **Jadwal Pengiriman** pada halaman Detail SPK, setiap tujuan yang **belum ter-hit** menampilkan tombol kecil **Cari Hit GPS**:
+
+1. Klik **Cari Hit GPS** di samping nama tujuan
+2. Sistem mencari data GPS Wialon untuk stop tersebut
+3. Jika ditemukan, hit dicatat dan halaman di-refresh otomatis
+
+::: tip
+Fitur backfill hanya tersedia untuk middle stops (Tujuan 1, 2, dst.) — bukan Departure atau Finish.
+:::
+
+---
+
+## Subcontractor
+
+Menu **Transaksi → Subcontractor** untuk mengelola transaksi subcontractor.
+
+### Membuat Transaksi Baru
+
+1. Klik tombol **Buat Baru**
+2. Isi data: customer, area, truk, driver, tanggal
+3. Di section **Jadwal Pengiriman**, isi stop Departure, Tujuan, dan Finish dengan waktu estimasi masing-masing
+4. Klik **Simpan**
+
+### Fitur
+
+| Fitur | Keterangan |
+|-------|-----------|
+| Jadwal manual | Isi waktu estimasi per stop tanpa GPS/geofence |
+| Export Excel | Export data per transaksi dengan kolom per stop |
+| Print A4 | Cetak Laporan Subcontractor (Portrait) |
+| Akses CS | CS bisa list, create, edit, detail, dan print |
+

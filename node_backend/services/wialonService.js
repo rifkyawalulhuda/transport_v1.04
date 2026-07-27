@@ -2070,9 +2070,49 @@ const fetchZonePolygons = async (resourceId, sid) => {
 };
 
 /**
+ * Even-stride downsample of trail points; always keeps first + last.
+ * @param {Array<{t:number,lat:number,lon:number,speed?:number|null}>} points
+ * @param {number} maxPoints
+ * @returns {{ points: typeof points, rawCount: number, downsampled: boolean }}
+ */
+const downsampleTrailPoints = (points = [], maxPoints = 800) => {
+  const list = Array.isArray(points) ? [...points] : [];
+  list.sort((a, b) => (Number(a.t) || 0) - (Number(b.t) || 0));
+  const rawCount = list.length;
+  const cap = Number.isFinite(Number(maxPoints)) && Number(maxPoints) > 1
+    ? Math.floor(Number(maxPoints))
+    : 800;
+  if (rawCount <= cap) {
+    return { points: list, rawCount, downsampled: false };
+  }
+  const out = [];
+  const lastIdx = rawCount - 1;
+  const seen = new Set();
+  for (let i = 0; i < cap; i++) {
+    const idx = i === cap - 1
+      ? lastIdx
+      : Math.round((i * lastIdx) / (cap - 1));
+    if (seen.has(idx)) continue;
+    seen.add(idx);
+    out.push(list[idx]);
+  }
+  if (!seen.has(0) && list[0]) out.unshift(list[0]);
+  if (!seen.has(lastIdx) && list[lastIdx]) out.push(list[lastIdx]);
+  out.sort((a, b) => (Number(a.t) || 0) - (Number(b.t) || 0));
+  // de-dupe consecutive identical indices after sort
+  const deduped = [];
+  for (const p of out) {
+    const prev = deduped[deduped.length - 1];
+    if (prev && prev.t === p.t && prev.lat === p.lat && prev.lon === p.lon) continue;
+    deduped.push(p);
+  }
+  return { points: deduped, rawCount, downsampled: true };
+};
+
+/**
  * Load raw GPS messages for a unit in a time range.
  * timeFrom, timeTo: Unix timestamps (seconds)
- * Returns array of {t, lat, lon} � one entry per GPS message
+ * Returns array of {t, lat, lon, speed?} — one entry per GPS message
  */
 const fetchRawMessagesForUnit = async ({ sid, unitId, timeFrom, timeTo }) => {
   const safeUnitId = normalizePositiveIntString(unitId);
@@ -2120,7 +2160,11 @@ const fetchRawMessagesForUnit = async ({ sid, unitId, timeFrom, timeTo }) => {
       const lon = Number(pos.x ?? pos.lon);
       const ts = Number(msg.t ?? msg.time);
       if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(ts) && lat !== 0 && lon !== 0) {
-        result.push({ t: ts, lat, lon });
+        const speedRaw = pos.s ?? pos.speed;
+        const speed = Number.isFinite(Number(speedRaw)) ? Number(speedRaw) : null;
+        const point = { t: ts, lat, lon };
+        if (speed != null) point.speed = speed;
+        result.push(point);
       }
     });
 
@@ -2145,5 +2189,6 @@ module.exports = {
   fetchZonePolygons,
   pointInPolygon,
   loginIsolatedSession,
-  logoutIsolatedSession
+  logoutIsolatedSession,
+  downsampleTrailPoints
 };

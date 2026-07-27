@@ -5,7 +5,107 @@ outline: deep
 
 # Changelog V_1.04 <Badge type="info" text="Latest" />
 
-## 19 Juni 2026
+## 27 Juli 2026
+
+### GPS Trail Playback — Phase 2B: Time Scrubber
+
+Fitur playback animasi posisi truck di peta GPS trail.
+
+- Tombol **Play/Pause** + speed selector 1× / 2× / 4×
+- **Range slider** untuk scrub ke waktu tertentu (per index titik GPS)
+- Marker truck bergerak sepanjang trail + **progress polyline** biru
+- Full trail tetap tampil (opacity redup) untuk referensi
+- Auto-pause di akhir trail
+- Timer dibersihkan saat destroy/reload map
+
+---
+
+### Geofence Guards — Fix #44442 & #44415
+
+Dua guard baru di `assignStopHits` untuk mencegah false positive:
+
+**Fix #44442 — Departure Pre-Window Guard**
+- **Masalah:** Truk kembali ke base dari trip sebelumnya 11.8 jam sebelum planned departure SPK baru. Re-entry tersebut ter-assign sebagai Departure → memicu false finish.
+- **Fix:** Entry Departure yang terjadi lebih dari 8 jam sebelum planned departure ditolak.
+- **Env:** `GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC` (default 28800 = 8 jam)
+
+**Fix #44415 — Same-Zone Inter-Stop Gap Guard**
+- **Masalah:** Rute shuttle KIIC→GIIC→KIIC. Tujuan 3 (zone KIIC) hit jam 09:37:31. Tujuan 5 (zone sama) ter-assign 67 detik kemudian — truk belum pindah ke GIIC.
+- **Fix:** Hit ke-2 di zone yang sama ditolak jika gap < 10 menit dari hit sebelumnya.
+- **Env:** `GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC` (default 600 = 10 menit)
+
+Unit tests: 29 test cases di `node_backend/scripts/test-geofence-assign.js`.
+
+---
+
+### Fitur Backfill Geofence
+
+Ketika geofence stop diubah di tengah perjalanan, sistem menawarkan pencarian hit GPS retroaktif.
+
+**Cara kerja:**
+1. User edit SPK dan ganti `wialon_zone_id` sebuah tujuan
+2. Setelah save, dialog muncul: "Ingin mencari hit GPS untuk zone baru?"
+3. User pilih **Cek GPS & Backfill** → sistem fetch data GPS Wialon → insert hit jika ditemukan
+4. Jika GPS tidak ada, user bisa input waktu manual
+
+**Endpoint baru:** `POST /api/sales-costs/:id/backfill-stop`
+- GPS-based: `{ id_sc_stop }` → fetch Wialon messages → `assignStopHits` → INSERT
+- Manual: `{ id_sc_stop, manual: true, manual_gps_time }` → INSERT dengan `is_manual=1`
+- Idempotent: skip jika stop sudah ter-hit
+
+**PUT response:** Sekarang menyertakan `geofence_changed_stops[]` jika zone_id berubah.
+
+**UI:**
+- Dialog post-save di `EditSalesCost.vue` (6 state: idle/loading/found/not_found/already_hit/error)
+- Tombol "Cari Hit GPS" di `DetailSalesCost.vue` per middle stop yang belum ter-hit
+
+---
+
+### Perbaikan: Double Alamat di Peta Lokasi Truk
+
+Panel **Lokasi** di halaman Peta Lokasi Truk tidak lagi menampilkan alamat yang sama dua kali. Root cause: template merender `selectedTruckLocationValue` dan `selectedTruckAddress` secara terpisah padahal keduanya berisi nilai yang sama.
+
+---
+
+## 25 Juli 2026
+
+### GPS Trail Playback — Phase 1 & 2A
+
+**Phase 1 — Trail Dasar:**
+- Section **Rute GPS Aktual** di halaman Detail Sales Cost
+- Polyline trail biru dari GPS Wialon + hit geofence aktual
+- Window: `departure − 2 jam` hingga finish/sekarang
+- Downsample hingga 800 titik (env `GPS_TRAIL_MAX_POINTS`)
+- Expand/collapse height (300px / 520px)
+
+**Phase 2A — Polygon + Layer Toggle:**
+- Polygon fill geofence per stop (oranye = Tujuan, ungu = Departure, abu = Finish)
+- Pin badge bernomor: D / 1 / 2 / 3 / F
+- 4 chip toggle: **Trail GPS** / **Tujuan** / **Polygon** / **Hit aktual**
+- Polygon di-simplify (max 80 vertex, env `GPS_TRAIL_POLYGON_MAX_POINTS`)
+- `fitBounds` mencakup semua layer
+
+File baru: `node_backend/services/gpsTrailGeometry.js`
+
+---
+
+### Subcontractor — Jadwal Manual, CS Access, Export, Print
+
+- **Jadwal pengiriman manual** per stop (Departure / Tujuan / Finish) dengan datetime estimasi — tanpa GPS/geofence
+- **Akses CS:** list, create, edit, detail, print Subcontractor
+- **Export Excel:** satu baris per transaksi, kolom per stop (Departure/Tujuan 1..N/Finish: Nama + Waktu)
+- **Print A4 Portrait:** Laporan Subcontractor — ringkasan operasional + tabel jadwal; tanpa data keuangan
+- **Detail page:** tampil Dibuat Oleh (nama + NIK)
+
+---
+
+### Schedule Export — Kolom Durasi
+
+Export jadwal pengiriman (Excel) mendapatkan kolom baru:
+- **Jumlah Hari (Aktual):** durasi actual departure → finish dalam format "X hari Y jam Z mnt"
+- **Selisih Waktu (Est vs Aktual)** per stop: signed duration, positif = terlambat dari estimasi
+
+
 
 ### BBS Module — Multi-Language Support (ID/EN)
 

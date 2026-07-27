@@ -1257,6 +1257,8 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
   - ≥1 middle stop GPS-hit in that lookback window  
   then re-entry = finish (re-entry may be **before** planned dep). Blocks ignition/idle false finish (#44390); allows early trip+return (#44394).
 - Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000), `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default **14400** = 4h).
+- **Departure hit pre-window guard (fix #44442):** Departure stop entries earlier than `depTs − GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC` (default **8h = 28800 s**) are rejected in `assignStopHits`. Prevents re-entry from a prior trip being assigned as Departure, which would satisfy the same-zone leave-evidence and trigger false finish. Env: `GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC`.
+- **Same-zone inter-stop gap guard (fix #44415):** For shuttle routes where the same zone appears multiple times (e.g. Tujuan 1, 3, 5 all KIIC zone), a second assignment to the same zone is rejected unless `entryTs − lastHitTs ≥ GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC` (default **10 min = 600 s**). Prevents rapid re-assignment within the same tracking cycle when `inZoneMap` resets. Env: `GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC`.
 - Helpers: `analyzeBaseExit`, `resolveFinishGpsHit` (exported for tests in `scripts/test-geofence-assign.js`).
 
 ### Manual mode / no-GPS auto-finish by ETA
@@ -1309,6 +1311,31 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - Excel **19 columns**: merge **1–11** includes **Jumlah Hari (Aktual)** (`X hari Y jam Z mnt` from actual dep→finish).
 - Per-stop **Selisih Waktu (Est vs Aktual)**: human-readable signed duration (`1 jam 56 mnt` / `-…` / `tepat`); positive = late vs estimate.
 - Helpers: `formatDurationId`, `formatSignedDurationId`, `formatDiffMinutes` in `schedulePengiriman.js`.
+
+### Sales Cost — GPS trail playback (Phase 1 + 2A + 2B, 2026-07-25)
+- `GET /api/sales-costs/:id/gps-trail` (auth): window from `departure − GPS_TRAIL_PRE_BUFFER_SEC` (default 2h, also earliest history) to finish hit or NOW.
+- Reuses `fetchRawMessagesForUnit` + `downsampleTrailPoints` (default max **800** points, env `GPS_TRAIL_MAX_POINTS`).
+- Soft empty reasons: `no_wialon_unit`, `wialon_empty`, `wialon_error`, etc. (HTTP 200).
+- Markers from `sales_cost_route_history` rows with lat/lon (hit aktual).
+- **`planned_stops`**: centroid + **`polygon: [[lat,lon],…]`** (simplified, env `GPS_TRAIL_POLYGON_MAX_POINTS` default **80**) per `sales_cost_step_schedule` via `fetchZonePolygons`; still returned when trail empty.
+- Geometry helpers: `node_backend/services/gpsTrailGeometry.js`.
+- UI Detail **Rute GPS Aktual**: trail, pin D/1/2/3/F, **polygon fill**, hit hijau, expand map, **layer chips** (Trail / Tujuan / Polygon / Hit).
+- **Phase 2B scrubber:** Play/Pause, speed 1×/2×/4×, range by point index, truck marker + progress polyline; no auto-pan; FE-only (no API change).
+- Out of scope still: print map SPK, multi-SPK M2 policy.
+- Tests: `scripts/test-gps-trail-downsample.js`, `scripts/test-gps-trail-polygon.js`.
+
+### Sales Cost — Backfill Geofence Diubah (2026-07-27)
+- **`POST /api/sales-costs/:id/backfill-stop`** (auth): GPS-based retroactive hit recording for a single middle stop whose `wialon_zone_id` was changed mid-trip.
+  - Body: `{ id_sc_stop: number }` for GPS-based; `{ id_sc_stop, manual: true, manual_gps_time: "YYYY-MM-DD HH:MM:SS" }` for manual override.
+  - GPS window: `depTs − 12h` to `finishTs || now`. Uses `buildZoneEntryTimeline` + `assignStopHits` with all guards.
+  - Idempotent: returns `{ skipped: true, reason: "already_hit" }` if stop already has `route_history`.
+  - Manual: `is_manual=1`, no GPS coordinates.
+  - Returns `{ found: true, gps_time }` or `{ found: false, warning: "..." }`.
+- **PUT `/:id` response** now includes `geofence_changed_stops[]` when a middle stop's `wialon_zone_id` changed during update.
+- **FE: `EditSalesCost.vue`** shows a post-save dialog when geofence changed stops are detected. States: idle → GPS fetch → found/not_found → manual override. Navigates away only after all changed stops are processed or skipped.
+- **FE: `DetailSalesCost.vue`** shows "Cari Hit GPS" button for unhit middle stops. On success, reloads detail.
+- **`salesCostService.backfillStop(id, stopId, options?)`** added.
+- Only middle stops eligible (not `is_departure`, not `is_finish`). Finish (`system:finish_order`) is never touched by backfill.
 
 ### Subcontractor — Jadwal manual, CS, export, print (2026-07-25)
 
