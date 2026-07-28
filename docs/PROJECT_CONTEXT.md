@@ -1373,3 +1373,94 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 #### Detail page
 - **Dibuat Oleh**: `created_by_name (created_by_nik)`; `-` if `nik_admin` 0 / missing admin.
 - Optional list of planned stops when `delivery_stops` present.
+
+---
+
+## Updates (2026-07-28 — GPS Finish Guards, Template Jadwal, UI/UX, VitePress Docs)
+
+### Geofence Finish — Additional False-Finish Guards
+
+Three new guards added to `resolveFinishGpsHit` and `assignStopHits` to close remaining false-finish cases:
+
+#### Fix #44449 — Departure-as-Finish Collision Guard (same-cycle timestamp)
+- **Root cause:** SPK #44449 (B 9782 SYM): Departure hit at 06:02 and `system:finish_order` at 06:02 — identical timestamp. Same zone entry (Sankyu) used as both Departure hit and Finish in the same tracking cycle.
+- **Fix:** In `resolveFinishGpsHit`, `minFinishTs` is raised to ≥ the timestamp of the latest Departure hit in `historyRows`. Implemented via `depHitTs` reduction over `historyRows` filtering `is_departure=1` stops.
+- **Location:** `geofenceTrackingService.js:~L543`
+
+#### Fix #44450 — Live Position Stale Cache Guard
+- **Root cause:** SPK #44450 (B 9567 FXS): `position.gps_time = 07:54` (stale GPS cache from before planned departure 08:00). `nowTs > depTs` already passed the hard gate, but `liveTs < depTs` → finish recorded before departure.
+- **Fix:** In the live fallback path of `resolveFinishGpsHit`, `liveTs` (from `position.gps_time`) must also be `>= depTs`. Guards against stale position cache even when `nowTs` has passed `depTs`.
+- **Location:** `geofenceTrackingService.js:~L613`
+
+#### Unit tests (33 test cases total)
+- `test-geofence-assign.js` — 4 new cases for #44449 and #44450 scenarios + genuine-finish-accepted cases.
+- Run: `cd node_backend && node scripts/test-geofence-assign.js`
+
+---
+
+### Sales Cost — Template Jadwal Pengiriman
+
+New feature: reusable delivery schedule templates to speed up SPK creation for recurring routes.
+
+#### Database (migration `20260728000014_create_delivery_template.sql`)
+- `delivery_template` — id, template_name, description, is_active, created_at, updated_at
+- `delivery_template_stop` — id, id_delivery_template, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, `time_hhmm` (VARCHAR(5), stores "HH:MM" fixed time)
+- FK: `delivery_template_stop.id_delivery_template → delivery_template.id` ON DELETE CASCADE
+- Also added to `scripts/fix-missing-tables.js` (idempotent, marks version `20260728000014`)
+
+#### Backend API (`routes/deliveryTemplate.js`)
+- `GET /api/delivery-templates` — list active templates with stops (auth: all roles)
+- `GET /api/delivery-templates/:id` — single template detail (auth: all roles)
+- `POST /api/delivery-templates` — create template + stops in transaction (admin only)
+- `PUT /api/delivery-templates/:id` — update (delete + reinsert stops) in transaction (admin only)
+- `DELETE /api/delivery-templates/:id` — soft delete `is_active=0` (admin only)
+- Registered in `server.js` at `/api/delivery-templates`
+- RBAC: CS can read (`GET /delivery-templates` added to `isAllowedForCs` whitelist)
+
+#### Backend API — Area route-steps endpoint enhanced
+- `GET /api/areas/:id/route-steps` — upgraded: now requires `authenticateToken`, returns `{ id_area, nama_area, stops[] }` in delivery-stop shape (was plain steps array). `time_hhmm: null` since area route steps have no fixed time.
+
+#### Frontend
+- `services/deliveryTemplateService.ts` — typed service: fetchTemplates, fetchTemplate, createTemplate, updateTemplate, deleteTemplate
+- `salesCostService.backfillStop(id, stopId, options?)` — added (POST to `/backfill-stop`)
+- `salesCostService.fetchAreaRouteSteps(areaId)` — added (GET `/areas/:id/route-steps`)
+- `SalesCostForm.vue` — two new features:
+  - **Auto-populate on area change**: when area is selected in create mode and stops are still default, fetches route-steps and populates `deliveryStops` with geofence data. Guard: only if `isStopsDefault()`, only in create mode, `areaAutoPopulating` flag prevents loop.
+  - **"Pakai Template" button** + modal: select template from dropdown + pick base date → populate stops with `${baseDate} ${time_hhmm}:00` per stop. Uses `DatePickerInput` (date-only, `:enable-time="false"`) for base date picker.
+- `views/Master/DeliveryTemplateMaster.vue` — admin CRUD page for templates:
+  - Standard data table (matches TruckMaster/AreaMaster): SearchBar, SortableTableHeader, Pagination, rows-per-page, total count; `filterItemsByQuery` + `useSortableItems` + `useListQuery` for client-side search/sort/paginate
+  - Create/Edit modal: `max-w-3xl`, structured header/body/footer with border separators, 2-col grid for name+description, horizontal 3-col stop rows (Badge · Nama · Geofence · Jam · Delete), `max-height: 400px` scroll for stops list, redundant picker feedback text removed
+  - Uses `SearchableSelect` (identical to SalesCostForm geofence picker) + `DatePickerInput` (`:enable-time="true"`, time-only via dummy date `2000-01-01`) for each stop
+  - Route: `/master/delivery-templates` (added to router + navigation.js under Master group)
+- VitePress `config.mts` — `srcExclude: ['PROJECT_CONTEXT.md']` added to prevent build error from this file being processed as a page
+
+#### Mode Manual override behavior fix
+- **Bug:** When a template was applied (stops had `wialon_zone_id`), toggling Mode Manual only changed the boolean — geofence data remained silently on stops, blocking manual mode UX.
+- **Fix:** `toggleManualMode()` added to `SalesCostForm.vue`. When switching **to manual mode**, clears `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name` from all stops. `@click` on Mode Manual button now calls `toggleManualMode()` instead of inline toggle.
+- **Location:** `SalesCostForm.vue:~L1165`
+
+---
+
+### VitePress Documentation Update (2026-07-28)
+
+New pages added to `docs/` (deployed to GitHub Pages):
+- `docs/developer/gps-trail.md` — GPS Trail Playback (Phase 1, 2A, 2B), endpoint, planned_stops polygon, env vars
+- `docs/developer/geofence-guards.md` — All false-finish guards (#44442, #44415, #44449, #44450), env vars, unit tests
+- `docs/developer/backfill-geofence.md` — Backfill feature endpoint, GPS/manual flow, PUT response change, UI
+
+Updated existing docs:
+- `docs/developer/api-reference.md` — GPS trail endpoint, backfill-stop endpoint, PUT geofence_changed_stops
+- `docs/developer/architecture.md` — `gpsTrailGeometry.js` service, GPS trail + geofence env vars table
+- `docs/changelog/changelog.md` — Full Juli 2026 changelog (GPS trail phases, geofence guards, backfill, template jadwal, double-alamat fix, subcontractor)
+- `docs/guide/user-guide.md` — Panduan Rute GPS Aktual, backfill geofence, Subcontractor section
+- `openwiki/workflows/key-workflows.md` — Geofence guards section + GPS trail playback + backfill workflow
+- `openwiki/operations/runbook.md` — 17 new env vars (GPS trail + geofence guards + auto-finish)
+- `openwiki/quickstart.md` — Optional GPS trail + geofence guard env vars noted
+- `docs/.vitepress/config.mts` — Added "GPS & Tracking" sidebar section (3 pages), `srcExclude: ['PROJECT_CONTEXT.md']`
+
+---
+
+### Lokasi Truk — Double Alamat Fix (2026-07-28)
+- **Bug:** Panel "Lokasi" di halaman Peta Lokasi Truk menampilkan alamat dua kali — satu dari `selectedTruckLocationValue` (computed yang sudah include address) dan satu dari `v-else-if="selectedTruckAddress"`.
+- **Fix:** `TruckLocationMap.vue` template — consolidated to single rendering path: loading → skeleton, error → coords, else → `selectedTruckLocationValue`. Removed the redundant `v-else-if="selectedTruckAddress"` block.
+
