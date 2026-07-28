@@ -542,6 +542,22 @@ const resolveFinishGpsHit = ({
     minFinishTs = Math.max(minFinishTs, lastGlobalTs || 0);
   }
 
+  // Guard: Finish cannot use the same zone entry as the Departure hit recorded
+  // in this trip. If Departure was hit at time T, finish requires entryTs > T.
+  // Prevents same-cycle Departure+Finish timestamp collision (#44449).
+  const depHitTs = (historyRows || []).reduce((max, h) => {
+    const stop = (stops || []).find((s) => Number(s.id) === Number(h.id_sc_stop));
+    if (!stop || Number(stop.is_departure) !== 1) return max;
+    let ts = Number(h.gps_ts);
+    if (!Number.isFinite(ts) || ts <= 0) {
+      ts = h.gps_time ? Math.floor(new Date(h.gps_time).getTime() / 1000) : 0;
+    }
+    return ts > max ? ts : max;
+  }, 0);
+  if (depHitTs > 0) {
+    minFinishTs = Math.max(minFinishTs, depHitTs);
+  }
+
   const timeline = Array.isArray(zoneTimeline)
     ? [...zoneTimeline].sort((a, b) => a.entryTs - b.entryTs)
     : [];
@@ -595,6 +611,11 @@ const resolveFinishGpsHit = ({
       ? Math.floor(new Date(position.gps_time).getTime() / 1000)
       : nowTs;
   if (!Number.isFinite(liveTs) || liveTs <= minFinishTs) return null;
+
+  // Guard: live GPS position timestamp must also be >= planned departure.
+  // Prevents stale position cache (position.gps_time < depTs) from being
+  // used as finish entryTs even when nowTs has already passed depTs (#44450).
+  if (depTs > 0 && liveTs < depTs) return null;
 
   return {
     entryTs: liveTs,

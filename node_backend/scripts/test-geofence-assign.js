@@ -822,6 +822,226 @@ function testSameZoneGapGuardDisabled() {
   console.log('OK same-zone gap guard disabled (0) accepts rapid re-entry');
 }
 
+function testFinishNotSameTimestampAsDepHit() {
+  // SPK #44449: Departure hit at 06:02:22, Finish zone entry also at 06:02:22.
+  // minFinishTs must be raised to >= depHitTs so the same entry is NOT used for Finish.
+  const depTs = 1000000; // planned departure
+  const depHitTs = depTs + 120; // Departure hit 2 min after planned dep
+
+  // Build a minimal same-zone finish scenario
+  const finishZoneKey = '1:1';
+  const departureZoneKey = '1:1';
+  // zoneTimeline has one entry for Sankyu at depHitTs (same as Departure hit)
+  const zoneTimeline = [
+    { zoneKey: '1:1', entryTs: depHitTs }
+  ];
+  // historyRows: Departure hit recorded
+  const historyRows = [
+    {
+      id_sc_stop: 1,
+      step_key: 'stop:1',
+      gps_time: new Date(depHitTs * 1000).toISOString(),
+      gps_ts: depHitTs,
+      wialon_resource_id: '1',
+      wialon_zone_id: '1'
+    }
+  ];
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+    { id: 2, stop_order: 99, stop_name: 'Finish', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 0, is_finish: 1 }
+  ];
+
+  // Minimal finishPoints polygon (triangle around Sankyu approx)
+  const finishPoints = [
+    { x: 107.15, y: -6.38 },
+    { x: 107.17, y: -6.38 },
+    { x: 107.16, y: -6.40 }
+  ];
+
+  // messages: one message inside Sankyu at depHitTs (truk baru berangkat)
+  const messages = [
+    { t: depTs - 7200, lat: -6.39, lon: 107.158 }, // inside zone (before dep)
+    { t: depTs - 3600, lat: -6.50, lon: 107.20 },  // outside zone (left)
+    { t: depTs - 1800, lat: -6.60, lon: 107.30 },  // still outside
+    { t: depHitTs, lat: -6.39, lon: 107.158 }       // back inside at depHitTs
+  ];
+
+  const result = resolveFinishGpsHit({
+    departureTs: depTs,
+    historyRows,
+    stops,
+    zoneTimeline,
+    finishZoneKey,
+    departureZoneKey,
+    messages,
+    position: null,
+    finishPoints,
+    unitId: 'test',
+    membershipHasUnit: false
+  });
+  assert.strictEqual(result, null,
+    '#44449 finish must not use same entry as Departure hit (same timestamp collision)');
+  console.log('OK #44449 finish not recorded when zone entry == Departure hit timestamp');
+}
+
+function testFinishAfterDepHitAccepted() {
+  // After fix #44449: a genuine return to Sankyu AFTER the departure is fine.
+  const depTs = 1000000;
+  const depHitTs = depTs + 120;
+  const realReturnTs = depTs + 36000; // 10h later — real finish
+
+  const finishZoneKey = '1:1';
+  const departureZoneKey = '1:1';
+  const zoneTimeline = [
+    { zoneKey: '1:1', entryTs: depHitTs },   // departure entry
+    { zoneKey: '1:1', entryTs: realReturnTs } // genuine finish entry
+  ];
+  const historyRows = [
+    {
+      id_sc_stop: 1,
+      step_key: 'stop:1',
+      gps_time: new Date(depHitTs * 1000).toISOString(),
+      gps_ts: depHitTs,
+      wialon_resource_id: '1',
+      wialon_zone_id: '1'
+    }
+  ];
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+    { id: 2, stop_order: 99, stop_name: 'Finish', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 0, is_finish: 1 }
+  ];
+  const finishPoints = [
+    { x: 107.15, y: -6.38 },
+    { x: 107.17, y: -6.38 },
+    { x: 107.16, y: -6.40 }
+  ];
+  const messages = [
+    { t: depTs - 7200, lat: -6.39, lon: 107.158 },
+    { t: depTs - 3600, lat: -6.50, lon: 107.20 },
+    { t: depHitTs, lat: -6.39, lon: 107.158 },     // departure (zone entry)
+    { t: depTs + 3600, lat: -6.50, lon: 107.30 },  // away on trip
+    { t: realReturnTs, lat: -6.39, lon: 107.158 }  // genuine return
+  ];
+
+  const result = resolveFinishGpsHit({
+    departureTs: depTs,
+    historyRows,
+    stops,
+    zoneTimeline,
+    finishZoneKey,
+    departureZoneKey,
+    messages,
+    position: null,
+    finishPoints,
+    unitId: 'test',
+    membershipHasUnit: false
+  });
+  assert.notStrictEqual(result, null,
+    'Genuine return to Sankyu 10h after departure must be accepted as finish');
+  assert.strictEqual(result.entryTs, realReturnTs,
+    'Finish entryTs must be the real return timestamp, not the Departure hit');
+  console.log('OK genuine finish after departure (10h gap) accepted correctly');
+}
+
+
+function testLiveFinishBeforeDepRejected() {
+  // SPK #44450: position.gps_time = depTs - 5min (stale GPS cache).
+  // nowTs > depTs → hard gate opens, but liveTs < depTs → must be rejected.
+  const depTs = 1000000;
+  const stalePosTs = depTs - 300; // 5 minutes before planned departure
+  const finishZoneKey = '1:1';
+  const departureZoneKey = '1:1';
+
+  // No Departure hit in history (truck never recorded leaving)
+  const historyRows = [];
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+    { id: 2, stop_order: 99, stop_name: 'Finish', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 0, is_finish: 1 }
+  ];
+  const finishPoints = [
+    { x: 107.15, y: -6.38 },
+    { x: 107.17, y: -6.38 },
+    { x: 107.16, y: -6.40 }
+  ];
+  const messages = [
+    { t: depTs - 7200, lat: -6.39, lon: 107.158 },
+    { t: depTs - 3600, lat: -6.50, lon: 107.20 },
+    { t: depTs - 1800, lat: -6.60, lon: 107.30 }
+  ];
+  // position.gps_time is stale — before planned departure
+  const position = {
+    lat: -6.39,
+    lon: 107.158,
+    gps_time: new Date(stalePosTs * 1000).toISOString()
+  };
+
+  const result = resolveFinishGpsHit({
+    departureTs: depTs,
+    historyRows,
+    stops,
+    zoneTimeline: [],
+    finishZoneKey,
+    departureZoneKey,
+    messages,
+    position,
+    finishPoints,
+    unitId: 'test',
+    membershipHasUnit: true // Wialon API says unit is in zone
+  });
+  assert.strictEqual(result, null,
+    '#44450 stale position.gps_time before depTs must be rejected even if membershipHasUnit=true');
+  console.log('OK #44450 live finish with stale GPS timestamp (before dep) rejected');
+}
+
+function testLiveFinishAfterDepAccepted() {
+  // Genuine finish: position.gps_time is after planned departure → accepted.
+  const depTs = 1000000;
+  const realReturnTs = depTs + 36000; // 10 hours after planned departure
+  const finishZoneKey = '1:1';
+  const departureZoneKey = '1:1';
+
+  const historyRows = [];
+  const stops = [
+    { id: 1, stop_order: 0, stop_name: 'Departure', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 1, is_finish: 0 },
+    { id: 2, stop_order: 99, stop_name: 'Finish', wialon_resource_id: '1', wialon_zone_id: '1', is_departure: 0, is_finish: 1 }
+  ];
+  const finishPoints = [
+    { x: 107.15, y: -6.38 },
+    { x: 107.17, y: -6.38 },
+    { x: 107.16, y: -6.40 }
+  ];
+  const messages = [
+    { t: depTs - 7200, lat: -6.39, lon: 107.158 },
+    { t: depTs - 3600, lat: -6.50, lon: 107.20 },
+    { t: depTs + 3600, lat: -6.70, lon: 107.40 },
+    { t: realReturnTs - 60, lat: -6.50, lon: 107.20 }
+  ];
+  const position = {
+    lat: -6.39,
+    lon: 107.158,
+    gps_time: new Date(realReturnTs * 1000).toISOString()
+  };
+
+  const result = resolveFinishGpsHit({
+    departureTs: depTs,
+    historyRows,
+    stops,
+    zoneTimeline: [],
+    finishZoneKey,
+    departureZoneKey,
+    messages,
+    position,
+    finishPoints,
+    unitId: 'test',
+    membershipHasUnit: true
+  });
+  assert.notStrictEqual(result, null,
+    'Live finish with position.gps_time after depTs must be accepted');
+  assert.strictEqual(result.entryTs, realReturnTs,
+    'entryTs must match the genuine return timestamp');
+  console.log('OK live finish with genuine GPS timestamp (after dep) accepted');
+}
+
 function main() {
   testFullSequence();
   testSeedPartialHistory();
@@ -852,7 +1072,11 @@ function main() {
   testSameZoneRapidReEntryRejected();
   testSameZoneRealReEntryAccepted();
   testSameZoneGapGuardDisabled();
-  console.log('\nAll geofence assign + loose finish + base-exit + age-finish + departure-guard + same-zone-gap tests passed.');
+  testFinishNotSameTimestampAsDepHit();
+  testFinishAfterDepHitAccepted();
+  testLiveFinishBeforeDepRejected();
+  testLiveFinishAfterDepAccepted();
+  console.log('\nAll geofence assign + loose finish + base-exit + age-finish + departure-guard + same-zone-gap + dep-hit-collision + live-stale-cache tests passed.');
 }
 
 main();
