@@ -261,6 +261,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/master/delivery-templates',
+      name: 'Template Jadwal',
+      component: () => import('../views/Master/DeliveryTemplateMaster.vue'),
+      meta: {
+        title: 'Template Jadwal',
+      },
+    },
+    {
       path: '/data-transport/data-truck',
       name: 'Data Truck',
       component: () => import('../views/DataTransport/DataTruck.vue'),

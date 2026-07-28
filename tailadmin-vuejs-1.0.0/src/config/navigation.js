@@ -85,6 +85,7 @@ export const getMenuGroups = (userLevel) => {
             { name: 'Driver', path: '/master/drivers', pro: false },
             { name: 'Customer', path: '/master/customers', pro: false },
             { name: 'Area', path: '/master/areas', pro: false },
+            { name: 'Template Jadwal', path: '/master/delivery-templates', pro: false },
             { name: 'Warehouse', path: '/master/warehouses', pro: false },
             { name: 'Subcont', path: '/master/subconts', pro: false },
             { name: 'Admin', path: '/master/admins', pro: false },

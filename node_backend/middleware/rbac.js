@@ -22,7 +22,9 @@ const isAllowedForCs = (req) => {
     // Master options for Subcontractor form
     { method: "GET", path: "/warehouses" },
     { method: "GET", path: "/customers" },
-    { method: "GET", path: "/subconts" }
+    { method: "GET", path: "/subconts" },
+    // Delivery templates (CS can read for SalesCost form template picker)
+    { method: "GET", path: "/delivery-templates" }
   ];
 
   return allowedRoutes.some(
