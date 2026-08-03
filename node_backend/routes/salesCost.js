@@ -2894,7 +2894,8 @@ router.put("/:id/dn", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Sales cost not found" });
     }
     const depDateRaw = scRows[0].departure_datetime;
-    if (depDateRaw) {
+    // Month-lock only applies to "user" level — admin/patcher/cs may edit past-month DN
+    if (req.user && req.user.level === "user" && depDateRaw) {
       const dep = new Date(depDateRaw);
       if (!Number.isNaN(dep.getTime())) {
         const now = new Date();
