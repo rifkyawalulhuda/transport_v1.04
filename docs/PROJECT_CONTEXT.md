@@ -802,7 +802,26 @@ npm run build-only
 **Fix:** `resolveScheduleStatus` now uses `finish_order_datetime` as the overdue deadline (fallback to `arrival_datetime` for backwards compatibility). The overdue condition also now requires `!finishHit` — completed deliveries cannot be overdue.
 
 - `schedulePengiriman.js` — `resolveScheduleStatus` accepts new parameter `finishOrderDatetime`; uses it as `overdueDeadline` when available.
-- `schedulePengiriman.js` — caller at line ~449 now passes `finishOrderDatetime: row.finish_order_datetime`.
+
+---
+
+## Updates (2026-08-05)
+
+### Print Subcontractor — DN Section
+
+- `PrintSubcontractor.vue` — added Delivery Note (DN) section below "Jadwal Pengiriman" table, above footer.
+- New `DNItem` type; new reactive `dnItems` state.
+- `loadDN()` calls `subcontractorService.fetchDNList(id)`, unwraps `data.items`; errors are silently ignored so the print page remains functional even if DN fetch fails.
+- `onMounted` now runs `loadDetail()` and `loadDN()` in parallel.
+- DN table has 9 columns: #, No. DN, Pickup, Drop, Qty, Pkg, GW (Indonesian number format), No. Container, No. AJU.
+- New CSS classes: `.dn-block`, `.dn-table` — styled consistently with the Jadwal Pengiriman table.
+
+### Export Excel — DN Sheet "ID SC" → "No. Laporan"
+
+- `node_backend/routes/subcontractor.js` — sheet DN column `"ID SC"` (key: `id_sc`) renamed to `"No. Laporan"` (key: `no_laporan`, width 12).
+- DN loop changed from `rows.forEach((row) =>` to `rows.forEach((row, index) =>`.
+- Value changed from `scId` (id_subcontractor PK) to `index + 1` — matches the "No." column in the main "Laporan Sub Contractor" sheet, enabling direct cross-reference between sheets.
+- Design decision: three options were considered; **Option 1** (row number matching main sheet) was chosen over Option 2 (id_subcontractor PK) and Option 3 (remove column entirely), because it gives users a direct visual cross-reference between the two sheets without exposing internal IDs.
 
 ### Monitoring Kendaraan — Repair Query Fix
 
