@@ -661,7 +661,7 @@ const loadDnItems = async (id: number) => {
   try {
     const res = await subcontractorService.fetchDNList(id)
     dnItems.value = (res.items || []) as DNItem[]
-    dnCollapsed.value = dnItems.value.map(() => true)
+    dnCollapsed.value = dnItems.value.map(() => false)
   } catch {
     // non-blocking: DN load failure doesn't block form
   }
