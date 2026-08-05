@@ -805,6 +805,45 @@ npm run build-only
 
 ---
 
+## Updates (2026-08-04)
+
+### Subcontractor DN (Delivery Note) — Fitur Baru
+
+Fitur pengelolaan Delivery Note per transaksi subcontractor, menggunakan MySQL child table `sub_contractor_dn` dengan pola DELETE+re-INSERT (konsisten dengan `sub_contractor_step_schedule`).
+
+#### Database
+
+- `node_backend/db/schema.sql` — tabel baru `sub_contractor_dn`: `id`, `id_subcontractor`, `no_dn`, `pickup_alamat`, `drop_alamat`, `qty`, `pkg` (ENUM: IBC/CTN/PIL/DRM/''), `gw` decimal(10,2), `no_container`, `no_aju`, `remarks`.
+- `scripts/fix-missing-tables.js` — migration `20260804000015` ditambahkan untuk create `sub_contractor_dn` (idempotent).
+
+#### Backend
+
+- `node_backend/routes/subcontractor.js` — helper `replaceDNForSubcontractor` baru + route `GET /:id/dn` + `POST /:id/dn` (pola DELETE+re-INSERT, non-transactional, independen dari main form).
+  - `gw`: `parseFloat` + replace koma (handle `"1,5"` → `1.5`).
+  - Semua string field: `!= null ? String(...)` (null-safe).
+  - `qty`: `parseInt()` eksplisit.
+
+#### Frontend Service
+
+- `tailadmin-vuejs-1.0.0/src/services/subcontractorService.js` — metode baru `fetchDNList(id)` dan `saveDNList(id, items)`. `createSubcontractor` dan `updateSubcontractor` strip `_dnItems` sebelum dikirim ke backend (mencegah field internal mencemari request body).
+
+#### Form Input & Edit Subcontractor
+
+- `SubcontractorForm.vue` — tipe `DNItem`, state `dnItems`/`dnCollapsed`, fungsi `addDnItem`/`removeDnItem`/`toggleDnItem`/`loadDnItems`/`saveDnItems`, DN section UI (accordion). Posisi DN section: setelah Section 2 (Kendaraan & Dokumen), sebelum Section 3 (Jadwal Pengiriman). Urutan final: **Mitra & Pesanan → Kendaraan & Dokumen → Delivery Note (DN) → Jadwal Pengiriman → Biaya & Tagihan**.
+- `InputSubcontractor.vue` — setelah create sukses, memanggil `saveDNList` dengan `result.id` (non-blocking).
+- `EditSubcontractor.vue` — setelah update sukses, memanggil `saveDNList` (non-blocking; gagal = toast warning).
+
+#### Detail Subcontractor
+
+- `DetailSubcontractor.vue` — tipe `DNItem`, state `dnItems`/`dnLoading`/`dnError`, fungsi `loadDN()` memanggil `fetchDNList`. `onMounted` paralel `loadDetail()` + `loadDN()`. Template: DN table section (di bawah Rincian Biaya), 10 kolom: #, No. DN, Pickup, Drop, Qty, Pkg (badge), GW, No. Container, No. AJU, Remarks. Handles loading/error/empty state.
+- Bug fix: `dnItems.value = Array.isArray(data?.items) ? data.items : []` — backend mengembalikan `{ items: [] }` bukan array langsung.
+
+#### Arsitektur
+
+DN disimpan independen dari main form transaction, mengikuti pola Sales Cost. Jika DN gagal, data utama tetap tersimpan dan ditampilkan sebagai toast warning.
+
+---
+
 ## Updates (2026-08-05)
 
 ### Print Subcontractor — DN Section
