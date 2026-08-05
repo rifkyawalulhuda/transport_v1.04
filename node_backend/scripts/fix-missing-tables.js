@@ -286,6 +286,26 @@ const main = async () => {
     );
     await mark(conn, "20260728000014");
 
+    // ── 20260804000015: create sub_contractor_dn ──────────────────────────
+    await run(conn, "CREATE sub_contractor_dn",
+      `CREATE TABLE IF NOT EXISTS sub_contractor_dn (
+        id              INT(13)        NOT NULL AUTO_INCREMENT,
+        id_subcontractor INT(13)       NOT NULL,
+        no_dn           VARCHAR(100)   NOT NULL DEFAULT '',
+        pickup_alamat   TEXT           NOT NULL,
+        drop_alamat     TEXT           NOT NULL,
+        qty             INT(11)        NOT NULL DEFAULT 0,
+        pkg             ENUM('IBC','CTN','PIL','DRM','') NOT NULL DEFAULT '',
+        gw              DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
+        no_container    VARCHAR(100)   NOT NULL DEFAULT '',
+        no_aju          VARCHAR(100)   NOT NULL DEFAULT '',
+        remarks         TEXT           NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_id_subcontractor (id_subcontractor)
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci`
+    );
+    await mark(conn, "20260804000015");
+
     console.log("\nSelesai. Verifikasi dengan: npm run migrate:status");
 
   } finally {

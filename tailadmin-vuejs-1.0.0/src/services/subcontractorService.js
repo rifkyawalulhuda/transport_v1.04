@@ -34,22 +34,26 @@ export const subcontractorService = {
     return handleJson(res)
   },
   async createSubcontractor(payload) {
+    // strip internal-only fields before sending to backend
+    const { _dnItems: _dn, ...body } = payload
     const res = await authFetch(`${API_BASE}/subcontractor`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(body)
     })
     return handleJson(res)
   },
   async updateSubcontractor(id, payload) {
+    // strip internal-only fields before sending to backend
+    const { _dnItems: _dn, ...body } = payload
     const res = await authFetch(`${API_BASE}/subcontractor/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(body)
     })
     return handleJson(res)
   },
@@ -78,6 +82,18 @@ export const subcontractorService = {
   },
   async fetchSubconts() {
     const res = await authFetch(`${API_BASE}/subconts`)
+    return handleJson(res)
+  },
+  async fetchDNList(id) {
+    const res = await authFetch(`${API_BASE}/subcontractor/${id}/dn`)
+    return handleJson(res)
+  },
+  async saveDNList(id, items) {
+    const res = await authFetch(`${API_BASE}/subcontractor/${id}/dn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    })
     return handleJson(res)
   }
 }

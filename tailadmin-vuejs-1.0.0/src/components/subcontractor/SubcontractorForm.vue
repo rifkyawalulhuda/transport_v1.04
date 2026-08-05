@@ -154,6 +154,169 @@
           </div>
         </div>
 
+        <!-- Section: Delivery Note (DN) -->
+        <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+          <div class="mb-4 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Delivery Note (DN)</p>
+            </div>
+            <button
+              v-if="!isDisabled"
+              type="button"
+              class="inline-flex items-center justify-center rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white shadow-theme-xs hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              @click="addDnItem"
+            >
+              + Add DN
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <div
+              v-for="(item, index) in dnItems"
+              :key="index"
+              class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50"
+            >
+              <button
+                type="button"
+                class="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                @click="toggleDnItem(index)"
+              >
+                <div class="flex min-w-0 items-center gap-2">
+                  <svg
+                    class="h-4 w-4 flex-none text-gray-400 transition-transform duration-200"
+                    :class="dnCollapsed[index] ? '' : 'rotate-90'"
+                    fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">Item #{{ index + 1 }}</span>
+                  <span v-if="item.no_dn" class="ml-1 truncate text-xs text-gray-400">— {{ item.no_dn }}</span>
+                </div>
+                <span
+                  v-if="!isDisabled && dnItems.length > 1"
+                  class="flex-none cursor-pointer px-2 py-1 text-xs text-error-500 hover:text-error-700"
+                  role="button"
+                  @click.stop="removeDnItem(index)"
+                >
+                  Hapus
+                </span>
+              </button>
+
+              <Transition name="dn-collapse">
+                <div v-show="!dnCollapsed[index]" class="px-4 pb-4">
+                  <div class="space-y-4">
+                    <div>
+                      <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">No. DN</label>
+                      <input
+                        v-model="item.no_dn"
+                        type="text"
+                        maxlength="100"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        placeholder="Nomor DN"
+                        :disabled="isDisabled"
+                      />
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Pickup Alamat</label>
+                        <AddressAutocomplete
+                          v-model="item.pickup_alamat"
+                          placeholder="Alamat Pickup"
+                          :disabled="isDisabled"
+                        />
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Drop Alamat</label>
+                        <AddressAutocomplete
+                          v-model="item.drop_alamat"
+                          placeholder="Alamat Drop"
+                          :disabled="isDisabled"
+                        />
+                      </div>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-3">
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Qty</label>
+                        <input
+                          v-model="item.qty"
+                          type="number"
+                          min="0"
+                          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          placeholder="Qty"
+                          :disabled="isDisabled"
+                        />
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">PKG</label>
+                        <select
+                          v-model="item.pkg"
+                          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          :disabled="isDisabled"
+                        >
+                          <option value="">-Pilih-</option>
+                          <option value="IBC">IBC</option>
+                          <option value="CTN">CTN</option>
+                          <option value="PIL">PIL</option>
+                          <option value="DRM">DRM</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">G.W</label>
+                        <input
+                          v-model="item.gw"
+                          type="text"
+                          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          placeholder="G.W"
+                          :disabled="isDisabled"
+                        />
+                      </div>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">No. Container</label>
+                        <input
+                          v-model="item.no_container"
+                          type="text"
+                          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          placeholder="No. Container"
+                          :disabled="isDisabled"
+                        />
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">No. Aju</label>
+                        <input
+                          v-model="item.no_aju"
+                          type="text"
+                          class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          placeholder="No. Aju"
+                          :disabled="isDisabled"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-200">Remarks</label>
+                      <textarea
+                        v-model="item.remarks"
+                        rows="1"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        placeholder="Catatan..."
+                        :disabled="isDisabled"
+                      ></textarea>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+            </div>
+
+            <p v-if="dnItems.length === 0" class="text-center text-xs text-gray-400 dark:text-gray-500">
+              Belum ada DN. Klik "+ Add DN" untuk menambahkan.
+            </p>
+          </div>
+        </div>
+
         <!-- Section 3: Jadwal Pengiriman -->
         <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
           <div class="mb-4 flex items-center gap-2">
@@ -381,6 +544,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
+import AddressAutocomplete from '@/components/common/AddressAutocomplete.vue'
 import { subcontractorService } from '@/services/subcontractorService'
 import { useToast } from '@/composables/useToast'
 
@@ -407,6 +571,18 @@ type DeliveryStop = {
   is_departure: 0 | 1
   is_finish: 0 | 1
   estimated_arrival: string
+}
+
+type DNItem = {
+  no_dn: string
+  pickup_alamat: string
+  drop_alamat: string
+  qty: number | string
+  pkg: string
+  gw: number | string
+  no_container: string
+  no_aju: string
+  remarks: string
 }
 
 type SubcontractorFormData = {
@@ -457,6 +633,47 @@ const emit = defineEmits<{
 const toast = useToast()
 const warehouses = ref<WarehouseOption[]>([])
 const customers = ref<CustomerOption[]>([])
+
+// ── DN state ──────────────────────────────────────────────────────────────────
+const dnItems = ref<DNItem[]>([])
+const dnCollapsed = ref<boolean[]>([])
+
+const makeDnItem = (): DNItem => ({
+  no_dn: '', pickup_alamat: '', drop_alamat: '',
+  qty: 0, pkg: '', gw: 0, no_container: '', no_aju: '', remarks: ''
+})
+
+const addDnItem = () => {
+  dnItems.value.push(makeDnItem())
+  dnCollapsed.value.push(false)
+}
+
+const removeDnItem = (index: number) => {
+  dnItems.value.splice(index, 1)
+  dnCollapsed.value.splice(index, 1)
+}
+
+const toggleDnItem = (index: number) => {
+  dnCollapsed.value[index] = !dnCollapsed.value[index]
+}
+
+const loadDnItems = async (id: number) => {
+  try {
+    const res = await subcontractorService.fetchDNList(id)
+    dnItems.value = (res.items || []) as DNItem[]
+    dnCollapsed.value = dnItems.value.map(() => true)
+  } catch {
+    // non-blocking: DN load failure doesn't block form
+  }
+}
+
+const saveDnItems = async (id: number) => {
+  try {
+    await subcontractorService.saveDNList(id, dnItems.value)
+  } catch {
+    toast.warning('Data DN gagal disimpan, data utama tersimpan.')
+  }
+}
 const subconts = ref<SubcontOption[]>([])
 const errors = reactive<Record<string, string>>({})
 
@@ -722,6 +939,12 @@ const applyInitialData = (data: Partial<SubcontractorFormData>) => {
   form.billing_customer = data.billing_customer || ''
   form.sales = formatIndonesianNumber(parseIndonesianNumber(String(data.sales ?? '0')))
 
+  // load DN items for edit/readOnly mode
+  const recordId = (data as Record<string, unknown>).id_subcontractor
+  if (recordId) {
+    loadDnItems(Number(recordId))
+  }
+
   const rawStops = (data as { delivery_stops?: DeliveryStop[] }).delivery_stops
   if (Array.isArray(rawStops) && rawStops.length > 0) {
     deliveryStops.value = rawStops.map((s) => ({
@@ -811,7 +1034,7 @@ const handleSubmit = () => {
     toast.warning('Periksa input Anda')
     return
   }
-  emit('submit', buildPayload())
+  emit('submit', { ...buildPayload(), _dnItems: dnItems.value })
 }
 
 const loadOptions = async () => {

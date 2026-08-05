@@ -204,6 +204,24 @@ CREATE TABLE `sub_contractor` (
   PRIMARY KEY (`id_subcontractor`)
 ) ENGINE=InnoDB AUTO_INCREMENT=215 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
+DROP TABLE IF EXISTS `sub_contractor_dn`;
+
+CREATE TABLE `sub_contractor_dn` (
+  `id` int(13) NOT NULL AUTO_INCREMENT,
+  `id_subcontractor` int(13) NOT NULL,
+  `no_dn` varchar(100) NOT NULL DEFAULT '',
+  `pickup_alamat` text NOT NULL,
+  `drop_alamat` text NOT NULL,
+  `qty` int(11) NOT NULL DEFAULT 0,
+  `pkg` ENUM('IBC','CTN','PIL','DRM','') NOT NULL DEFAULT '',
+  `gw` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `no_container` varchar(100) NOT NULL DEFAULT '',
+  `no_aju` varchar(100) NOT NULL DEFAULT '',
+  `remarks` text NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_id_subcontractor` (`id_subcontractor`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
 DROP TABLE IF EXISTS `subcont`;
 
 CREATE TABLE `subcont` (

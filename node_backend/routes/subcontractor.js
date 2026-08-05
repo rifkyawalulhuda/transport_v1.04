@@ -378,6 +378,29 @@ router.get("/export", authenticateToken, async (req, res) => {
       }
     }
 
+    // Load DN items for all exported rows
+    const dnById = new Map();
+    if (ids.length > 0) {
+      try {
+        const placeholders = ids.map(() => "?").join(",");
+        const [dnRows] = await db.query(
+          `SELECT id, id_subcontractor, no_dn, pickup_alamat, drop_alamat,
+                  qty, pkg, gw, no_container, no_aju, remarks
+           FROM sub_contractor_dn
+           WHERE id_subcontractor IN (${placeholders})
+           ORDER BY id_subcontractor ASC, id ASC`,
+          ids
+        );
+        for (const d of dnRows) {
+          const scId = Number(d.id_subcontractor);
+          if (!dnById.has(scId)) dnById.set(scId, []);
+          dnById.get(scId).push(d);
+        }
+      } catch (dnErr) {
+        if (dnErr && dnErr.code !== "ER_NO_SUCH_TABLE") throw dnErr;
+      }
+    }
+
     const getMiddles = (stops) =>
       (Array.isArray(stops) ? stops : [])
         .filter((s) => Number(s.is_departure) !== 1 && Number(s.is_finish) !== 1)
@@ -538,6 +561,62 @@ router.get("/export", authenticateToken, async (req, res) => {
     });
 
     worksheet.commit();
+
+    // --- Sheet 2: Delivery Note (DN) ---
+    const dnWorksheet = workbook.addWorksheet("Delivery Note (DN)");
+    dnWorksheet.columns = [
+      { header: "No.",            key: "no",           width: 6  },
+      { header: "No. Laporan",    key: "no_laporan",   width: 12 },
+      { header: "No. Surat Jalan",key: "no_sj",        width: 20 },
+      { header: "No. DN",         key: "no_dn",        width: 18 },
+      { header: "Pickup",         key: "pickup_alamat", width: 30 },
+      { header: "Drop",           key: "drop_alamat",  width: 30 },
+      { header: "Qty",            key: "qty",          width: 8  },
+      { header: "Pkg",            key: "pkg",          width: 8  },
+      { header: "GW (kg)",        key: "gw",           width: 12 },
+      { header: "No. Container",  key: "no_container", width: 18 },
+      { header: "No. AJU",        key: "no_aju",       width: 18 },
+      { header: "Remarks",        key: "remarks",      width: 28 }
+    ];
+
+    const dnHeaderRow = dnWorksheet.getRow(1);
+    dnHeaderRow.font = { bold: true };
+    dnHeaderRow.alignment = { vertical: "middle", horizontal: "center" };
+    dnHeaderRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFFF00" }
+    };
+    dnHeaderRow.commit();
+
+    let dnRowNum = 1;
+    rows.forEach((row, index) => {
+      const scId = Number(row.id_subcontractor);
+      const dnList = dnById.get(scId) || [];
+      dnList.forEach((dn) => {
+        const excelRow = dnWorksheet.addRow({
+          no:           dnRowNum++,
+          no_laporan:   index + 1,
+          no_sj:        cellOrDash(row.no_surat_jalan),
+          no_dn:        cellOrDash(dn.no_dn),
+          pickup_alamat: cellOrDash(dn.pickup_alamat),
+          drop_alamat:  cellOrDash(dn.drop_alamat),
+          qty:          dn.qty ?? "-",
+          pkg:          cellOrDash(dn.pkg),
+          gw:           dn.gw != null ? Number(dn.gw) : "-",
+          no_container: cellOrDash(dn.no_container),
+          no_aju:       cellOrDash(dn.no_aju),
+          remarks:      cellOrDash(dn.remarks)
+        });
+        const gwCell = excelRow.getCell("gw");
+        if (typeof gwCell.value === "number") {
+          gwCell.numFmt = "#,##0.00";
+        }
+        excelRow.commit();
+      });
+    });
+
+    dnWorksheet.commit();
     await workbook.commit();
   } catch (err) {
     console.error(err);
@@ -811,6 +890,75 @@ router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// ─── DN (Delivery Note) helpers ───────────────────────────────────────────────
+
+const replaceDNForSubcontractor = async (conn, idSubcontractor, items) => {
+  await conn.query(
+    "DELETE FROM sub_contractor_dn WHERE id_subcontractor = ?",
+    [idSubcontractor]
+  );
+  for (const item of items) {
+    const gwRaw = item.gw;
+    const gwVal = (gwRaw !== null && gwRaw !== undefined && gwRaw !== "")
+      ? parseFloat(String(gwRaw).replace(",", ".")) || 0
+      : 0;
+    await conn.query(
+      `INSERT INTO sub_contractor_dn
+        (id_subcontractor, no_dn, pickup_alamat, drop_alamat, qty, pkg, gw, no_container, no_aju, remarks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        idSubcontractor,
+        item.no_dn != null ? String(item.no_dn) : "",
+        item.pickup_alamat != null ? String(item.pickup_alamat) : "",
+        item.drop_alamat != null ? String(item.drop_alamat) : "",
+        parseInt(item.qty, 10) || 0,
+        item.pkg || "",
+        gwVal,
+        item.no_container != null ? String(item.no_container) : "",
+        item.no_aju != null ? String(item.no_aju) : "",
+        item.remarks != null ? String(item.remarks) : ""
+      ]
+    );
+  }
+};
+
+// GET /api/subcontractor/:id/dn — ambil daftar DN milik subcontractor
+router.get("/:id/dn", authenticateToken, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: "Invalid ID" });
+  try {
+    const [rows] = await db.query(
+      `SELECT id, no_dn, pickup_alamat, drop_alamat, qty, pkg, gw, no_container, no_aju, remarks
+       FROM sub_contractor_dn
+       WHERE id_subcontractor = ?
+       ORDER BY id ASC`,
+      [id]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/subcontractor/:id/dn — simpan (replace) daftar DN milik subcontractor
+router.post("/:id/dn", authenticateToken, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: "Invalid ID" });
+  const items = Array.isArray(req.body.items) ? req.body.items : [];
+  let conn;
+  try {
+    conn = await db.getConnection();
+    await replaceDNForSubcontractor(conn, id, items);
+    res.json({ message: "DN saved", count: items.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
