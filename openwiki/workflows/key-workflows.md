@@ -1,7 +1,7 @@
 ---
 type: Workflow Reference
 title: Key Workflows
-description: The four main operational workflows in transport_v1.04 — Sales Cost/SPK lifecycle, delivery notification system, GPS tracking and geofence loop via Wialon, and schedule pengiriman. Includes geofence backfill logic and frontend notification bell.
+description: The main operational workflows in transport_v1.04 — Sales Cost/SPK lifecycle, subcontractor records with manual delivery stops, delivery notification system, GPS tracking and geofence loop via Wialon, and schedule pengiriman. Includes geofence backfill logic and frontend notification bell.
 tags: [workflow, sales-cost, spk, gps, wialon, geofence, delivery-notifications, schedule]
 resource: node_backend/services/geofenceTrackingService.js
 ---
@@ -27,6 +27,30 @@ resource: node_backend/services/geofenceTrackingService.js
 
 - Adding a new field to Sales Cost requires: a `dbmate` migration, route handler update in `salesCost.js`, and frontend form/table update in `SalesCost.vue`.
 - The active-truck and active-driver validation is enforced in the route handler — check `salesCost.js` before adding new assignment logic.
+
+---
+
+## Subcontractor Records
+
+**Domain**: Transactions — tracks third-party subcontracted deliveries with a manual stop timeline (no GPS geofence tracking).
+
+**Source**: `node_backend/routes/subcontractor.js`, `tailadmin-vuejs-1.0.0/src/views/Transaksi/InputSubcontractor.vue`, `EditSubcontractor.vue`, `DetailSubcontractor.vue`, `PrintSubcontractor.vue`, `tailadmin-vuejs-1.0.0/src/components/subcontractor/SubcontractorForm.vue`, `tailadmin-vuejs-1.0.0/src/services/subcontractorService.js`
+
+### Flow
+
+1. **Create** — `InputSubcontractor.vue` submits to `POST /api/subcontractor`. The form accepts delivery stops via `SubcontractorForm.vue`; each stop has `stop_name`, `is_departure`, `is_finish`, and `estimated_arrival` (DATETIME). Stops are normalized via `normalizeDeliveryStops` before insert.
+2. **Edit** — `EditSubcontractor.vue` loads the existing record and its stops, then PUTs back. Stop list is replaced in full on save.
+3. **Detail / Print** — `DetailSubcontractor.vue` renders the record with its stop timeline. `PrintSubcontractor.vue` provides a printable view via `GET /api/subcontractor/:id/print`.
+4. **Notifications** — Create/update/delete operations emit MongoDB notifications via `notifySubcontractorChange`.
+
+### Schema
+
+Stops are stored in `sub_contractor_step_schedule` (migration `20260725000013`), linked to `sub_contractor` via FK with `ON DELETE CASCADE`. Each stop has a unique `(id_subcontractor, stop_order)` key. Unlike SPK stops, there is no `wialon_zone_id` — geofence tracking does not apply to subcontractor records.
+
+### Extension Points
+
+- Adding fields to stops: add a column to `sub_contractor_step_schedule` via a `dbmate` migration, update `normalizeDeliveryStops` and the INSERT/UPDATE in `subcontractor.js`, and update `SubcontractorForm.vue`.
+- The manual timeline (`estimated_arrival`) is the only scheduling mechanism; there is no background GPS backfill path for these records.
 
 ---
 

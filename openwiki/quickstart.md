@@ -74,7 +74,7 @@ transport_v1.04/
 ├── node_backend/
 │   ├── server.js              # Express bootstrap, route registration, startup sequence
 │   ├── db.js                  # MySQL connection pool
-│   ├── db/migrations/         # 22 dbmate SQL migrations (schema history)
+│   ├── db/migrations/         # 24+ dbmate SQL migrations (schema history)
 │   ├── routes/                # 23 route files — one per domain (see Architecture)
 │   ├── services/              # Business logic & external integrations
 │   ├── middleware/            # auth.js (JWT), rbac.js (role whitelist)
@@ -110,7 +110,7 @@ RBAC is enforced by `restrictCsAccess` and `restrictPatcherAccess` middleware ap
 
 - [Architecture Overview](./architecture/overview.md) — system components, dual DB, startup, background services
 - [Data Models](./architecture/data-models.md) — MySQL schema evolution, MongoDB collections, dual-DB boundary
-- [Key Workflows](./workflows/key-workflows.md) — Sales Cost/SPK, delivery notifications, GPS tracking, geofence backfill, schedule pengiriman
+- [Key Workflows](./workflows/key-workflows.md) — Sales Cost/SPK, subcontractor records, delivery notifications, GPS tracking, geofence backfill, schedule pengiriman
 - [Operations Runbook](./operations/runbook.md) — env vars, migrations, RBAC, known gotchas
 
 ## Backlog

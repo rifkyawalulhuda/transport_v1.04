@@ -63,6 +63,7 @@ All REST routes are mounted under `/api` in `server.js`. The full route-to-domai
 | `/api/address-book` | `routes/addressBook.js` | MongoDB address book |
 | `/api/monitoring-kendaraan` | `routes/monitoringKendaraan.js` | Fleet monitoring summary + mileage |
 | `/api/bbs` | `routes/bbs.js` | BBS safety observations/incidents |
+| `/api/delivery-templates` | `routes/deliveryTemplate.js` | Delivery template master (template + ordered stops) |
 
 ## Authentication & RBAC
 
