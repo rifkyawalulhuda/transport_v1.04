@@ -37,11 +37,23 @@ export interface BbsTopRisk {
   value: number
 }
 
+export type BbsAdasScoreCategory = 'fatigue' | 'distraction' | 'collision' | 'lane' | 'speed'
+export type BbsAdasScoreStatus = 'aman' | 'perlu_perhatian' | 'berisiko'
+
+export interface BbsAdasTruckScore {
+  plate_number: string
+  total_alarms: number
+  score: number
+  status: BbsAdasScoreStatus
+  category_scores: Record<BbsAdasScoreCategory, number>
+}
+
 export interface BbsDashboardResponse {
   summary: BbsDashboardSummary
   trend: BbsDashboardTrend
   risks: BbsDashboardRisks
   top_risks: BbsTopRisk[]
+  adas_scores: BbsAdasTruckScore[]
 }
 
 export interface BbsObservationInput {
@@ -96,6 +108,47 @@ export interface BbsHistoryResponse {
   }
 }
 
+export interface BbsAlarmRow {
+  id: number
+  driver_id: string
+  nama_driver?: string
+  date: string
+  location?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  device_id: string
+  alarm_type: string
+  begin_time: string
+  fleet?: string | null
+  plate_number: string
+  feedback?: string | null
+  created_at: string
+}
+
+export interface BbsAlarmListResponse {
+  rows: BbsAlarmRow[]
+  pagination: { page: number; limit: number; total: number }
+}
+
+export interface BbsAlarmBreakdown {
+  labels: string[]
+  data: number[]
+  month: string
+}
+
+export interface BbsAlarmImportResult {
+  success: boolean
+  total: number
+  inserted: number
+  duplicates: number
+  skipped_no_driver: number
+  unmatched_driver: number
+  dedup_burst: number
+  failed: number
+  errors: Array<{ row: number | null; field: string; message: string }>
+  message: string
+}
+
 export interface BbsDriverOption {
   id_driver: string
   nama_driver: string
@@ -129,6 +182,29 @@ export const bbsService = {
   async fetchDashboard(month?: string): Promise<BbsDashboardResponse> {
     const qs = month ? `?month=${month}` : ''
     const res = await authFetch(`${API_BASE}/bbs/dashboard${qs}`)
+    return handleJson(res)
+  },
+
+  async importAlarms(file: File): Promise<BbsAlarmImportResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await authFetch(`${API_BASE}/bbs/alarms/import`, { method: 'POST', body: formData })
+    return handleJson(res)
+  },
+
+  async fetchAlarms(params?: { page?: number; limit?: number; plate?: string; alarm_type?: string; date_from?: string; date_to?: string }): Promise<BbsAlarmListResponse> {
+    const searchParams = new URLSearchParams()
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') searchParams.set(key, String(value))
+    })
+    const qs = searchParams.toString()
+    const res = await authFetch(`${API_BASE}/bbs/alarms${qs ? `?${qs}` : ''}`)
+    return handleJson(res)
+  },
+
+  async fetchAlarmBreakdown(month?: string): Promise<BbsAlarmBreakdown> {
+    const qs = month ? `?month=${month}` : ''
+    const res = await authFetch(`${API_BASE}/bbs/alarm-breakdown${qs}`)
     return handleJson(res)
   },
 

@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const xlsx = require("xlsx");
 const { authenticateToken } = require("../middleware/auth");
+const { fetchOverspeedCountsByUnits } = require("../services/wialonService");
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -138,6 +139,118 @@ router.get("/dashboard", async (req, res) => {
       other: Math.round((Number(risk.other_risk || 0) / riskTotal) * 100)
     };
 
+    // Query truck wialon_unit_id mapping (plate_number -> wialon_unit_id)
+    const [truckRows] = await db.query(
+      `SELECT no_police, wialon_unit_id FROM truck WHERE is_active = 1 AND wialon_unit_id IS NOT NULL AND wialon_unit_id != ''`
+    );
+    const plateToUnitId = new Map();
+    const unitIdToPlate = new Map();
+    (truckRows || []).forEach((row) => {
+      const plate = String(row.no_police || "").trim();
+      const unitId = String(row.wialon_unit_id || "").trim();
+      if (plate && unitId) {
+        plateToUnitId.set(plate, unitId);
+        unitIdToPlate.set(unitId, plate);
+      }
+    });
+
+    // Fetch Wialon overspeed counts for the month range
+    // Uses parallel batch fetch + in-memory cache (5 min TTL) in wialonService.
+    // Race against an 8-second timeout so the dashboard never stalls on Wialon.
+    const timeFrom = Math.floor(new Date(firstDay).getTime() / 1000);
+    const timeTo = Math.floor(new Date(endDay + "T23:59:59").getTime() / 1000);
+    const unitIds = Array.from(unitIdToPlate.keys());
+    let wialonOverspeedMap = new Map();
+    try {
+      const WIALON_TIMEOUT_MS = 8000;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("wialon_timeout")), WIALON_TIMEOUT_MS)
+      );
+      wialonOverspeedMap = await Promise.race([
+        fetchOverspeedCountsByUnits({ unitIds, timeFrom, timeTo }),
+        timeoutPromise,
+      ]);
+    } catch {
+      // Wialon unavailable or timed out — continue without overspeed data
+    }
+
+    const [adasRows] = await db.query(
+      `SELECT plate_number, alarm_type, COUNT(*) AS total
+       FROM bbs_observations
+       WHERE source = 'adas' AND date >= ? AND date <= ?
+       GROUP BY plate_number, alarm_type
+       ORDER BY plate_number ASC`,
+      [firstDay, endDay]
+    );
+    // scoreConfig: aggWeight = bobot kategori dalam skor akhir, penaltyFactor = severity multiplier
+    // Formula: rate = alarmCount[cat] / totalAlarms[truk], categoryScore = max(0, 100 * (1 - rate * penaltyFactor))
+    const scoreConfig = {
+      fatigue:     { aggWeight: 0.30, penaltyFactor: 5, matches: ['eyes closed', 'yawn', 'fatigue', 'drowsy'] },
+      distraction: { aggWeight: 0.20, penaltyFactor: 4, matches: ['distraction', 'distracted', 'phone', 'smoking', 'calling'] },
+      collision:   { aggWeight: 0.20, penaltyFactor: 4, matches: ['forward collision', 'pedestrian collision', 'tailgating'] },
+      lane:        { aggWeight: 0.15, penaltyFactor: 3, matches: ['lane departure', 'lane change'] },
+      speed:       { aggWeight: 0.15, penaltyFactor: 3, matches: ['overspeed', 'over speed', 'speed limit', 'speeding'] }
+    };
+    const truckScores = new Map();
+    const getScoreRecord = (plate) => {
+      if (!truckScores.has(plate)) {
+        truckScores.set(plate, {
+          plate_number: plate,
+          total_alarms: 0,
+          alarm_counts: { fatigue: 0, distraction: 0, collision: 0, lane: 0, speed: 0 }
+        });
+      }
+      return truckScores.get(plate);
+    };
+    (adasRows || []).forEach((row) => {
+      const plate = String(row.plate_number || '').trim() || 'Tidak diketahui';
+      const record = getScoreRecord(plate);
+      const count = Number(row.total || 0);
+      const alarmType = String(row.alarm_type || '').toLowerCase();
+      record.total_alarms += count;
+      Object.entries(scoreConfig).forEach(([category, config]) => {
+        if (config.matches.some((m) => alarmType.includes(m))) {
+          record.alarm_counts[category] += count;
+        }
+      });
+    });
+    const adasScores = Array.from(truckScores.values()).map((record) => {
+      const total = Math.max(1, record.total_alarms);
+      const categoryScores = Object.fromEntries(
+        Object.entries(scoreConfig).map(([category, config]) => {
+          const rate = record.alarm_counts[category] / total;
+          return [category, Math.max(0, Math.round(100 * (1 - rate * config.penaltyFactor)))];
+        })
+      );
+      const score = Math.max(0, Math.round(
+        Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
+      ));
+
+      // Merge Wialon overspeed count
+      const unitId = plateToUnitId.get(record.plate_number);
+      const wialonOverspeed = unitId ? (wialonOverspeedMap.get(unitId) || 0) : 0;
+
+      // Penalize speed score further if Wialon overspeed events exist
+      if (wialonOverspeed > 0) {
+        const wialonPenalty = Math.min(wialonOverspeed * 2, 40); // max -40 pts
+        categoryScores.speed = Math.max(0, categoryScores.speed - wialonPenalty);
+      }
+
+      // Recalculate final score with updated speed score
+      const finalScore = Math.max(0, Math.round(
+        Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
+      ));
+
+      return {
+        plate_number: record.plate_number,
+        total_alarms: record.total_alarms,
+        score: finalScore,
+        status: finalScore >= 80 ? 'aman' : finalScore >= 60 ? 'perlu_perhatian' : 'berisiko',
+        category_scores: categoryScores,
+        wialon_overspeed: wialonOverspeed
+      };
+    }).sort((a, b) => a.score - b.score || b.total_alarms - a.total_alarms);
+
     res.json({
       summary: {
         safe_behavior_rate: safeRate,
@@ -170,7 +283,8 @@ router.get("/dashboard", async (req, res) => {
         { label: "Tidak pakai sabuk", value: riskCategories.seatbelt },
         { label: "Penggunaan HP saat berkendara", value: riskCategories.phone },
         { label: "Jarak aman tidak terjaga", value: riskCategories.distance }
-      ]
+      ],
+      adas_scores: adasScores
     });
   } catch (err) {
     console.error("BBS dashboard error:", err);
@@ -650,6 +764,43 @@ router.delete("/incidents/:id", async (req, res) => {
     res.json({ message: "Insiden dihapus" });
   } catch (err) {
     console.error("BBS delete incident error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/alarm-breakdown", async (req, res) => {
+  try {
+    const monthParam = String(req.query.month || "").trim();
+    let year, month;
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [y, m] = monthParam.split("-").map(Number);
+      year = y;
+      month = m;
+    } else {
+      const now = new Date();
+      year = now.getFullYear();
+      month = now.getMonth() + 1;
+    }
+    const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
+    const lastDayDate = new Date(year, month, 0);
+    const endDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDayDate.getDate()).padStart(2, "0")}`;
+
+    const [rows] = await db.query(
+      `SELECT alarm_type, COUNT(*) AS total
+       FROM bbs_observations
+       WHERE source = 'adas'
+         AND DATE(begin_time) >= ? AND DATE(begin_time) <= ?
+       GROUP BY alarm_type
+       ORDER BY total DESC`,
+      [firstDay, endDay]
+    );
+
+    const labels = (rows || []).map((r) => String(r.alarm_type || "Unknown"));
+    const data = (rows || []).map((r) => Number(r.total || 0));
+
+    res.json({ labels, data, month: `${year}-${String(month).padStart(2, "0")}` });
+  } catch (err) {
+    console.error("BBS alarm-breakdown error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });

@@ -1,8 +1,8 @@
 ---
 type: Workflow Reference
 title: Key Workflows
-description: The main operational workflows in transport_v1.04 — Sales Cost/SPK lifecycle, subcontractor records with manual delivery stops, delivery notification system, GPS tracking and geofence loop via Wialon, and schedule pengiriman. Includes geofence backfill logic and frontend notification bell.
-tags: [workflow, sales-cost, spk, gps, wialon, geofence, delivery-notifications, schedule]
+description: The main operational workflows in transport_v1.04 — Sales Cost/SPK lifecycle, subcontractor records with manual delivery stops, delivery notification system, GPS tracking and geofence loop via Wialon, schedule pengiriman, GPS trail playback, age-based auto-finish, and BBS ADAS alarm import.
+tags: [workflow, sales-cost, spk, gps, wialon, geofence, delivery-notifications, schedule, bbs, adas]
 resource: node_backend/services/geofenceTrackingService.js
 ---
 
@@ -165,17 +165,138 @@ A separate on-demand GPS trail API (`GET /api/sales-costs/:id/gps-trail`) fetche
 - `planned_stops[]` includes geofence centroid + simplified polygon for each step (via `gpsTrailGeometry.js`)
 - UI: `DetailSalesCost.vue` — Leaflet map with trail polyline, polygon fills, layer toggles, and time scrubber playback
 
-### Backfill Geofence
+### GPS Trail Playback
 
-When a stop's `wialon_zone_id` is changed mid-trip, `POST /api/sales-costs/:id/backfill-stop` performs retroactive GPS hit lookup:
-- Fetches Wialon messages for the SPK window, runs `buildZoneEntryTimeline` + `assignStopHits` with all guards
-- Manual override: `{ manual: true, manual_gps_time }` inserts with `is_manual=1`
-- Idempotent: skips if stop already has `route_history`
-- UI triggered via post-save dialog in `EditSalesCost.vue` and "Cari Hit GPS" button in `DetailSalesCost.vue`
+**Domain**: On-demand historical GPS track for a specific SPK.
+
+**Source**: `node_backend/routes/salesCost.js` (`GET /api/sales-costs/:id/gps-trail`), `node_backend/services/gpsTrailGeometry.js`, `tailadmin-vuejs-1.0.0/src/views/Transaksi/DetailSalesCost.vue`
+
+### Flow
+
+```
+GET /api/sales-costs/:id/gps-trail
+  │
+  ├── Login isolated Wialon session
+  ├── Fetch raw GPS messages: window = depTs - GPS_TRAIL_PRE_BUFFER_SEC (2h) → finishTs||now
+  ├── Downsample via downsampleTrailPoints (max GPS_TRAIL_MAX_POINTS = 800)
+  ├── For each planned stop: fetch zone polygon → simplify (max GPS_TRAIL_POLYGON_MAX_POINTS = 80)
+  │     └── gpsTrailGeometry.js: wialonPointsToLatLngRing → simplifyLatLngRing (stride sampling)
+  └── Return { trail: [[lat,lon,ts],...], planned_stops: [{centroid, polygon, ...}] }
+```
+
+UI in `DetailSalesCost.vue`:
+- Leaflet map with polyline trail, filled stop polygons, layer toggles
+- Time scrubber for playback along the trail
+- Shows planned stops with geofence polygon overlays
+
+### Extension Points
+
+- Adjust trail window: `GPS_TRAIL_PRE_BUFFER_SEC`
+- Adjust downsampling: `GPS_TRAIL_MAX_POINTS`, `GPS_TRAIL_POLYGON_MAX_POINTS`
+- Geometry helpers: `services/gpsTrailGeometry.js` — `buildPlannedPolygon`, `wialonPointsToLatLngRing`, `simplifyLatLngRing`
 
 ---
 
-## Schedule Pengiriman
+## Age-Based Auto-Finish
+
+**Domain**: Background cleanup — automatically finish SPKs that are past their distance-based age threshold.
+
+**Source**: `node_backend/services/geofenceTrackingService.js` (`applyDueDistanceAgeFinish`)
+
+### Logic
+
+```
+applyDueDistanceAgeFinish() — runs inside the geofence tracking loop
+  │
+  ├── Query active SPKs without a finish record, with departure_datetime in lookback window
+  ├── Load planned stops + zone polygons from Wialon (isolated session)
+  ├── Compute trip distance: haversine from departure zone centroid to furthest stop centroid
+  │
+  ├── Age thresholds by distance:
+  │     ≤ 60km  → 3 days  (GEOFENCE_AGE_FINISH_DAYS_SHORT)
+  │     ≤ 100km → 7 days  (GEOFENCE_AGE_FINISH_DAYS_MID)
+  │     > 100km → 10 days (GEOFENCE_AGE_FINISH_DAYS_LONG)
+  │     no distance → fallback 3 days (GEOFENCE_AGE_FINISH_DAYS_FALLBACK)
+  │
+  └── If age >= threshold: INSERT finish record (step_key='system:finish_order')
+        └── Dry-run mode: GEOFENCE_AGE_FINISH_DRY_RUN=1 logs only, no INSERT
+```
+
+### Extension Points
+
+- All thresholds configurable via env vars — see [Operations Runbook](../operations/runbook.md)
+- `GEOFENCE_AGE_FINISH_LOOKBACK_DAYS` controls how far back to scan (default 60 days)
+- Step name in history: `Auto Finish (Jarak/Umur)`
+
+---
+
+## BBS ADAS Alarm Import
+
+**Domain**: Safety — import and analyse ADAS (Advanced Driver Assistance System) alarm data from Wialon GPS devices.
+
+**Source**: `node_backend/routes/bbsAlarm.js`, `tailadmin-vuejs-1.0.0/src/views/BBS/BbsAlarmTab.vue`, `tailadmin-vuejs-1.0.0/src/views/BBS/BbsDashboardTab.vue`
+
+### Flow
+
+```
+POST /api/bbs/alarm/import  (CSV or XLSX)
+  │
+  ├── Parse file with xlsx (cellDates: true)
+  ├── Validate required headers: device id, device name, alarm type, begin time, start position
+  ├── For each row:
+  │     ├── Normalize plate → match truck in DB
+  │     ├── Map alarm type → BBS category (o2=speed, o3=collision, o4=distraction, o5=lane, o6=fatigue, o8=other)
+  │     ├── Deduplicate burst: same plate + alarm_type within 30s → dedup_burst count
+  │     └── INSERT into bbs_alarm table
+  └── Return: { inserted, duplicates, dedup_burst, unmatched_driver, failed, errors[] }
+```
+
+### Alarm Type Mapping
+
+| Wialon alarm type | BBS category key | Nilai |
+|---|---|---|
+| Eyes closed | `o6` | berbahaya |
+| Yawn | `o6` | berisiko |
+| Distracted | `o4` | berisiko |
+| Lane departure | `o5` | berisiko |
+| Pedestrian/forward collision/headway | `o3` | berisiko |
+| Speed/overspeed | `o2` | berisiko |
+| Other | `o8` | berisiko |
+
+### Dashboard Integration
+
+`BbsDashboardTab.vue` now includes:
+- **ADAS Score table**: per-truck score breakdown across fatigue, distraction, collision, lane, speed categories
+- **Alarm breakdown chart**: bar chart of alarm counts per type for selected month (Chart.js)
+- Both sourced from `GET /api/bbs/dashboard?month=YYYY-MM`
+
+### Access Control
+
+Import is blocked for `level=user`. Admin and patcher can import. The `patcher` role has full CRUD on `/bbs` including alarm import.
+
+### Extension Points
+
+- Alarm type mapping: `mapAlarm()` in `bbsAlarm.js`
+- ADAS score computation: `GET /api/bbs/dashboard` in `bbs.js`
+- Frontend chart: `BbsDashboardTab.vue` → `renderBreakdownChart()`
+
+---
+
+## Subcontractor CS Access
+
+**Domain**: CS role can now create and edit Subcontractor records (not delete).
+
+**Source**: `node_backend/middleware/rbac.js`, `node_backend/routes/subcontractor.js`, `tailadmin-vuejs-1.0.0/src/components/subcontractor/SubcontractorForm.vue`
+
+CS whitelist additions in `rbac.js`:
+- `GET /subcontractor` — list
+- `POST /subcontractor` — create
+- `PUT /subcontractor` — edit
+- `GET /warehouses`, `GET /customers`, `GET /subconts` — master options for form dropdowns
+
+`PrintSubcontractor.vue` — new print view for Subcontractor records (`/subcontractor/:id/print`), matching the SPK print layout style.
+
+---
 
 **Domain**: Delivery schedule view used by operations and CS staff.
 

@@ -177,7 +177,8 @@ app.use("/api/wialon", wialonRouter);
 | Role | Akses |
 |------|-------|
 | `admin` | Semua endpoint |
-| `cs` | Hanya `GET /schedule-pengiriman`, `GET /auth/me`, `PUT /auth/me` |
+| `cs` | `GET /schedule-pengiriman`, `GET /auth/me`, `PUT /auth/me`, `GET /subcontractor`, `POST /subcontractor`, `PUT /subcontractor`, `GET /warehouses`, `GET /customers`, `GET /subconts` |
+| `patcher` | CRUD `/bbs`, `GET /trucks`, `GET /drivers`, `GET /auth/me`, `PUT /auth/me` |
 
 #### Database Connection
 
@@ -230,6 +231,18 @@ geofenceTrackingService.js
   ├── Load route-step → geofence mappings
   ├── Poll Wialon zone membership (interval)
   │
+  ├── assignStopHits() — assign geofence entries ke route steps
+  │     ├── Guard: Departure pre-window (GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC)
+  │     └── Guard: Same-zone inter-stop gap (GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC)
+  │
+  ├── resolveFinishGpsHit() — deteksi finish dengan same-zone logic
+  │     └── Same-zone finish (Departure=Finish=Sankyu): require meaningful leave
+  │
+  ├── applyDueManualEtaHits() — apply manual ETA hits yang jatuh tempo
+  │
+  ├── applyDueDistanceAgeFinish() — auto-finish SPK berdasarkan jarak + umur
+  │     └── ≤60km→3d, ≤100km→7d, >100km→10d, no distance→fallback 3d
+  │
   └── If truck in mapped zone & not yet recorded:
       └── INSERT into sales_cost_route_history
 ```
@@ -237,6 +250,22 @@ geofenceTrackingService.js
 - Berjalan otomatis saat server start
 - Interval dikonfigurasi via `GEOFENCE_TRACKING_INTERVAL_MS`
 - Hanya mencatat first-entry per step (no duplicates)
+- Geofence guards mencegah false positive pada shuttle routes dan re-entry dari trip sebelumnya
+
+#### GPS Trail Playback
+
+```
+GET /api/sales-costs/:id/gps-trail
+  │
+  ├── Fetch Wialon raw messages (window: depTs - GPS_TRAIL_PRE_BUFFER_SEC → finishTs||now)
+  ├── Downsample via downsampleTrailPoints (max GPS_TRAIL_MAX_POINTS)
+  ├── Build planned_stops[] with geofence centroid + simplified polygon
+  │     └── gpsTrailGeometry.js: wialonPointsToLatLngRing → simplifyLatLngRing
+  └── Return trail + planned stops ke frontend
+```
+
+- UI: `DetailSalesCost.vue` — Leaflet map dengan trail polyline, polygon fills, layer toggles, time scrubber
+- Polygon disederhanakan dengan stride sampling (max `GPS_TRAIL_POLYGON_MAX_POINTS`, default 80 titik)
 
 ### Frontend Architecture
 
@@ -246,9 +275,10 @@ geofenceTrackingService.js
 App.vue
   └── Router View
        ├── views/Master/*        ← CRUD pages
-       ├── views/Transaksi/*     ← Transaction pages
+       ├── views/Transaksi/*     ← Transaction pages (SalesCost, Repair, Subcontractor, DeliveryNotifications)
        ├── views/Monitoring/*    ← GPS & mileage
        ├── views/DataTransport/* ← Reports
+       ├── views/BBS/*           ← Safety observations & ADAS alarm
        └── views/Auth/*          ← Login
 ```
 
@@ -406,6 +436,29 @@ WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS=600000
 # Geofence Tracking
 GEOFENCE_TRACKING_INTERVAL_MS=60000
 DEFAULT_FINISH_GEOFENCE_NAME=Sankyu
+
+# Geofence Guards (anti false positive)
+GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC=28800
+GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC=600
+
+# Same-zone finish guards
+GEOFENCE_FINISH_MIN_AWAY_SEC=1200
+GEOFENCE_FINISH_MIN_AWAY_M=1000
+GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC=14400
+
+# Auto-finish berdasarkan jarak + umur SPK
+GEOFENCE_AGE_FINISH_SHORT_KM=60
+GEOFENCE_AGE_FINISH_MID_KM=100
+GEOFENCE_AGE_FINISH_DAYS_SHORT=3
+GEOFENCE_AGE_FINISH_DAYS_MID=7
+GEOFENCE_AGE_FINISH_DAYS_LONG=10
+GEOFENCE_AGE_FINISH_DAYS_FALLBACK=3
+GEOFENCE_AGE_FINISH_DRY_RUN=0
+
+# GPS Trail Playback
+GPS_TRAIL_PRE_BUFFER_SEC=7200
+GPS_TRAIL_MAX_POINTS=800
+GPS_TRAIL_POLYGON_MAX_POINTS=80
 ```
 
 > **💡 Tip:** Untuk development lokal tanpa GPS, cukup isi `DB_*`, `JWT_SECRET`, dan `PORT`. Fitur Wialon dan Geoapify akan gagal gracefully tanpa crash.
@@ -555,10 +608,26 @@ node_backend/
 │   ├── schema.sql         # Generated schema snapshot
 │   └── README.md          # Migration CLI documentation
 ├── scripts/
-│   ├── run-dbmate.js      # dbmate wrapper
+│   ├── run-dbmate.js              # dbmate wrapper
 │   ├── build-baseline-migration.js
 │   ├── adopt-existing-migrations.js
+│   ├── sync-from-production.js   # Tandai migrations applied dari production dump
+│   ├── fix-missing-tables.js     # Idempotent ALTER/RENAME untuk schema lama
+│   ├── test-geofence-assign.js   # 29 unit test geofence guard logic
+│   ├── test-gps-trail-downsample.js
+│   ├── test-gps-trail-polygon.js
 │   └── dump-schema.js
+├── services/
+│   ├── geofenceTrackingService.js  # Background geofence polling + guards + auto-finish
+│   ├── wialonService.js            # Wialon session + API calls
+│   ├── gpsTrailGeometry.js         # Pure geometry helpers untuk GPS trail polygons (baru)
+│   ├── areaRouteService.js
+│   ├── repairService.js
+│   ├── schemaSyncService.js
+│   ├── deliveryNotificationReadService.js
+│   ├── notificationService.js
+│   ├── auditLogger.js
+│   └── masterImportConfig.js
 └── models/                # Mongoose models (MongoDB legacy)
 ```
 
@@ -845,6 +914,8 @@ Authorization: Bearer <token>
 | GET | `/api/sales-costs` | List sales costs |
 | GET | `/api/sales-costs/:id` | Detail (includes route_steps, route_history) |
 | GET | `/api/sales-costs/:id/print` | Print single SPK |
+| GET | `/api/sales-costs/:id/gps-trail` | GPS trail polyline + planned stop polygons |
+| POST | `/api/sales-costs/:id/backfill-stop` | Retroaktif cari GPS hit untuk stop tertentu |
 | POST | `/api/sales-costs` | Create sales cost |
 | PUT | `/api/sales-costs/:id` | Update sales cost |
 | DELETE | `/api/sales-costs/:id` | Delete sales cost |
@@ -865,9 +936,34 @@ Authorization: Bearer <token>
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
 | GET | `/api/subcontractor` | List subcontractor transactions |
+| GET | `/api/subcontractor/:id` | Detail subcontractor transaction |
 | POST | `/api/subcontractor` | Create transaction |
 | PUT | `/api/subcontractor/:id` | Update transaction |
 | DELETE | `/api/subcontractor/:id` | Delete transaction |
+
+> **ℹ️ Info:** CS dapat akses GET, POST, PUT subcontractor (tidak bisa DELETE).
+
+### BBS (Behavior-Based Safety)
+
+#### Observasi & Incident
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | `/api/bbs` | List observasi / incident BBS |
+| POST | `/api/bbs` | Create observasi |
+| PUT | `/api/bbs/:id` | Update observasi |
+| DELETE | `/api/bbs/:id` | Delete observasi |
+| GET | `/api/bbs/dashboard` | Dashboard summary (near miss count, top risks, ADAS scores) |
+
+#### ADAS Alarm
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | `/api/bbs/alarm` | List alarm records (filter: plate, date, alarm_type; paginated) |
+| POST | `/api/bbs/alarm/import` | Import alarm dari file CSV atau XLSX |
+| GET | `/api/bbs/alarm/breakdown` | Breakdown alarm per tipe per bulan (chart data) |
+
+Import alarm memetakan tipe alarm Wialon ke kategori BBS (fatigue, distraction, collision, lane, speed, dll). Duplicate burst detection aktif untuk mencegah import ganda.
 
 ### GPS & Monitoring (Wialon)
 
@@ -937,6 +1033,29 @@ GET /api/wialon/geofences
 Authorization: Bearer <token>
 ```
 
+#### GPS Trail SPK
+
+```http
+GET /api/sales-costs/:id/gps-trail
+Authorization: Bearer <token>
+```
+
+Mengembalikan polyline GPS historis untuk SPK tertentu + planned stops dengan polygon geofence.
+
+#### Backfill Geofence Stop
+
+```http
+POST /api/sales-costs/:id/backfill-stop
+Authorization: Bearer <token>
+
+{
+  "stop_id": 123,
+  "manual": false
+}
+```
+
+Retroaktif cari GPS hit untuk stop yang `wialon_zone_id`-nya baru di-assign.
+
 ### Other Endpoints
 
 | Method | Endpoint | Deskripsi |
@@ -951,6 +1070,11 @@ Authorization: Bearer <token>
 | GET | `/api/notifications` | List notifications |
 | GET | `/api/schedule-pengiriman` | Schedule pengiriman (accessible by CS) |
 | GET | `/api/address-book` | Address book |
+| GET | `/api/bbs` | BBS safety observations |
+| GET | `/api/bbs/alarm` | List ADAS alarm records |
+| POST | `/api/bbs/alarm/import` | Import ADAS alarm dari CSV/XLSX |
+| GET | `/api/bbs/alarm/breakdown` | Alarm breakdown per tipe (chart data) |
+| GET | `/api/delivery-notifications` | Delivery notifications (geofence-triggered) |
 
 ### Error Responses
 
@@ -1026,6 +1150,7 @@ npm install --production
 Buat file `.env` dengan nilai production:
 
 ```
+# Database MySQL
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=transport_user
@@ -1047,8 +1172,33 @@ GEOAPIFY_TIMEOUT_MS=6000
 
 REVERSE_GEOCODE_CACHE_TTL_MS=86400000
 WIALON_MONTHLY_DISTANCE_CACHE_TTL_MS=600000
+
+# Geofence Tracking
 GEOFENCE_TRACKING_INTERVAL_MS=60000
 DEFAULT_FINISH_GEOFENCE_NAME=Sankyu
+
+# Geofence Guards (anti false positive)
+GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC=28800
+GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC=600
+
+# Same-zone finish guards
+GEOFENCE_FINISH_MIN_AWAY_SEC=1200
+GEOFENCE_FINISH_MIN_AWAY_M=1000
+GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC=14400
+
+# Auto-finish berdasarkan jarak + umur SPK
+GEOFENCE_AGE_FINISH_SHORT_KM=60
+GEOFENCE_AGE_FINISH_MID_KM=100
+GEOFENCE_AGE_FINISH_DAYS_SHORT=3
+GEOFENCE_AGE_FINISH_DAYS_MID=7
+GEOFENCE_AGE_FINISH_DAYS_LONG=10
+GEOFENCE_AGE_FINISH_DAYS_FALLBACK=3
+GEOFENCE_AGE_FINISH_DRY_RUN=0
+
+# GPS Trail Playback
+GPS_TRAIL_PRE_BUFFER_SEC=7200
+GPS_TRAIL_MAX_POINTS=800
+GPS_TRAIL_POLYGON_MAX_POINTS=80
 ```
 
 > **🔒 Keamanan:**
@@ -1689,4 +1839,4 @@ refactor/wialon-service-cleanup
 ---
 
 > **Dokumen ini di-generate dari:** `docs/developer/` folder  
-> **Terakhir diperbarui:** Mei 2026
+> **Terakhir diperbarui:** September 2026

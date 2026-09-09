@@ -36,7 +36,7 @@
         <p class="text-xs text-gray-500 dark:text-gray-400">{{ t.metricNearMiss }}</p>
         <p class="mt-1.5 text-2xl font-semibold text-warning-600">{{ dashboard?.summary.near_miss_count ?? '-' }}</p>
         <p class="mt-0.5 text-xs text-gray-400">
-          {{ dashboard?.summary.near_miss_count > (dashboard?.summary.prev_near_miss ?? 0) ? '▲' : '▼' }}
+          {{ (dashboard?.summary.near_miss_count ?? 0) > (dashboard?.summary.prev_near_miss ?? 0) ? '▲' : '▼' }}
           {{ t.vsLastMonth }}
         </p>
       </div>
@@ -76,29 +76,87 @@
         </div>
       </div>
 
-      <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-        <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.topRisks }}</h4>
-        <div class="space-y-3">
-          <div
-            v-for="risk in dashboard.top_risks"
-            :key="risk.label"
-            class="flex items-center gap-3"
-          >
-            <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ riskLabelMap[risk.label] || risk.label }}</span>
-            <span
-              :class="[
-                'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-                risk.value >= 25 ? 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400' : 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400'
-              ]"
-            >{{ risk.value }}%</span>
-            <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-              <div
-                class="h-2 rounded-full transition-all"
-                :class="risk.value >= 25 ? 'bg-error-500' : 'bg-warning-500'"
-                :style="{ width: risk.value + '%' }"
-              ></div>
+      <!-- Grid: Top Risiko Perilaku + Breakdown Alarm ADAS -->
+      <div class="grid grid-cols-1 gap-5 xl:grid-cols-2 mb-5">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.topRisks }}</h4>
+          <div class="space-y-3">
+            <div
+              v-for="risk in dashboard.top_risks"
+              :key="risk.label"
+              class="flex items-center gap-3"
+            >
+              <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ riskLabelMap[risk.label] || risk.label }}</span>
+              <span
+                :class="[
+                  'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+                  risk.value >= 25 ? 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400' : 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400'
+                ]"
+              >{{ risk.value }}%</span>
+              <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                <div
+                  class="h-2 rounded-full transition-all"
+                  :class="risk.value >= 25 ? 'bg-error-500' : 'bg-warning-500'"
+                  :style="{ width: risk.value + '%' }"
+                ></div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- Alarm Breakdown Chart -->
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.alarmBreakdownTitle || 'Breakdown Alarm ADAS' }}</h4>
+          <div v-if="loadingBreakdown" class="py-6 text-center text-sm text-gray-400">{{ t.loading }}</div>
+          <div v-else-if="!alarmBreakdown || !alarmBreakdown.labels.length" class="py-6 text-center text-sm text-gray-400">{{ t.adasScoreEmpty }}</div>
+          <div v-else class="relative h-56">
+            <canvas ref="alarmBreakdownCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90">{{ t.adasScoreTitle }}</h4>
+          <p v-if="adasScoreTrucks.length" class="text-xs text-gray-400 dark:text-gray-500">{{ t.adasScoreHint }}</p>
+        </div>
+        <div v-if="!dashboard.adas_scores || !dashboard.adas_scores.length" class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{{ t.adasScoreEmpty }}</div>
+        <div v-else class="overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-gray-100 text-xs uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">
+              <tr>
+                <th class="px-3 py-2">{{ t.adasScoreRank }}</th>
+                <th class="px-3 py-2">{{ t.adasScorePlate }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreOverall }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreFatigue }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreDistraction }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreCollision }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreLane }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreSpeed }}</th>
+                <th class="px-3 py-2">{{ t.adasScoreAlarms }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr v-for="(truck, index) in adasScoreTrucks" :key="truck.plate_number">
+                <td class="px-3 py-2.5 text-gray-500 dark:text-gray-400">{{ index + 1 }}</td>
+                <td class="px-3 py-2.5 font-medium text-gray-800 dark:text-white/90">{{ truck.plate_number }}</td>
+                <td class="px-3 py-2.5">
+                  <span
+                    :class="[
+                      'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-semibold',
+                      truck.status === 'aman' ? 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400' : truck.status === 'perlu_perhatian' ? 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400' : 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400'
+                    ]"
+                  >{{ truck.score }}</span>
+                </td>
+                <td class="px-3 py-2.5"><span :class="['inline-flex w-11 items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium', scoreClass(truck.category_scores.fatigue)]">{{ truck.category_scores.fatigue }}</span></td>
+                <td class="px-3 py-2.5"><span :class="['inline-flex w-11 items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium', scoreClass(truck.category_scores.distraction)]">{{ truck.category_scores.distraction }}</span></td>
+                <td class="px-3 py-2.5"><span :class="['inline-flex w-11 items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium', scoreClass(truck.category_scores.collision)]">{{ truck.category_scores.collision }}</span></td>
+                <td class="px-3 py-2.5"><span :class="['inline-flex w-11 items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium', scoreClass(truck.category_scores.lane)]">{{ truck.category_scores.lane }}</span></td>
+                <td class="px-3 py-2.5"><span :class="['inline-flex w-11 items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium', scoreClass(truck.category_scores.speed)]">{{ truck.category_scores.speed }}</span></td>
+                <td class="px-3 py-2.5 text-gray-600 dark:text-gray-300">{{ truck.total_alarms }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </template>
@@ -106,14 +164,20 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, nextTick } from 'vue'
+import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { Chart, registerables } from 'chart.js'
-import { bbsService, type BbsDashboardResponse } from '@/services/bbsService'
+import { bbsService, type BbsDashboardResponse, type BbsAlarmBreakdown } from '@/services/bbsService'
 import { useBbsLang } from '@/composables/useBbsLang'
 
 const { t, riskLabelMap, lang } = useBbsLang()
 
 Chart.register(...registerables)
+
+const scoreClass = (value: number) => {
+  if (value >= 80) return 'bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400'
+  if (value >= 60) return 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400'
+  return 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400'
+}
 
 function currentMonth() {
   const d = new Date()
@@ -125,10 +189,17 @@ const error = ref('')
 const dashboard = ref<BbsDashboardResponse | null>(null)
 const trendCanvas = ref<HTMLCanvasElement | null>(null)
 const riskCanvas = ref<HTMLCanvasElement | null>(null)
+const alarmBreakdownCanvas = ref<HTMLCanvasElement | null>(null)
 const selectedMonth = ref(currentMonth())
 const dashMonthInput = ref<HTMLInputElement | null>(null)
 let trendChart: Chart | null = null
 let riskChart: Chart | null = null
+let alarmBreakdownChart: Chart | null = null
+
+const alarmBreakdown = ref<BbsAlarmBreakdown | null>(null)
+const loadingBreakdown = ref(false)
+
+const adasScoreTrucks = computed(() => dashboard.value?.adas_scores || [])
 
 async function fetchDashboard() {
   loading.value = true
@@ -144,6 +215,20 @@ async function fetchDashboard() {
   // Wait DOM update after loading=false + dashboard set → canvas exist
   await nextTick()
   renderCharts()
+  fetchBreakdown()
+}
+
+async function fetchBreakdown() {
+  loadingBreakdown.value = true
+  try {
+    alarmBreakdown.value = await bbsService.fetchAlarmBreakdown(selectedMonth.value)
+  } catch {
+    alarmBreakdown.value = null
+  } finally {
+    loadingBreakdown.value = false
+  }
+  await nextTick()
+  renderBreakdownChart()
 }
 
 function renderCharts() {
@@ -216,6 +301,45 @@ function renderCharts() {
       },
     })
   }
+}
+
+function renderBreakdownChart() {
+  if (!alarmBreakdown.value?.labels.length) return
+  if (alarmBreakdownChart) { alarmBreakdownChart.destroy(); alarmBreakdownChart = null }
+  if (!alarmBreakdownCanvas.value) return
+
+  const colors = [
+    '#378ADD', '#E24B4A', '#EF9F27', '#4CAF50', '#9C27B0',
+    '#FF5722', '#00BCD4', '#795548', '#607D8B', '#F06292'
+  ]
+
+  alarmBreakdownChart = new Chart(alarmBreakdownCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: alarmBreakdown.value.labels,
+      datasets: [
+        {
+          label: 'Jumlah Alarm',
+          data: alarmBreakdown.value.data,
+          backgroundColor: alarmBreakdown.value.labels.map((_, i) => colors[i % colors.length]),
+          borderRadius: 4,
+          borderWidth: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} kejadian` } },
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+        x: { grid: { display: false }, ticks: { maxRotation: 30, font: { size: 11 } } },
+      },
+    },
+  })
 }
 
 onMounted(() => {

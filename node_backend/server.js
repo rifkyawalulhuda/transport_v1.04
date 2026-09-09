@@ -28,6 +28,7 @@ const { authenticateToken } = require("./middleware/auth");
 const addressBookRouter = require("./routes/addressBook");
 const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 const bbsRouter = require("./routes/bbs");
+const bbsAlarmRouter = require("./routes/bbsAlarm");
 const deliveryNotificationsRouter = require("./routes/deliveryNotifications");
 const deliveryTemplateRouter = require("./routes/deliveryTemplate");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
@@ -93,6 +94,7 @@ app.use("/api/schedule-pengiriman", schedulePengirimanRouter);
 app.use("/api/wialon", wialonRouter);
 app.use("/api/address-book", addressBookRouter);
 app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
+app.use("/api/bbs/alarms", bbsAlarmRouter);
 app.use("/api/bbs", bbsRouter);
 app.use("/api/delivery-templates", deliveryTemplateRouter);
 

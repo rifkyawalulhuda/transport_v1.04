@@ -2118,6 +2118,115 @@ const downsampleTrailPoints = (points = [], maxPoints = 800) => {
  * timeFrom, timeTo: Unix timestamps (seconds)
  * Returns array of {t, lat, lon, speed?} — one entry per GPS message
  */
+/**
+ * Fetch overspeed event counts from Wialon for a list of unit IDs within a time range.
+ * timeFrom, timeTo: Unix timestamps (seconds)
+ * Returns Map<unitId_string, count>
+ *
+ * Optimised: runs units in parallel batches (CONCURRENCY=5) with each batch
+ * using its own isolated Wialon session so messages/load_interval slots don't
+ * collide.  Results are cached per (timeFrom, timeTo) for CACHE_TTL_MS to
+ * avoid repeat full scans within the same dashboard refresh window.
+ */
+
+// ---------- module-level cache ----------
+const _overspeedCache = new Map(); // key -> { expiresAt, data: Map<unitId, count> }
+const _OVERSPEED_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const _OVERSPEED_CONCURRENCY  = 5;              // parallel Wialon sessions
+const OVERSPEED_KEYWORDS = ["overspeed", "over speed", "speed limit", "speeding", "превышение скорости"];
+
+/** Fetch overspeed count for a single unit using its own isolated session. */
+const _fetchOverspeedForUnit = async (unitId, timeFrom, timeTo) => {
+  let sid;
+  try {
+    sid = await loginIsolatedSession();
+  } catch {
+    return 0;
+  }
+  try {
+    try { await requestWialon("messages/unload", {}, sid); } catch { /* ignore */ }
+
+    const loadResult = await requestWialon(
+      "messages/load_interval",
+      {
+        itemId: Number(unitId),
+        timeFrom,
+        timeTo,
+        flags: 0x0600,
+        flagsMask: 0xFF00,
+        loadCount: 0xffffffff
+      },
+      sid
+    );
+
+    const messageCount = Number(loadResult?.count ?? loadResult ?? 0);
+    if (!messageCount) return 0;
+
+    const messagesPayload = await requestWialon(
+      "messages/get_messages",
+      { indexFrom: 0, indexTo: messageCount - 1 },
+      sid
+    );
+
+    const messages = Array.isArray(messagesPayload)
+      ? messagesPayload
+      : Array.isArray(messagesPayload?.messages)
+        ? messagesPayload.messages
+        : [];
+
+    let count = 0;
+    messages.forEach((msg) => {
+      const text = String(msg?.tp_n || msg?.text || msg?.t_n || msg?.d || "").toLowerCase();
+      if (OVERSPEED_KEYWORDS.some((kw) => text.includes(kw))) count += 1;
+    });
+    return count;
+  } catch {
+    return 0;
+  } finally {
+    try { await requestWialon("messages/unload", {}, sid); } catch { /* ignore */ }
+    try { await logoutIsolatedSession(sid); } catch { /* ignore */ }
+  }
+};
+
+const fetchOverspeedCountsByUnits = async ({ unitIds, timeFrom, timeTo }) => {
+  const result = new Map();
+  if (!Array.isArray(unitIds) || unitIds.length === 0) return result;
+
+  const validIds = unitIds.map((id) => toPositiveIntString(id)).filter(Boolean);
+  if (validIds.length === 0) return result;
+
+  // --- cache check ---
+  const cacheKey = `${timeFrom}_${timeTo}`;
+  const cached = _overspeedCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    // Return cached map filtered to requested unitIds
+    validIds.forEach((id) => result.set(id, cached.data.get(id) ?? 0));
+    return result;
+  }
+
+  // --- parallel fetch with concurrency limit ---
+  const queue = [...validIds];
+  const fullData = new Map();
+
+  const worker = async () => {
+    while (queue.length > 0) {
+      const unitId = queue.shift();
+      if (!unitId) continue;
+      const count = await _fetchOverspeedForUnit(unitId, timeFrom, timeTo);
+      fullData.set(unitId, count);
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(_OVERSPEED_CONCURRENCY, validIds.length) }, worker);
+  await Promise.all(workers);
+
+  // --- populate cache ---
+  _overspeedCache.set(cacheKey, { expiresAt: Date.now() + _OVERSPEED_CACHE_TTL_MS, data: fullData });
+
+  validIds.forEach((id) => result.set(id, fullData.get(id) ?? 0));
+  return result;
+};
+
 const fetchRawMessagesForUnit = async ({ sid, unitId, timeFrom, timeTo }) => {
   const safeUnitId = normalizePositiveIntString(unitId);
   if (!safeUnitId) return [];
@@ -2194,5 +2303,6 @@ module.exports = {
   pointInPolygon,
   loginIsolatedSession,
   logoutIsolatedSession,
-  downsampleTrailPoints
+  downsampleTrailPoints,
+  fetchOverspeedCountsByUnits
 };

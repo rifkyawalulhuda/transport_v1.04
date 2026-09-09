@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-05T03:19:18.536Z",
+  "updatedAt": "2026-09-09T13:28:36.373Z",
   "command": "update",
-  "gitHead": "437be1faf6349d86696d816b6d49e6d644e48973",
+  "gitHead": "8a6ebb3fd5cefe7f531b80e3389d997d4de88a2d",
   "model": "claude-sonnet-4.6"
 }
