@@ -1371,3 +1371,136 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 #### Detail page
 - **Dibuat Oleh**: `created_by_name (created_by_nik)`; `-` if `nik_admin` 0 / missing admin.
 - Optional list of planned stops when `delivery_stops` present.
+
+---
+
+## Updates (2026-09-09 — BBS ADAS Alarm Module)
+
+### BBS — Tab Baru "Alarm ADAS"
+
+- Tab kelima `alarm` ditambahkan ke `BbsTransportasi.vue` di samping Dashboard, Observasi, Checklist, Insiden, Riwayat.
+- Tab `tabAlarm` / `ADAS Alarms` sudah ter-translasi (ID/EN) via `useBbsLang.ts`.
+- Ikon: `AlertTriangleIcon`.
+
+### ADAS Alarm Import (`node_backend/routes/bbsAlarm.js`)
+
+- **File baru:** `node_backend/routes/bbsAlarm.js` — router terpisah, di-mount di `server.js` sebagai `/api/bbs/alarms` (sebelum `/api/bbs`).
+- `POST /api/bbs/alarms/import` — upload CSV/XLSX (max 10 MB via multer memoryStorage). Hanya admin/CS (level bukan `user`) yang bisa import.
+- **Required headers:** `device id`, `device name`, `alarm type`, `begin time`, `start position`.
+- Import logic:
+  - Parse workbook dengan `xlsx` (`cellDates: true`).
+  - `normalizePlate` — uppercase, strip non-alphanumeric, match ke `truck.plate_number`.
+  - `mapAlarm(alarmType, geofenceName)` — mapping alarm type ke observation key BBS dan risk value:
+    - `eyes closed` → `o6 / berbahaya`
+    - `yawn` → `o6 / berisiko`
+    - `distract` → `o4 / berisiko`
+    - `lane departure` → `o5 / berisiko`
+    - `pedestrian/forward collision/headway monitoring` → `o3 / berisiko`
+    - `speed/overspeed/over speed` atau geofence mengandung `kph` → `o2 / berisiko`
+    - default → `o8 / berisiko`
+  - `parsePosition(value)` — split `lon,lat` string → `{ longitude, latitude }`.
+  - Dedup burst: alarm dari device+begin_time yang sama dalam ±5 menit dianggap satu event (dedup_burst counter).
+  - Duplicate: `INSERT IGNORE` via unique key `uq_adas_alarm (device_id, begin_time, alarm_type)`.
+  - `skipped_no_driver` / `unmatched_driver`: baris tanpa driver yang cocok di tabel `driver` tidak dilewati — tetap di-insert ke `bbs_observations` tanpa driver linkage.
+  - Record di-insert ke `bbs_observations` dengan `source = 'adas'` dan field tambahan: `device_id`, `alarm_type`, `begin_time`, `fleet`, `plate_number`.
+  - Response: `{ success, total, inserted, duplicates, dedup_burst, skipped_no_driver, unmatched_driver, failed, errors[], message }`.
+
+### Database Migration — ADAS Alarm Columns
+
+- `20260909010000_add_adas_alarm_columns_to_bbs_observations.sql`:
+  - `bbs_observations.source VARCHAR(20) NOT NULL DEFAULT 'manual'` — `'manual'` untuk observasi BBS biasa, `'adas'` untuk record dari import alarm.
+  - `device_id VARCHAR(40) DEFAULT NULL`
+  - `alarm_type VARCHAR(60) DEFAULT NULL`
+  - `begin_time DATETIME DEFAULT NULL`
+  - `fleet VARCHAR(60) DEFAULT NULL`
+  - `plate_number VARCHAR(20) DEFAULT NULL`
+  - `UNIQUE KEY uq_adas_alarm (device_id, begin_time, alarm_type)` — mencegah import duplikat.
+
+### BBS Alarm List & Breakdown API
+
+- `GET /api/bbs/alarms` — list alarm ADAS yang sudah ter-import. Params: `page`, `limit`, `plate`, `alarm_type`, `date_from`, `date_to`. Response: `{ rows[], pagination }`.
+- `GET /api/bbs/alarm-breakdown?month=YYYY-MM` — aggregate alarm count per `alarm_type` untuk bulan tertentu (hanya rows `source = 'adas'`). Response: `{ labels[], data[], month }`.
+
+### BBS Dashboard — ADAS Score per Truk
+
+- `GET /api/bbs/dashboard` kini menghitung `adas_scores[]` berdasarkan alarm bulan terpilih.
+- **Scoring formula (v2, commit 8a6ebb3):**
+  - `rate = alarmCount[category] / totalAlarms[truk]`
+  - `categoryScore = max(0, round(100 × (1 − rate × penaltyFactor)))`
+  - `overallScore = Σ(categoryScore × aggWeight)`
+  - Status: `score ≥ 80` → `aman`, `≥ 60` → `perlu_perhatian`, `< 60` → `berisiko`.
+- **scoreConfig (v2):**
+
+  | Kategori | aggWeight | penaltyFactor | Alarm matches |
+  |---|---|---|---|
+  | fatigue | 0.30 | 5 | eyes closed, yawn, fatigue, drowsy |
+  | distraction | 0.20 | 4 | distraction, distracted, phone, smoking, calling |
+  | collision | 0.20 | 4 | forward collision, pedestrian collision, tailgating |
+  | lane | 0.15 | 3 | lane departure, lane change |
+  | speed | 0.15 | 3 | overspeed, over speed, speed limit, speeding |
+
+- Response field baru: `dashboard.adas_scores: BbsAdasTruckScore[]` — diurutkan ascending score (truk paling berisiko di atas).
+
+### BBS Dashboard Tab — ADAS Score Table & Breakdown Chart
+
+- `BbsDashboardTab.vue` — dua section baru di bawah existing charts:
+  1. **Alarm Breakdown Chart** — bar chart per `alarm_type` untuk bulan terpilih. Menggunakan `bbsService.fetchAlarmBreakdown(month)`. Collapsible di `BbsAlarmTab`, langsung tampil di Dashboard.
+  2. **Skor Perilaku Berkendara (ADAS/DMS)** — tabel ranking truk berdasarkan `adas_scores`. Kolom: Peringkat, Kendaraan, Skor (badge warna), Kelelahan, Distraksi, Jarak Aman, Lajur, Kecepatan, Alarm. Badge warna: hijau ≥80, kuning ≥60, merah <60.
+- `scoreClass(value)` helper untuk badge per kategori.
+- `adasScoreTrucks = computed(() => dashboard.value?.adas_scores || [])`.
+- `fetchBreakdown()` dipanggil setelah `fetchDashboard()` selesai.
+- Bug fix: `dashboard?.summary.near_miss_count > dashboard?.summary.prev_near_miss` → tambah `?? 0` guard untuk mencegah optional-chaining comparison error.
+
+### BBS Alarm Tab (`BbsAlarmTab.vue`)
+
+- File baru: `tailadmin-vuejs-1.0.0/src/views/BBS/BbsAlarmTab.vue`.
+- 3 section:
+  1. **Import panel** — file picker (CSV/XLSX), drag-hint area, upload button, result summary cards (Berhasil/Burst/Duplikat/No Driver/Gagal), error list.
+  2. **Breakdown Chart** — collapsible bar chart alarm per tipe, filter bulan.
+  3. **Alarm list table** — filter plat, tanggal, tipe alarm; kolom: Waktu, Plat, Tipe Alarm, Driver, Lokasi; pagination.
+- State: `uploading`, `result`, `rows`, `pagination`, `filters`, `breakdownMonth`, `chartOpen`.
+- Reactive to `lang` changes (re-renders Chart.js on language switch).
+
+### BBS Service — New Types & Methods
+
+- `bbsService.ts` — tambahan:
+  - Types: `BbsAdasTruckScore`, `BbsAdasScoreCategory`, `BbsAdasScoreStatus`, `BbsAlarmRow`, `BbsAlarmListResponse`, `BbsAlarmBreakdown`, `BbsAlarmImportResult`.
+  - `BbsDashboardResponse.adas_scores: BbsAdasTruckScore[]` field.
+  - Methods: `importAlarms(file)`, `fetchAlarms(params)`, `fetchAlarmBreakdown(month)`.
+
+### useBbsLang — ADAS Translations
+
+- `useBbsLang.ts` — tambahan key ID/EN:
+  - Tab: `tabAlarm`
+  - Import UI: `alarmTitle`, `alarmSub`, `alarmChooseFile`, `alarmUploading`, `alarmDropHint`, `alarmInserted`, `alarmBurst`, `alarmDuplicates`, `alarmNoDriver`, `alarmFailed`, `alarmListTitle`, `alarmPlate`, `alarmSelectDate`, `alarmAllTypes`, `alarmTime`, `alarmType`, `alarmDriver`, `alarmLocation`, `alarmNoData`, `alarmRecords`, `alarmBreakdownTitle`
+  - Dashboard ADAS score: `adasScoreTitle`, `adasScoreHint`, `adasScoreEmpty`, `adasScoreRank`, `adasScorePlate`, `adasScoreOverall`, `adasScoreFatigue`, `adasScoreDistraction`, `adasScoreCollision`, `adasScoreLane`, `adasScoreSpeed`, `adasScoreAlarms`
+
+### Important Backend Files (tambahan)
+
+- `node_backend/routes/bbsAlarm.js`
+  - ADAS alarm import (CSV/XLSX → `bbs_observations` with `source='adas'`)
+  - Alarm list GET with filters
+  - Dedup burst + unique key guard
+  - `mapAlarm()` — maps ADAS alarm type to BBS observation key + risk value
+
+### Important Routes (tambahan)
+
+- `POST /api/bbs/alarms/import` — import alarm ADAS dari file CSV/XLSX (admin/CS only)
+- `GET /api/bbs/alarms?plate=&alarm_type=&date_from=&date_to=&page=&limit=` — list alarm ADAS
+- `GET /api/bbs/alarm-breakdown?month=YYYY-MM` — aggregate alarm per tipe untuk bulan tertentu
+
+### Database Notes (tambahan)
+
+#### bbs_observations — ADAS columns
+
+- `source VARCHAR(20) NOT NULL DEFAULT 'manual'` — `'manual'` = input form BBS, `'adas'` = import alarm ADAS
+- `device_id VARCHAR(40)` — ID device ADAS/DMS
+- `alarm_type VARCHAR(60)` — tipe alarm raw dari file import
+- `begin_time DATETIME` — waktu alarm dari file import
+- `fleet VARCHAR(60)` — nama armada dari file import
+- `plate_number VARCHAR(20)` — nomor plat dari file import (normalized uppercase)
+- `UNIQUE KEY uq_adas_alarm (device_id, begin_time, alarm_type)` — dedup guard
+
+### Active Branch
+
+- `add-module-bbs` — berisi semua perubahan Juli–September 2026. Not yet pushed to GitHub.

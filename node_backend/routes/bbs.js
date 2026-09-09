@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const xlsx = require("xlsx");
 const { authenticateToken } = require("../middleware/auth");
+const { fetchOverspeedCountsByUnits } = require("../services/wialonService");
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -138,6 +139,41 @@ router.get("/dashboard", async (req, res) => {
       other: Math.round((Number(risk.other_risk || 0) / riskTotal) * 100)
     };
 
+    // Query truck wialon_unit_id mapping (plate_number -> wialon_unit_id)
+    const [truckRows] = await db.query(
+      `SELECT no_police, wialon_unit_id FROM truck WHERE is_active = 1 AND wialon_unit_id IS NOT NULL AND wialon_unit_id != ''`
+    );
+    const plateToUnitId = new Map();
+    const unitIdToPlate = new Map();
+    (truckRows || []).forEach((row) => {
+      const plate = String(row.no_police || "").trim();
+      const unitId = String(row.wialon_unit_id || "").trim();
+      if (plate && unitId) {
+        plateToUnitId.set(plate, unitId);
+        unitIdToPlate.set(unitId, plate);
+      }
+    });
+
+    // Fetch Wialon overspeed counts for the month range
+    // Uses parallel batch fetch + in-memory cache (5 min TTL) in wialonService.
+    // Race against an 8-second timeout so the dashboard never stalls on Wialon.
+    const timeFrom = Math.floor(new Date(firstDay).getTime() / 1000);
+    const timeTo = Math.floor(new Date(endDay + "T23:59:59").getTime() / 1000);
+    const unitIds = Array.from(unitIdToPlate.keys());
+    let wialonOverspeedMap = new Map();
+    try {
+      const WIALON_TIMEOUT_MS = 8000;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("wialon_timeout")), WIALON_TIMEOUT_MS)
+      );
+      wialonOverspeedMap = await Promise.race([
+        fetchOverspeedCountsByUnits({ unitIds, timeFrom, timeTo }),
+        timeoutPromise,
+      ]);
+    } catch {
+      // Wialon unavailable or timed out — continue without overspeed data
+    }
+
     const [adasRows] = await db.query(
       `SELECT plate_number, alarm_type, COUNT(*) AS total
        FROM bbs_observations
@@ -189,12 +225,29 @@ router.get("/dashboard", async (req, res) => {
       const score = Math.max(0, Math.round(
         Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
       ));
+
+      // Merge Wialon overspeed count
+      const unitId = plateToUnitId.get(record.plate_number);
+      const wialonOverspeed = unitId ? (wialonOverspeedMap.get(unitId) || 0) : 0;
+
+      // Penalize speed score further if Wialon overspeed events exist
+      if (wialonOverspeed > 0) {
+        const wialonPenalty = Math.min(wialonOverspeed * 2, 40); // max -40 pts
+        categoryScores.speed = Math.max(0, categoryScores.speed - wialonPenalty);
+      }
+
+      // Recalculate final score with updated speed score
+      const finalScore = Math.max(0, Math.round(
+        Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
+      ));
+
       return {
         plate_number: record.plate_number,
         total_alarms: record.total_alarms,
-        score,
-        status: score >= 80 ? 'aman' : score >= 60 ? 'perlu_perhatian' : 'berisiko',
-        category_scores: categoryScores
+        score: finalScore,
+        status: finalScore >= 80 ? 'aman' : finalScore >= 60 ? 'perlu_perhatian' : 'berisiko',
+        category_scores: categoryScores,
+        wialon_overspeed: wialonOverspeed
       };
     }).sort((a, b) => a.score - b.score || b.total_alarms - a.total_alarms);
 

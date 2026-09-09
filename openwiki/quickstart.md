@@ -7,7 +7,7 @@ tags: [quickstart, transport, tms, express, vue3]
 
 # transport_v1.04 — Quickstart
 
-`transport_v1.04` is a **Transport Management System (TMS)** built for an Indonesian trucking company. It manages fleet master data, delivery scheduling, sales cost / SPK documents, truck GPS tracking via Wialon, safety observations (BBS), and operational monitoring — all in one integrated web app.
+`transport_v1.04` is a **Transport Management System (TMS)** built for an Indonesian trucking company. It manages fleet master data, delivery scheduling, sales cost / SPK documents, truck GPS tracking via Wialon, safety observations (BBS), ADAS alarm monitoring, subcontractor records, and operational monitoring — all in one integrated web app.
 
 ## Tech Stack
 
@@ -30,6 +30,7 @@ cp .env.example .env
 # WIALON_TOKEN, GEOAPIFY_API_KEY, and MONGO_URI (not in .env.example — add it manually)
 # Optional GPS trail vars: GPS_TRAIL_PRE_BUFFER_SEC, GPS_TRAIL_MAX_POINTS, GPS_TRAIL_POLYGON_MAX_POINTS
 # Optional geofence guards: GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC, GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC
+# Optional age-based auto-finish: GEOFENCE_AGE_FINISH_*, GEOFENCE_AGE_FINISH_DRY_RUN
 ```
 
 Key env vars — see [Operations Runbook](./operations/runbook.md) for the full table.
@@ -74,11 +75,15 @@ transport_v1.04/
 ├── node_backend/
 │   ├── server.js              # Express bootstrap, route registration, startup sequence
 │   ├── db.js                  # MySQL connection pool
-│   ├── db/migrations/         # 22 dbmate SQL migrations (schema history)
-│   ├── routes/                # 23 route files — one per domain (see Architecture)
+│   ├── db/migrations/         # dbmate SQL migrations (schema history)
+│   ├── routes/                # 24 route files — one per domain (see Architecture)
 │   ├── services/              # Business logic & external integrations
+│   │   ├── geofenceTrackingService.js  # Background GPS polling, guards, auto-finish
+│   │   ├── wialonService.js            # Wialon session + API calls
+│   │   └── gpsTrailGeometry.js         # Pure geometry helpers for GPS trail polygons
 │   ├── middleware/            # auth.js (JWT), rbac.js (role whitelist)
 │   ├── models/                # Mongoose models (MongoDB)
+│   ├── scripts/               # Migration helpers, geofence test scripts
 │   ├── upload/                # Multer file upload destination
 │   └── .env.example           # Non-secret env var template
 ├── tailadmin-vuejs-1.0.0/
@@ -87,8 +92,11 @@ transport_v1.04/
 │   │   ├── router/index.ts    # All frontend routes
 │   │   ├── config/navigation.js  # Sidebar nav config
 │   │   ├── views/             # Page-level Vue components (grouped by domain)
+│   │   │   ├── BBS/           # BbsTransportasi tabs: observasi, riwayat, dashboard, alarm ADAS
+│   │   │   └── Transaksi/     # SalesCost, Subcontractor (+ PrintSubcontractor), Repair
 │   │   ├── components/        # Shared UI components
-│   │   └── services/          # Frontend API wrappers (axios)
+│   │   ├── composables/       # useBbsLang, useAuthUser
+│   │   └── services/          # Frontend API wrappers
 │   └── dist/                  # Production build (served by Express)
 └── docs/
     └── PROJECT_CONTEXT.md     # Authoritative feature & design notes
@@ -101,8 +109,8 @@ Three JWT-encoded user levels exist (`level` claim):
 | Role | Access |
 |---|---|
 | `admin` | Full access to all routes |
-| `cs` | Read-only: schedule pengiriman + own profile |
-| `patcher` | BBS CRUD + truck/driver read + own profile |
+| `cs` | Read-only schedule pengiriman + own profile + Subcontractor GET/POST/PUT + master dropdowns |
+| `patcher` | BBS CRUD (incl. alarm import) + truck/driver read + own profile |
 
 RBAC is enforced by `restrictCsAccess` and `restrictPatcherAccess` middleware applied globally at `/api/*` before route handlers. See [Operations Runbook](./operations/runbook.md#rbac).
 
@@ -110,14 +118,13 @@ RBAC is enforced by `restrictCsAccess` and `restrictPatcherAccess` middleware ap
 
 - [Architecture Overview](./architecture/overview.md) — system components, dual DB, startup, background services
 - [Data Models](./architecture/data-models.md) — MySQL schema evolution, MongoDB collections, dual-DB boundary
-- [Key Workflows](./workflows/key-workflows.md) — Sales Cost/SPK, delivery notifications, GPS tracking, geofence backfill, schedule pengiriman
+- [Key Workflows](./workflows/key-workflows.md) — Sales Cost/SPK, GPS trail playback, geofence tracking, age-based auto-finish, BBS ADAS alarm, schedule pengiriman
 - [Operations Runbook](./operations/runbook.md) — env vars, migrations, RBAC, known gotchas
 
 ## Backlog
 
 | Area | Source Anchor | Reason Deferred |
 |---|---|---|
-| BBS Safety Module | `node_backend/routes/bbs.js` (34 KB) | Distinct domain with no recent git activity; large but self-contained |
 | Address Book | `node_backend/routes/addressBook.js`, MongoDB models | Small scope, MongoDB-only, low coupling to core flows |
 | Master Import/Export | `node_backend/services/masterImportConfig.js`, `routes/masterImport.js` | Excel import/export plumbing — useful but not blocking any current feature work |
 | Document Management | `routes/dataTruck.js`, `routes/dataChasis.js`, `routes/dataSupir.js` | File upload/download flows; auth gap exists on these routes (see Runbook) |

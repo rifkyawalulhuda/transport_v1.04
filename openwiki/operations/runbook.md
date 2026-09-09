@@ -49,6 +49,7 @@ Copy `node_backend/.env.example` to `node_backend/.env` and fill in the values. 
 | `GEOFENCE_AGE_FINISH_DAYS_MID` | No | `7` | Days until auto-finish for trips ≤100km |
 | `GEOFENCE_AGE_FINISH_DAYS_LONG` | No | `10` | Days until auto-finish for trips >100km |
 | `GEOFENCE_AGE_FINISH_DAYS_FALLBACK` | No | `3` | Days until auto-finish when distance cannot be computed |
+| `GEOFENCE_AGE_FINISH_LOOKBACK_DAYS` | No | `60` | How far back to look for unfinished SPK candidates |
 | `GEOFENCE_AGE_FINISH_DRY_RUN` | No | `0` | Set `1` to log-only without inserting finish records |
 | `GPS_TRAIL_PRE_BUFFER_SEC` | No | `7200` (2h) | Buffer before departure for GPS trail message window |
 | `GPS_TRAIL_MAX_POINTS` | No | `800` | Max GPS trail points after downsampling |
@@ -166,7 +167,7 @@ Three user roles are encoded in the JWT `level` claim. Role enforcement is done 
 | Role | Access |
 |---|---|
 | `admin` | Full access — passes both middleware checks unconditionally |
-| `cs` | Allowed: `GET /schedule-pengiriman`, `GET /auth/me`, `PUT /auth/me`. All other routes return `403`. |
+| `cs` | Allowed: `GET /schedule-pengiriman`, `GET /auth/me`, `PUT /auth/me`, `GET /subcontractor`, `POST /subcontractor`, `PUT /subcontractor`, `GET /warehouses`, `GET /customers`, `GET /subconts`. All other routes return `403`. |
 | `patcher` | Allowed: all CRUD on `/bbs`, `GET /trucks`, `GET /drivers`, `GET /auth/me`, `PUT /auth/me`. All other routes return `403`. |
 
 **Adding a new route for `cs` or `patcher`**: edit `node_backend/middleware/rbac.js` and add an entry to `isAllowedForCs` or `isAllowedForPatcher`.

@@ -48,9 +48,9 @@ All REST routes are mounted under `/api` in `server.js`. The full route-to-domai
 | `/api/areas` | `routes/area.js` | Area/route master, geofence config |
 | `/api/warehouses` | `routes/warehouse.js` | Warehouse master |
 | `/api/subconts` | `routes/subcont.js` | Subcontract reference data |
-| `/api/subcontractor` | `routes/subcontractor.js` | Subcontractor operational records |
+| `/api/subcontractor` | `routes/subcontractor.js` | Subcontractor operational records (CS: GET/POST/PUT) |
 | `/api/admins` | `routes/admin.js` | Admin user management |
-| `/api/sales-costs` | `routes/salesCost.js` | Sales Cost / SPK lifecycle, bulk print |
+| `/api/sales-costs` | `routes/salesCost.js` | Sales Cost / SPK lifecycle, bulk print, GPS trail, backfill |
 | `/api/repairs` | `routes/repair.js` | Truck repair records |
 | `/api/master` | `routes/masterImport.js` | Excel import/export for master data |
 | `/api/notifications` | `routes/notifications.js` | MongoDB notifications |
@@ -62,7 +62,8 @@ All REST routes are mounted under `/api` in `server.js`. The full route-to-domai
 | `/api/wialon` | `routes/wialon.js` | GPS live data proxy (Wialon) |
 | `/api/address-book` | `routes/addressBook.js` | MongoDB address book |
 | `/api/monitoring-kendaraan` | `routes/monitoringKendaraan.js` | Fleet monitoring summary + mileage |
-| `/api/bbs` | `routes/bbs.js` | BBS safety observations/incidents |
+| `/api/bbs` | `routes/bbs.js` | BBS safety observations/incidents + ADAS scores |
+| `/api/bbs/alarm` | `routes/bbsAlarm.js` | ADAS alarm import (CSV/XLSX) + list + breakdown |
 
 ## Authentication & RBAC
 
@@ -95,8 +96,9 @@ Steps 4–5 are managed by [geofenceTrackingService](../workflows/key-workflows.
 
 | Service | File | What it does |
 |---|---|---|
-| `geofenceTrackingService` | `services/geofenceTrackingService.js` | Polls Wialon every `GEOFENCE_TRACKING_INTERVAL_MS` (default 60s), detects entry/exit of geofenced areas, writes `route_history`, triggers delivery notifications |
-| `wialonService` | `services/wialonService.js` | Session management and all Wialon API calls (login, unit positions, trip reports) |
+| `geofenceTrackingService` | `services/geofenceTrackingService.js` | Polls Wialon every `GEOFENCE_TRACKING_INTERVAL_MS` (default 60s), detects entry/exit of geofenced areas, writes `route_history`, triggers delivery notifications, applies geofence guards, runs age-based auto-finish |
+| `wialonService` | `services/wialonService.js` | Session management and all Wialon API calls (login, unit positions, trip reports, raw messages, zone polygons) |
+| `gpsTrailGeometry` | `services/gpsTrailGeometry.js` | Pure geometry helpers for GPS trail planned stop polygons — converts Wialon points to Leaflet rings, stride-simplifies polygons |
 | `schemaSyncService` | `services/schemaSyncService.js` | Runs `ALTER TABLE IF NOT EXISTS` at startup to ensure GPS tracking columns exist — a fallback for environments where `dbmate` migrations haven't run |
 | `areaRouteService` | `services/areaRouteService.js` | Area/geofence route calculation logic |
 | `repairService` | `services/repairService.js` | Repair record business logic |
@@ -119,11 +121,13 @@ src/
 ├── views/                   # Page components, grouped by domain:
 │   ├── Home/                # Dashboard, SchedulePengiriman
 │   ├── Monitoring/          # MonitoringKendaraan (fleet + map)
-│   ├── Transaksi/           # SalesCost, Repair, DeliveryNotifications
+│   ├── Transaksi/           # SalesCost, Repair, Subcontractor, DeliveryNotifications
 │   ├── Master/              # Trucks, Drivers, Customers, Areas, etc.
-│   └── DataTransport/       # DataTruck, DataChasis, DataSupir
+│   ├── DataTransport/       # DataTruck, DataChasis, DataSupir
+│   └── BBS/                 # BbsTransportasi (tabs: observasi, riwayat, dashboard, alarm ADAS)
 ├── components/              # Shared: DeliveryNotificationBell, DatePickerInput, etc.
-└── services/                # API call wrappers (axios)
+├── composables/             # useBbsLang (i18n for BBS), useAuthUser, etc.
+└── services/                # API call wrappers (axios), bbsService, salesCostService, etc.
 ```
 
 The frontend is entirely client-rendered (SPA). Navigation is sidebar-driven via `config/navigation.js`. The `DeliveryNotificationBell` component in the top nav polls `/api/delivery-notifications` for unread counts.
