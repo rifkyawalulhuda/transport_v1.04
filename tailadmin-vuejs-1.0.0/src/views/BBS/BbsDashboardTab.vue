@@ -76,39 +76,42 @@
         </div>
       </div>
 
-      <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-        <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.topRisks }}</h4>
-        <div class="space-y-3">
-          <div
-            v-for="risk in dashboard.top_risks"
-            :key="risk.label"
-            class="flex items-center gap-3"
-          >
-            <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ riskLabelMap[risk.label] || risk.label }}</span>
-            <span
-              :class="[
-                'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-                risk.value >= 25 ? 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400' : 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400'
-              ]"
-            >{{ risk.value }}%</span>
-            <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-              <div
-                class="h-2 rounded-full transition-all"
-                :class="risk.value >= 25 ? 'bg-error-500' : 'bg-warning-500'"
-                :style="{ width: risk.value + '%' }"
-              ></div>
+      <!-- Grid: Top Risiko Perilaku + Breakdown Alarm ADAS -->
+      <div class="grid grid-cols-1 gap-5 xl:grid-cols-2 mb-5">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.topRisks }}</h4>
+          <div class="space-y-3">
+            <div
+              v-for="risk in dashboard.top_risks"
+              :key="risk.label"
+              class="flex items-center gap-3"
+            >
+              <span class="flex-1 text-sm text-gray-700 dark:text-gray-200">{{ riskLabelMap[risk.label] || risk.label }}</span>
+              <span
+                :class="[
+                  'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+                  risk.value >= 25 ? 'bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400' : 'bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-orange-400'
+                ]"
+              >{{ risk.value }}%</span>
+              <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                <div
+                  class="h-2 rounded-full transition-all"
+                  :class="risk.value >= 25 ? 'bg-error-500' : 'bg-warning-500'"
+                  :style="{ width: risk.value + '%' }"
+                ></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Alarm Breakdown Chart -->
-      <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] mb-5">
-        <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.alarmBreakdownTitle || 'Breakdown Alarm ADAS' }}</h4>
-        <div v-if="loadingBreakdown" class="py-6 text-center text-sm text-gray-400">{{ t.loading }}</div>
-        <div v-else-if="!alarmBreakdown || !alarmBreakdown.labels.length" class="py-6 text-center text-sm text-gray-400">{{ t.adasScoreEmpty }}</div>
-        <div v-else class="relative h-56">
-          <canvas ref="alarmBreakdownCanvas"></canvas>
+        <!-- Alarm Breakdown Chart -->
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-3">{{ t.alarmBreakdownTitle || 'Breakdown Alarm ADAS' }}</h4>
+          <div v-if="loadingBreakdown" class="py-6 text-center text-sm text-gray-400">{{ t.loading }}</div>
+          <div v-else-if="!alarmBreakdown || !alarmBreakdown.labels.length" class="py-6 text-center text-sm text-gray-400">{{ t.adasScoreEmpty }}</div>
+          <div v-else class="relative h-56">
+            <canvas ref="alarmBreakdownCanvas"></canvas>
+          </div>
         </div>
       </div>
 

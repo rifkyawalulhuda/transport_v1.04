@@ -146,17 +146,23 @@ router.get("/dashboard", async (req, res) => {
        ORDER BY plate_number ASC`,
       [firstDay, endDay]
     );
+    // scoreConfig: aggWeight = bobot kategori dalam skor akhir, penaltyFactor = severity multiplier
+    // Formula: rate = alarmCount[cat] / totalAlarms[truk], categoryScore = max(0, 100 * (1 - rate * penaltyFactor))
     const scoreConfig = {
-      fatigue: { aggWeight: 0.3, types: [{ match: 'eyes closed', points: 6 }, { match: 'yawn', points: 4 }] },
-      distraction: { aggWeight: 0.2, types: [{ match: 'distract', points: 5 }] },
-      collision: { aggWeight: 0.2, types: [{ match: 'forward collision', points: 4 }, { match: 'pedestrian collision', points: 4 }, { match: 'headway monitoring', points: 4 }] },
-      lane: { aggWeight: 0.15, types: [{ match: 'lane departure', points: 3 }] },
-      speed: { aggWeight: 0.15, types: [{ match: 'speed', points: 3 }, { match: 'overspeed', points: 3 }] }
+      fatigue:     { aggWeight: 0.30, penaltyFactor: 5, matches: ['eyes closed', 'yawn', 'fatigue', 'drowsy'] },
+      distraction: { aggWeight: 0.20, penaltyFactor: 4, matches: ['distraction', 'distracted', 'phone', 'smoking', 'calling'] },
+      collision:   { aggWeight: 0.20, penaltyFactor: 4, matches: ['forward collision', 'pedestrian collision', 'tailgating'] },
+      lane:        { aggWeight: 0.15, penaltyFactor: 3, matches: ['lane departure', 'lane change'] },
+      speed:       { aggWeight: 0.15, penaltyFactor: 3, matches: ['overspeed', 'over speed', 'speed limit', 'speeding'] }
     };
     const truckScores = new Map();
     const getScoreRecord = (plate) => {
       if (!truckScores.has(plate)) {
-        truckScores.set(plate, { plate_number: plate, total_alarms: 0, points: { fatigue: 0, distraction: 0, collision: 0, lane: 0, speed: 0 } });
+        truckScores.set(plate, {
+          plate_number: plate,
+          total_alarms: 0,
+          alarm_counts: { fatigue: 0, distraction: 0, collision: 0, lane: 0, speed: 0 }
+        });
       }
       return truckScores.get(plate);
     };
@@ -167,19 +173,29 @@ router.get("/dashboard", async (req, res) => {
       const alarmType = String(row.alarm_type || '').toLowerCase();
       record.total_alarms += count;
       Object.entries(scoreConfig).forEach(([category, config]) => {
-        const matched = config.types.find((item) => alarmType.includes(item.match));
-        if (matched) record.points[category] += count * matched.points;
+        if (config.matches.some((m) => alarmType.includes(m))) {
+          record.alarm_counts[category] += count;
+        }
       });
     });
     const adasScores = Array.from(truckScores.values()).map((record) => {
-      const categoryScores = Object.fromEntries(Object.entries(scoreConfig).map(([category, config]) => [
-        category,
-        Math.max(0, Math.round(100 - record.points[category]))
-      ]));
+      const total = Math.max(1, record.total_alarms);
+      const categoryScores = Object.fromEntries(
+        Object.entries(scoreConfig).map(([category, config]) => {
+          const rate = record.alarm_counts[category] / total;
+          return [category, Math.max(0, Math.round(100 * (1 - rate * config.penaltyFactor)))];
+        })
+      );
       const score = Math.max(0, Math.round(
         Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
       ));
-      return { ...record, score, status: score >= 80 ? 'aman' : score >= 60 ? 'perlu_perhatian' : 'berisiko', category_scores: categoryScores };
+      return {
+        plate_number: record.plate_number,
+        total_alarms: record.total_alarms,
+        score,
+        status: score >= 80 ? 'aman' : score >= 60 ? 'perlu_perhatian' : 'berisiko',
+        category_scores: categoryScores
+      };
     }).sort((a, b) => a.score - b.score || b.total_alarms - a.total_alarms);
 
     res.json({
