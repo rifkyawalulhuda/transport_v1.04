@@ -27,7 +27,10 @@ All transactional data lives in MySQL (`trucking` database). The schema is manag
 | `20260619130000_extend_bbs_incidents_location.sql` | Extended location fields on BBS incidents |
 | `20260619140000_add_coordinates_to_bbs_observations.sql` | `lat`/`lng` on BBS observations |
 | `20260720000011_extend_admin_password_column.sql` | Widens `admin.password` column from `VARCHAR(50)` to `VARCHAR(255)` — accommodates bcrypt hashes |
-| *(+10 more)* | GPS cache columns, route history nullable fields, Wialon unit ID on trucks, delivery notification read tracking — run `dbmate status` for the full list |
+| `20260723000012_add_sales_cost_is_manual_mode.sql` | `is_manual_mode` flag on `sales_cost` — supports manual ETA-based auto-finish for trips without reliable GPS |
+| `20260725000013_create_sub_contractor_step_schedule.sql` | `sub_contractor_step_schedule` — ordered delivery stops (departure/finish flags, `estimated_arrival`) linked to `sub_contractor` via FK with CASCADE |
+| `20260728000014_create_delivery_template.sql` | `delivery_template` + `delivery_template_stop` — reusable stop-sequence templates with Wialon zone refs and fixed `time_hhmm` per stop |
+| *(+earlier migrations)* | GPS cache columns, route history nullable fields, Wialon unit ID on trucks, delivery notification read tracking — run `dbmate status` for the full list |
 
 ### Key Tables
 
@@ -53,7 +56,17 @@ All transactional data lives in MySQL (`trucking` database). The schema is manag
 - Added by migration `20260720000010_create_delivery_notification_read.sql`
 - Managed by `deliveryNotificationReadService`
 
-**`bbs_observations` / `bbs_incidents`** — BBS safety module tables with GPS coordinates
+**`sub_contractor`** / **`sub_contractor_step_schedule`** — Subcontractor operational records and their ordered delivery stops
+- `sub_contractor_step_schedule` links to `sub_contractor` via FK with CASCADE; each row has `stop_order`, `is_departure`, `is_finish`, and `estimated_arrival` (manual timeline — no GPS tracking)
+- Added by migration `20260725000013`
+
+**`delivery_template`** / **`delivery_template_stop`** — Reusable delivery route templates
+- `delivery_template` holds the template header (`template_name`, `description`, `is_active`)
+- `delivery_template_stop` holds ordered stops with Wialon zone refs (`wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name`), role flags (`is_departure`, `is_finish`), and an optional fixed `time_hhmm` combined with a user-supplied date when applying the template
+- Managed by `routes/deliveryTemplate.js` via `GET/POST/PUT/DELETE /api/delivery-templates`
+- Added by migration `20260728000014`
+
+**`bbs_observations`** / **`bbs_incidents`** — BBS safety module tables with GPS coordinates
 
 ### Soft Deactivation Pattern
 

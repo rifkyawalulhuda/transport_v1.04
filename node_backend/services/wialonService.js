@@ -165,9 +165,13 @@ const setCachedReverseGeocode = (cacheKey, payload) => {
   });
 
   if (reverseGeocodeCache.size > 1000) {
-    const oldestKey = reverseGeocodeCache.keys().next().value;
-    if (oldestKey) {
-      reverseGeocodeCache.delete(oldestKey);
+    // Sweep expired entries first before evicting the oldest valid entry
+    for (const [k, v] of reverseGeocodeCache) {
+      if (!isReverseGeocodeCacheValid(v)) reverseGeocodeCache.delete(k);
+    }
+    if (reverseGeocodeCache.size > 1000) {
+      const oldestKey = reverseGeocodeCache.keys().next().value;
+      if (oldestKey) reverseGeocodeCache.delete(oldestKey);
     }
   }
 };

@@ -141,6 +141,7 @@
               </svg>
               <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Rincian Biaya</p>
             </div>
+
             <div class="grid gap-x-8 gap-y-3 sm:grid-cols-3 mb-4">
               <div>
                 <span class="text-xs text-gray-400 dark:text-gray-500">Sales</span>
@@ -173,6 +174,61 @@
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Daftar DN (Delivery Note) -->
+          <div class="rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+            <div class="flex items-center gap-2 mb-4">
+              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Daftar DN (Delivery Note)</p>
+              <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">{{ dnItems.length }} item</span>
+            </div>
+
+            <p v-if="dnLoading" class="text-sm text-gray-500 dark:text-gray-400">Memuat data DN...</p>
+            <p v-else-if="dnError" class="text-sm text-error-600 dark:text-error-400">{{ dnError }}</p>
+            <p v-else-if="dnItems.length === 0" class="text-sm text-gray-400 dark:text-gray-500 italic">Tidak ada data DN.</p>
+
+            <div v-else class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-100 dark:border-gray-800">
+                    <th class="pb-2 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">#</th>
+                    <th class="pb-2 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">No. DN</th>
+                    <th class="pb-2 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Pickup</th>
+                    <th class="pb-2 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Drop</th>
+                    <th class="pb-2 pr-4 text-center text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Qty</th>
+                    <th class="pb-2 pr-4 text-center text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Pkg</th>
+                    <th class="pb-2 pr-4 text-right text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">GW (kg)</th>
+                    <th class="pb-2 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">No. Container</th>
+                    <th class="pb-2 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">No. AJU</th>
+                    <th class="pb-2 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50 dark:divide-gray-800/60">
+                  <tr
+                    v-for="(dn, idx) in dnItems"
+                    :key="dn.id || idx"
+                    class="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                  >
+                    <td class="py-2 pr-4 text-gray-400 dark:text-gray-500">{{ idx + 1 }}</td>
+                    <td class="py-2 pr-4 font-medium text-gray-800 dark:text-gray-100">{{ formatText(dn.no_dn) }}</td>
+                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300 max-w-[160px] truncate" :title="dn.pickup_alamat || ''">{{ formatText(dn.pickup_alamat) }}</td>
+                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300 max-w-[160px] truncate" :title="dn.drop_alamat || ''">{{ formatText(dn.drop_alamat) }}</td>
+                    <td class="py-2 pr-4 text-center text-gray-700 dark:text-gray-300">{{ dn.qty ?? '-' }}</td>
+                    <td class="py-2 pr-4 text-center">
+                      <span v-if="dn.pkg" class="inline-block rounded px-1.5 py-0.5 text-[11px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ dn.pkg }}</span>
+                      <span v-else class="text-gray-400">-</span>
+                    </td>
+                    <td class="py-2 pr-4 text-right text-gray-700 dark:text-gray-300">{{ dn.gw != null ? Number(dn.gw).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-' }}</td>
+                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300">{{ formatText(dn.no_container) }}</td>
+                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300">{{ formatText(dn.no_aju) }}</td>
+                    <td class="py-2 text-gray-500 dark:text-gray-400">{{ formatText(dn.remarks) }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -222,10 +278,27 @@ type DetailData = {
   delivery_stops?: DeliveryStopRow[]
 }
 
+type DNItem = {
+  id?: number
+  no_dn: string
+  pickup_alamat: string
+  drop_alamat: string
+  qty: number
+  pkg: string
+  gw: number | null
+  no_container: string
+  no_aju: string
+  remarks: string
+}
+
 const currentPageTitle = ref('Detail Sub Contractor')
 const route = useRoute()
 const loading = ref(true)
 const formError = ref('')
+
+const dnItems = ref<DNItem[]>([])
+const dnLoading = ref(false)
+const dnError = ref('')
 const detail = ref<DetailData>({
   nama_customer: '',
   nama_subcont: '',
@@ -338,7 +411,23 @@ const loadDetail = async () => {
   }
 }
 
+const loadDN = async () => {
+  const idParam = resolveIdParam()
+  if (!idParam) return
+  dnLoading.value = true
+  dnError.value = ''
+  try {
+    const data = await subcontractorService.fetchDNList(idParam)
+    dnItems.value = Array.isArray(data?.items) ? data.items : []
+  } catch (error: unknown) {
+    dnError.value = error instanceof Error ? error.message : 'Gagal memuat data DN.'
+  } finally {
+    dnLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadDetail()
+  loadDN()
 })
 </script>

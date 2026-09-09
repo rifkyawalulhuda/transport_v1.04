@@ -76,7 +76,7 @@ transport_v1.04/
 │   ├── server.js              # Express bootstrap, route registration, startup sequence
 │   ├── db.js                  # MySQL connection pool
 │   ├── db/migrations/         # dbmate SQL migrations (schema history)
-│   ├── routes/                # 24 route files — one per domain (see Architecture)
+│   ├── routes/                # 24+ route files — one per domain (see Architecture)
 │   ├── services/              # Business logic & external integrations
 │   │   ├── geofenceTrackingService.js  # Background GPS polling, guards, auto-finish
 │   │   ├── wialonService.js            # Wialon session + API calls
@@ -118,7 +118,7 @@ RBAC is enforced by `restrictCsAccess` and `restrictPatcherAccess` middleware ap
 
 - [Architecture Overview](./architecture/overview.md) — system components, dual DB, startup, background services
 - [Data Models](./architecture/data-models.md) — MySQL schema evolution, MongoDB collections, dual-DB boundary
-- [Key Workflows](./workflows/key-workflows.md) — Sales Cost/SPK, GPS trail playback, geofence tracking, age-based auto-finish, BBS ADAS alarm, schedule pengiriman
+- [Key Workflows](./workflows/key-workflows.md) — Sales Cost/SPK, subcontractor records, delivery notifications, GPS trail playback, geofence tracking, age-based auto-finish, BBS ADAS alarm, schedule pengiriman
 - [Operations Runbook](./operations/runbook.md) — env vars, migrations, RBAC, known gotchas
 
 ## Backlog

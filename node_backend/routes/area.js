@@ -136,14 +136,38 @@ router.get("/", async (_req, res) => {
   }
 });
 
-router.get("/:id/route-steps", async (req, res) => {
+router.get("/:id/route-steps", authenticateToken, async (req, res) => {
   try {
     const area = await loadAreaById(req.params.id);
     if (!area) {
       return res.status(404).json({ message: "Area not found" });
     }
-    const steps = Array.isArray(area.route_steps) ? area.route_steps : [];
-    res.json(steps);
+    const rawSteps = Array.isArray(area.route_steps) ? area.route_steps : [];
+
+    // Format as delivery stops suitable for SalesCostForm template populate.
+    // Each stop maps to the shape of sales_cost_step_schedule.
+    const stops = rawSteps.map((s) => {
+      const isDeparture = Number(s.step_order) === 0 ||
+        String(s.system_step_code || "").toLowerCase().includes("departure");
+      const isFinish = Number(s.step_order) === 99 ||
+        String(s.system_step_code || "").toLowerCase().includes("finish");
+      return {
+        stop_order: Number(s.step_order),
+        stop_name: s.step_name || (isDeparture ? "Departure" : isFinish ? "Finish" : "Tujuan"),
+        wialon_resource_id: s.wialon_resource_id || null,
+        wialon_zone_id: s.wialon_zone_id || null,
+        wialon_zone_name: s.wialon_zone_name || null,
+        is_departure: isDeparture ? 1 : 0,
+        is_finish: isFinish ? 1 : 0,
+        time_hhmm: null  // area route steps carry no fixed time — user fills in
+      };
+    });
+
+    res.json({
+      id_area: area.id_area,
+      nama_area: area.nama_area,
+      stops
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });

@@ -127,6 +127,39 @@
         </p>
       </section>
 
+      <section class="dn-block">
+        <div class="section-heading">Delivery Note (DN)</div>
+        <p v-if="dnItems.length === 0" class="empty-schedule">Tidak ada data DN.</p>
+        <table v-else class="dn-table">
+          <thead>
+            <tr>
+              <th style="width: 5%">#</th>
+              <th style="width: 12%">No. DN</th>
+              <th style="width: 18%">Pickup</th>
+              <th style="width: 18%">Drop</th>
+              <th style="width: 6%">Qty</th>
+              <th style="width: 7%">Pkg</th>
+              <th style="width: 10%">GW (kg)</th>
+              <th style="width: 12%">No. Container</th>
+              <th style="width: 12%">No. AJU</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(dn, idx) in dnItems" :key="dn.id || idx">
+              <td>{{ idx + 1 }}</td>
+              <td>{{ dash(dn.no_dn) }}</td>
+              <td>{{ dash(dn.pickup_alamat) }}</td>
+              <td>{{ dash(dn.drop_alamat) }}</td>
+              <td style="text-align: center">{{ dn.qty ?? '-' }}</td>
+              <td style="text-align: center">{{ dash(dn.pkg) }}</td>
+              <td style="text-align: right">{{ dn.gw != null ? Number(dn.gw).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-' }}</td>
+              <td>{{ dash(dn.no_container) }}</td>
+              <td>{{ dash(dn.no_aju) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <footer class="sheet-footer">Dokumen internal — PT Sankyu Indonesia International</footer>
     </div>
   </div>
@@ -136,6 +169,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { subcontractorService } from '@/services/subcontractorService'
+
+type DNItem = {
+  id?: number
+  no_dn: string
+  pickup_alamat: string
+  drop_alamat: string
+  qty: number | null
+  pkg: string
+  gw: number | null
+  no_container: string
+  no_aju: string
+  remarks: string
+}
 
 type DeliveryStop = {
   id?: number
@@ -171,6 +217,7 @@ const route = useRoute()
 const loading = ref(true)
 const errorMessage = ref('')
 const detail = ref<SubcontractorPrintDetail | null>(null)
+const dnItems = ref<DNItem[]>([])
 
 const printDate = computed(() => {
   const d = new Date()
@@ -269,8 +316,20 @@ const loadDetail = async () => {
   }
 }
 
+const loadDN = async () => {
+  const id = route.params.id as string
+  if (!id) return
+  try {
+    const data = await subcontractorService.fetchDNList(id)
+    dnItems.value = Array.isArray(data?.items) ? data.items : []
+  } catch {
+    // DN gagal load — tampilkan kosong saja, tidak perlu error fatal di print
+  }
+}
+
 onMounted(() => {
   loadDetail()
+  loadDN()
 })
 </script>
 
@@ -461,6 +520,30 @@ body {
   margin: 0;
   font-size: 11px;
   color: #444;
+}
+
+.dn-block {
+  margin-top: 18px;
+}
+
+.dn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin-top: 6px;
+}
+
+.dn-table th,
+.dn-table td {
+  border: 1px solid #333;
+  padding: 4px 5px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.dn-table th {
+  background: #f0f0f0;
+  font-weight: 700;
 }
 
 .sheet-footer {

@@ -30,8 +30,10 @@ const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 const bbsRouter = require("./routes/bbs");
 const bbsAlarmRouter = require("./routes/bbsAlarm");
 const deliveryNotificationsRouter = require("./routes/deliveryNotifications");
+const deliveryTemplateRouter = require("./routes/deliveryTemplate");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
-const { startGeofenceTracking, detectAndRunStartupBackfill } = require("./services/geofenceTrackingService");
+const { startGeofenceTracking, stopGeofenceTracking, detectAndRunStartupBackfill } = require("./services/geofenceTrackingService");
+const db = require("./db");
 
 const app = express();
 
@@ -94,6 +96,7 @@ app.use("/api/address-book", addressBookRouter);
 app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
 app.use("/api/bbs/alarms", bbsAlarmRouter);
 app.use("/api/bbs", bbsRouter);
+app.use("/api/delivery-templates", deliveryTemplateRouter);
 
 // Serve frontend production build
 const frontendDist = path.join(__dirname, "..", "tailadmin-vuejs-1.0.0", "dist");
@@ -113,6 +116,12 @@ const startServer = async () => {
     if (mongoUri) {
       await mongoose.connect(mongoUri);
       console.log("MongoDB connected");
+      mongoose.connection.on("error", (err) => {
+        console.error("[mongoose] connection error", err);
+      });
+      mongoose.connection.on("disconnected", () => {
+        console.warn("[mongoose] disconnected — operations will fail until reconnect");
+      });
     } else {
       console.error("MONGO_URI belum dikonfigurasi");
     }
@@ -136,3 +145,29 @@ const startServer = async () => {
 };
 
 void startServer();
+
+const gracefulShutdown = async (signal) => {
+  console.log(`[server] ${signal} received — shutting down gracefully`);
+  try {
+    await stopGeofenceTracking(8000);
+    console.log("[server] geofence tracking stopped");
+  } catch (err) {
+    console.warn("[server] error stopping geofence tracking", err);
+  }
+  try {
+    await mongoose.connection.close();
+    console.log("[server] mongoose connection closed");
+  } catch (err) {
+    console.warn("[server] error closing mongoose", err);
+  }
+  try {
+    await db.end();
+    console.log("[server] mysql pool closed");
+  } catch (err) {
+    console.warn("[server] error closing mysql pool", err);
+  }
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.on("SIGINT",  () => void gracefulShutdown("SIGINT"));

@@ -254,6 +254,58 @@ const main = async () => {
     );
     await mark(conn, "20260725000013");
 
+    // ── 20260728000014: create delivery_template ──────────────────────────
+    await run(conn, "CREATE delivery_template",
+      `CREATE TABLE IF NOT EXISTS delivery_template (
+        id            INT          NOT NULL AUTO_INCREMENT,
+        template_name VARCHAR(255) NOT NULL,
+        description   VARCHAR(500) NULL,
+        is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+        created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+    await run(conn, "CREATE delivery_template_stop",
+      `CREATE TABLE IF NOT EXISTS delivery_template_stop (
+        id                    INT          NOT NULL AUTO_INCREMENT,
+        id_delivery_template  INT          NOT NULL,
+        stop_order            INT          NOT NULL,
+        stop_name             VARCHAR(255) NOT NULL,
+        wialon_resource_id    BIGINT       NULL,
+        wialon_zone_id        BIGINT       NULL,
+        wialon_zone_name      VARCHAR(255) NULL,
+        is_departure          TINYINT(1)   NOT NULL DEFAULT 0,
+        is_finish             TINYINT(1)   NOT NULL DEFAULT 0,
+        time_hhmm             VARCHAR(5)   NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_template_stop (id_delivery_template, stop_order),
+        CONSTRAINT fk_dts_template FOREIGN KEY (id_delivery_template)
+          REFERENCES delivery_template (id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+    await mark(conn, "20260728000014");
+
+    // ── 20260804000015: create sub_contractor_dn ──────────────────────────
+    await run(conn, "CREATE sub_contractor_dn",
+      `CREATE TABLE IF NOT EXISTS sub_contractor_dn (
+        id              INT(13)        NOT NULL AUTO_INCREMENT,
+        id_subcontractor INT(13)       NOT NULL,
+        no_dn           VARCHAR(100)   NOT NULL DEFAULT '',
+        pickup_alamat   TEXT           NOT NULL,
+        drop_alamat     TEXT           NOT NULL,
+        qty             INT(11)        NOT NULL DEFAULT 0,
+        pkg             ENUM('IBC','CTN','PIL','DRM','') NOT NULL DEFAULT '',
+        gw              DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
+        no_container    VARCHAR(100)   NOT NULL DEFAULT '',
+        no_aju          VARCHAR(100)   NOT NULL DEFAULT '',
+        remarks         TEXT           NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_id_subcontractor (id_subcontractor)
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci`
+    );
+    await mark(conn, "20260804000015");
+
     console.log("\nSelesai. Verifikasi dengan: npm run migrate:status");
 
   } finally {

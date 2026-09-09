@@ -802,7 +802,65 @@ npm run build-only
 **Fix:** `resolveScheduleStatus` now uses `finish_order_datetime` as the overdue deadline (fallback to `arrival_datetime` for backwards compatibility). The overdue condition also now requires `!finishHit` — completed deliveries cannot be overdue.
 
 - `schedulePengiriman.js` — `resolveScheduleStatus` accepts new parameter `finishOrderDatetime`; uses it as `overdueDeadline` when available.
-- `schedulePengiriman.js` — caller at line ~449 now passes `finishOrderDatetime: row.finish_order_datetime`.
+
+---
+
+## Updates (2026-08-04)
+
+### Subcontractor DN (Delivery Note) — Fitur Baru
+
+Fitur pengelolaan Delivery Note per transaksi subcontractor, menggunakan MySQL child table `sub_contractor_dn` dengan pola DELETE+re-INSERT (konsisten dengan `sub_contractor_step_schedule`).
+
+#### Database
+
+- `node_backend/db/schema.sql` — tabel baru `sub_contractor_dn`: `id`, `id_subcontractor`, `no_dn`, `pickup_alamat`, `drop_alamat`, `qty`, `pkg` (ENUM: IBC/CTN/PIL/DRM/''), `gw` decimal(10,2), `no_container`, `no_aju`, `remarks`.
+- `scripts/fix-missing-tables.js` — migration `20260804000015` ditambahkan untuk create `sub_contractor_dn` (idempotent).
+
+#### Backend
+
+- `node_backend/routes/subcontractor.js` — helper `replaceDNForSubcontractor` baru + route `GET /:id/dn` + `POST /:id/dn` (pola DELETE+re-INSERT, non-transactional, independen dari main form).
+  - `gw`: `parseFloat` + replace koma (handle `"1,5"` → `1.5`).
+  - Semua string field: `!= null ? String(...)` (null-safe).
+  - `qty`: `parseInt()` eksplisit.
+
+#### Frontend Service
+
+- `tailadmin-vuejs-1.0.0/src/services/subcontractorService.js` — metode baru `fetchDNList(id)` dan `saveDNList(id, items)`. `createSubcontractor` dan `updateSubcontractor` strip `_dnItems` sebelum dikirim ke backend (mencegah field internal mencemari request body).
+
+#### Form Input & Edit Subcontractor
+
+- `SubcontractorForm.vue` — tipe `DNItem`, state `dnItems`/`dnCollapsed`, fungsi `addDnItem`/`removeDnItem`/`toggleDnItem`/`loadDnItems`/`saveDnItems`, DN section UI (accordion). Posisi DN section: setelah Section 2 (Kendaraan & Dokumen), sebelum Section 3 (Jadwal Pengiriman). Urutan final: **Mitra & Pesanan → Kendaraan & Dokumen → Delivery Note (DN) → Jadwal Pengiriman → Biaya & Tagihan**.
+- `InputSubcontractor.vue` — setelah create sukses, memanggil `saveDNList` dengan `result.id` (non-blocking).
+- `EditSubcontractor.vue` — setelah update sukses, memanggil `saveDNList` (non-blocking; gagal = toast warning).
+
+#### Detail Subcontractor
+
+- `DetailSubcontractor.vue` — tipe `DNItem`, state `dnItems`/`dnLoading`/`dnError`, fungsi `loadDN()` memanggil `fetchDNList`. `onMounted` paralel `loadDetail()` + `loadDN()`. Template: DN table section (di bawah Rincian Biaya), 10 kolom: #, No. DN, Pickup, Drop, Qty, Pkg (badge), GW, No. Container, No. AJU, Remarks. Handles loading/error/empty state.
+- Bug fix: `dnItems.value = Array.isArray(data?.items) ? data.items : []` — backend mengembalikan `{ items: [] }` bukan array langsung.
+
+#### Arsitektur
+
+DN disimpan independen dari main form transaction, mengikuti pola Sales Cost. Jika DN gagal, data utama tetap tersimpan dan ditampilkan sebagai toast warning.
+
+---
+
+## Updates (2026-08-05)
+
+### Print Subcontractor — DN Section
+
+- `PrintSubcontractor.vue` — added Delivery Note (DN) section below "Jadwal Pengiriman" table, above footer.
+- New `DNItem` type; new reactive `dnItems` state.
+- `loadDN()` calls `subcontractorService.fetchDNList(id)`, unwraps `data.items`; errors are silently ignored so the print page remains functional even if DN fetch fails.
+- `onMounted` now runs `loadDetail()` and `loadDN()` in parallel.
+- DN table has 9 columns: #, No. DN, Pickup, Drop, Qty, Pkg, GW (Indonesian number format), No. Container, No. AJU.
+- New CSS classes: `.dn-block`, `.dn-table` — styled consistently with the Jadwal Pengiriman table.
+
+### Export Excel — DN Sheet "ID SC" → "No. Laporan"
+
+- `node_backend/routes/subcontractor.js` — sheet DN column `"ID SC"` (key: `id_sc`) renamed to `"No. Laporan"` (key: `no_laporan`, width 12).
+- DN loop changed from `rows.forEach((row) =>` to `rows.forEach((row, index) =>`.
+- Value changed from `scId` (id_subcontractor PK) to `index + 1` — matches the "No." column in the main "Laporan Sub Contractor" sheet, enabling direct cross-reference between sheets.
+- Design decision: three options were considered; **Option 1** (row number matching main sheet) was chosen over Option 2 (id_subcontractor PK) and Option 3 (remove column entirely), because it gives users a direct visual cross-reference between the two sheets without exposing internal IDs.
 
 ### Monitoring Kendaraan — Repair Query Fix
 
@@ -1259,6 +1317,8 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - Env: `GEOFENCE_FINISH_MIN_AWAY_SEC` (default 1200), `GEOFENCE_FINISH_MIN_AWAY_M` (default 1000), `GEOFENCE_FINISH_LEAVE_LOOKBACK_SEC` (default **14400** = 4h).
 - **Departure hit pre-window guard (fix #44442):** Departure stop entries earlier than `depTs − GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC` (default **8h = 28800 s**) are rejected in `assignStopHits`. Prevents re-entry from a prior trip being assigned as Departure, which would satisfy the same-zone leave-evidence and trigger false finish. Env: `GEOFENCE_DEPARTURE_HIT_MAX_PRE_WINDOW_SEC`.
 - **Same-zone inter-stop gap guard (fix #44415):** For shuttle routes where the same zone appears multiple times (e.g. Tujuan 1, 3, 5 all KIIC zone), a second assignment to the same zone is rejected unless `entryTs − lastHitTs ≥ GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC` (default **10 min = 600 s**). Prevents rapid re-assignment within the same tracking cycle when `inZoneMap` resets. Env: `GEOFENCE_SAME_ZONE_MIN_INTER_STOP_GAP_SEC`.
+- **Departure-as-Finish collision guard (fix #44449):** In `resolveFinishGpsHit`, `minFinishTs` is raised to ≥ the timestamp of the latest Departure hit in `historyRows`. Prevents the same zone entry (e.g. Sankyu re-entry at 06:02) from being used simultaneously as Departure hit and Finish entry in the same tracking cycle. Implemented via `depHitTs` reduction over `historyRows` with `is_departure=1` stops.
+- **Live position stale cache guard (fix #44450):** In the live fallback path of `resolveFinishGpsHit`, `liveTs` (from `position.gps_time`) must also be `>= depTs`. Prevents a stale GPS position cache timestamp earlier than planned departure from being recorded as finish entryTs even when `nowTs` has already passed `depTs`.
 - Helpers: `analyzeBaseExit`, `resolveFinishGpsHit` (exported for tests in `scripts/test-geofence-assign.js`).
 
 ### Manual mode / no-GPS auto-finish by ETA
@@ -1524,3 +1584,91 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 ### Active Branch
 
 - `add-module-bbs` — berisi semua perubahan Juli–September 2026. Not yet pushed to GitHub.
+
+## Updates (2026-07-28 — GPS Finish Guards, Template Jadwal, UI/UX, VitePress Docs)
+
+### Geofence Finish — Additional False-Finish Guards
+
+Three new guards added to `resolveFinishGpsHit` and `assignStopHits` to close remaining false-finish cases:
+
+#### Fix #44449 — Departure-as-Finish Collision Guard (same-cycle timestamp)
+- **Root cause:** SPK #44449 (B 9782 SYM): Departure hit at 06:02 and `system:finish_order` at 06:02 — identical timestamp. Same zone entry (Sankyu) used as both Departure hit and Finish in the same tracking cycle.
+- **Fix:** In `resolveFinishGpsHit`, `minFinishTs` is raised to ≥ the timestamp of the latest Departure hit in `historyRows`. Implemented via `depHitTs` reduction over `historyRows` filtering `is_departure=1` stops.
+- **Location:** `geofenceTrackingService.js:~L543`
+
+#### Fix #44450 — Live Position Stale Cache Guard
+- **Root cause:** SPK #44450 (B 9567 FXS): `position.gps_time = 07:54` (stale GPS cache from before planned departure 08:00). `nowTs > depTs` already passed the hard gate, but `liveTs < depTs` → finish recorded before departure.
+- **Fix:** In the live fallback path of `resolveFinishGpsHit`, `liveTs` (from `position.gps_time`) must also be `>= depTs`. Guards against stale position cache even when `nowTs` has passed `depTs`.
+- **Location:** `geofenceTrackingService.js:~L613`
+
+#### Unit tests (33 test cases total)
+- `test-geofence-assign.js` — 4 new cases for #44449 and #44450 scenarios + genuine-finish-accepted cases.
+- Run: `cd node_backend && node scripts/test-geofence-assign.js`
+
+---
+
+### Sales Cost — Template Jadwal Pengiriman
+
+New feature: reusable delivery schedule templates to speed up SPK creation for recurring routes.
+
+#### Database (migration `20260728000014_create_delivery_template.sql`)
+- `delivery_template` — id, template_name, description, is_active, created_at, updated_at
+- `delivery_template_stop` — id, id_delivery_template, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, `time_hhmm` (VARCHAR(5), stores "HH:MM" fixed time)
+- FK: `delivery_template_stop.id_delivery_template → delivery_template.id` ON DELETE CASCADE
+- Also added to `scripts/fix-missing-tables.js` (idempotent, marks version `20260728000014`)
+
+#### Backend API (`routes/deliveryTemplate.js`)
+- `GET /api/delivery-templates` — list active templates with stops (auth: all roles)
+- `GET /api/delivery-templates/:id` — single template detail (auth: all roles)
+- `POST /api/delivery-templates` — create template + stops in transaction (admin only)
+- `PUT /api/delivery-templates/:id` — update (delete + reinsert stops) in transaction (admin only)
+- `DELETE /api/delivery-templates/:id` — soft delete `is_active=0` (admin only)
+- Registered in `server.js` at `/api/delivery-templates`
+- RBAC: CS can read (`GET /delivery-templates` added to `isAllowedForCs` whitelist)
+
+#### Backend API — Area route-steps endpoint enhanced
+- `GET /api/areas/:id/route-steps` — upgraded: now requires `authenticateToken`, returns `{ id_area, nama_area, stops[] }` in delivery-stop shape (was plain steps array). `time_hhmm: null` since area route steps have no fixed time.
+
+#### Frontend
+- `services/deliveryTemplateService.ts` — typed service: fetchTemplates, fetchTemplate, createTemplate, updateTemplate, deleteTemplate
+- `salesCostService.backfillStop(id, stopId, options?)` — added (POST to `/backfill-stop`)
+- `salesCostService.fetchAreaRouteSteps(areaId)` — added (GET `/areas/:id/route-steps`)
+- `SalesCostForm.vue` — two new features:
+  - **Auto-populate on area change**: when area is selected in create mode and stops are still default, fetches route-steps and populates `deliveryStops` with geofence data. Guard: only if `isStopsDefault()`, only in create mode, `areaAutoPopulating` flag prevents loop.
+  - **"Pakai Template" button** + modal: select template from dropdown + pick base date → populate stops with `${baseDate} ${time_hhmm}:00` per stop. Uses `DatePickerInput` (date-only, `:enable-time="false"`) for base date picker.
+- `views/Master/DeliveryTemplateMaster.vue` — admin CRUD page for templates:
+  - Standard data table (matches TruckMaster/AreaMaster): SearchBar, SortableTableHeader, Pagination, rows-per-page, total count; `filterItemsByQuery` + `useSortableItems` + `useListQuery` for client-side search/sort/paginate
+  - Create/Edit modal: `max-w-3xl`, structured header/body/footer with border separators, 2-col grid for name+description, horizontal 3-col stop rows (Badge · Nama · Geofence · Jam · Delete), `max-height: 400px` scroll for stops list, redundant picker feedback text removed
+  - Uses `SearchableSelect` (identical to SalesCostForm geofence picker) + `DatePickerInput` (`:enable-time="true"`, time-only via dummy date `2000-01-01`) for each stop
+  - Route: `/master/delivery-templates` (added to router + navigation.js under Master group)
+- VitePress `config.mts` — `srcExclude: ['PROJECT_CONTEXT.md']` added to prevent build error from this file being processed as a page
+
+#### Mode Manual override behavior fix
+- **Bug:** When a template was applied (stops had `wialon_zone_id`), toggling Mode Manual only changed the boolean — geofence data remained silently on stops, blocking manual mode UX.
+- **Fix:** `toggleManualMode()` added to `SalesCostForm.vue`. When switching **to manual mode**, clears `wialon_resource_id`, `wialon_zone_id`, `wialon_zone_name` from all stops. `@click` on Mode Manual button now calls `toggleManualMode()` instead of inline toggle.
+- **Location:** `SalesCostForm.vue:~L1165`
+
+---
+
+### VitePress Documentation Update (2026-07-28)
+
+New pages added to `docs/` (deployed to GitHub Pages):
+- `docs/developer/gps-trail.md` — GPS Trail Playback (Phase 1, 2A, 2B), endpoint, planned_stops polygon, env vars
+- `docs/developer/geofence-guards.md` — All false-finish guards (#44442, #44415, #44449, #44450), env vars, unit tests
+- `docs/developer/backfill-geofence.md` — Backfill feature endpoint, GPS/manual flow, PUT response change, UI
+
+Updated existing docs:
+- `docs/developer/api-reference.md` — GPS trail endpoint, backfill-stop endpoint, PUT geofence_changed_stops
+- `docs/developer/architecture.md` — `gpsTrailGeometry.js` service, GPS trail + geofence env vars table
+- `docs/changelog/changelog.md` — Full Juli 2026 changelog (GPS trail phases, geofence guards, backfill, template jadwal, double-alamat fix, subcontractor)
+- `docs/guide/user-guide.md` — Panduan Rute GPS Aktual, backfill geofence, Subcontractor section
+- `openwiki/workflows/key-workflows.md` — Geofence guards section + GPS trail playback + backfill workflow
+- `openwiki/operations/runbook.md` — 17 new env vars (GPS trail + geofence guards + auto-finish)
+- `openwiki/quickstart.md` — Optional GPS trail + geofence guard env vars noted
+- `docs/.vitepress/config.mts` — Added "GPS & Tracking" sidebar section (3 pages), `srcExclude: ['PROJECT_CONTEXT.md']`
+
+---
+
+### Lokasi Truk — Double Alamat Fix (2026-07-28)
+- **Bug:** Panel "Lokasi" di halaman Peta Lokasi Truk menampilkan alamat dua kali — satu dari `selectedTruckLocationValue` (computed yang sudah include address) dan satu dari `v-else-if="selectedTruckAddress"`.
+- **Fix:** `TruckLocationMap.vue` template — consolidated to single rendering path: loading → skeleton, error → coords, else → `selectedTruckLocationValue`. Removed the redundant `v-else-if="selectedTruckAddress"` block.

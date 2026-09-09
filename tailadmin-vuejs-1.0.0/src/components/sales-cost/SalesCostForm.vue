@@ -201,6 +201,18 @@
                 <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ deliveryStops.length - 2 + 2 }} titik perjalanan</p>
               </div>
             </div>
+            <!-- Pakai Template button -->
+            <button
+              v-if="!isDisabled && templates.length > 0"
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
+              @click="showTemplateModal = true"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              Pakai Template
+            </button>
             <!-- Toggle Mode Manual / GPS -->
             <button
               type="button"
@@ -209,7 +221,7 @@
               :class="useManualMode
                 ? 'border-warning-300 bg-warning-50 text-warning-700 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-300'
                 : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'"
-              @click="useManualMode = !useManualMode"
+              @click="toggleManualMode"
             >
               <!-- GPS icon -->
               <svg v-if="!useManualMode" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -915,6 +927,58 @@
         </button>
       </div>
     </form>
+
+    <!-- Template Picker Modal -->
+    <div
+      v-if="showTemplateModal"
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+      @click.self="showTemplateModal = false"
+    >
+      <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
+        <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">Pakai Template Jadwal</h3>
+
+        <div class="mb-3">
+          <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">Pilih Template</label>
+          <select
+            v-model="selectedTemplateId"
+            class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          >
+            <option :value="null" disabled>Pilih template...</option>
+            <option v-for="t in templates" :key="t.id" :value="t.id">
+              {{ t.template_name }}
+              <span v-if="t.stops?.length"> ({{ t.stops.length }} stop)</span>
+            </option>
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">Tanggal Pengiriman</label>
+          <DatePickerInput
+            :model-value="templateBaseDate ? `${templateBaseDate} 00:00` : ''"
+            placeholder="Pilih tanggal pengiriman..."
+            :enable-time="false"
+            @update:model-value="(v: string) => { templateBaseDate = v ? v.slice(0, 10) : '' }"
+          />
+          <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">Jam dari template akan digabung dengan tanggal ini.</p>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            @click="showTemplateModal = false"
+          >Batal</button>
+          <button
+            type="button"
+            :disabled="!selectedTemplateId || !templateBaseDate || templatePickerLoading"
+            class="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+            @click="handleApplyTemplate"
+          >
+            {{ templatePickerLoading ? 'Memuat...' : 'Terapkan' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -929,6 +993,7 @@ import { monitoringKendaraanService } from '@/services/monitoringKendaraanServic
 import { authFetch } from '@/services/auth'
 import { API_BASE } from '@/config/api'
 import { useToast } from '@/composables/useToast'
+import { deliveryTemplateService, type DeliveryTemplate } from '@/services/deliveryTemplateService'
 
 type TruckOption = {
   id_truck: number
@@ -1098,6 +1163,20 @@ const deliveryStops = ref<DeliveryStop[]>([
 // Mode manual: geofence picker disembunyikan, hanya stop_name + estimated_arrival wajib diisi
 // Digunakan saat server GPS Wialon error/offline — reset ke false setiap kali form dibuka
 const useManualMode = ref(false)
+
+// Toggle mode: saat switch ke Manual, clear semua geofence data dari stops
+// sehingga template yang sudah dipilih tidak menghalangi mode manual (#template-override)
+const toggleManualMode = () => {
+  useManualMode.value = !useManualMode.value
+  if (useManualMode.value) {
+    deliveryStops.value = deliveryStops.value.map(stop => ({
+      ...stop,
+      wialon_resource_id: null,
+      wialon_zone_id: null,
+      wialon_zone_name: null
+    }))
+  }
+}
 
 const departureStop = computed(() => deliveryStops.value.find(s => s.is_departure === 1)!)
 const finishStop = computed(() => deliveryStops.value.find(s => s.is_finish === 1)!)
@@ -1500,6 +1579,73 @@ const getDefaultOrderDate = () => {
   return `${year}-${month}-${day}`
 }
 
+// --- Template state ---
+const templates = ref<DeliveryTemplate[]>([])
+const showTemplateModal = ref(false)
+const templateBaseDate = ref('')
+const templatePickerLoading = ref(false)
+const selectedTemplateId = ref<number | null>(null)
+const areaAutoPopulating = ref(false)
+
+const loadTemplates = async () => {
+  try {
+    templates.value = await deliveryTemplateService.fetchTemplates()
+  } catch {
+    // silent fail — templates are optional
+  }
+}
+
+const isStopsDefault = () => {
+  return (
+    deliveryStops.value.length === 2 &&
+    !deliveryStops.value[0].estimated_arrival &&
+    !deliveryStops.value[1].estimated_arrival
+  )
+}
+
+const applyTemplateStops = (
+  stops: Array<{
+    stop_order: number
+    stop_name: string
+    wialon_resource_id?: number | null
+    wialon_zone_id?: number | null
+    wialon_zone_name?: string | null
+    is_departure: number
+    is_finish: number
+    time_hhmm?: string | null
+  }>,
+  baseDate: string | null
+) => {
+  deliveryStops.value = stops.map((s) => ({
+    stop_order: Number(s.stop_order),
+    stop_name: s.stop_name || '',
+    wialon_resource_id: s.wialon_resource_id ?? null,
+    wialon_zone_id: s.wialon_zone_id ?? null,
+    wialon_zone_name: s.wialon_zone_name ?? null,
+    is_departure: Number(s.is_departure) as 0 | 1,
+    is_finish: Number(s.is_finish) as 0 | 1,
+    estimated_arrival: baseDate && s.time_hhmm ? `${baseDate} ${s.time_hhmm}:00` : ''
+  }))
+}
+
+const handleApplyTemplate = async () => {
+  if (!selectedTemplateId.value || !templateBaseDate.value) return
+  templatePickerLoading.value = true
+  try {
+    const tmpl = await deliveryTemplateService.fetchTemplate(selectedTemplateId.value)
+    applyTemplateStops(tmpl.stops, templateBaseDate.value)
+    showTemplateModal.value = false
+    selectedTemplateId.value = null
+    templateBaseDate.value = ''
+    toast.success('Template jadwal diterapkan. Periksa dan sesuaikan waktu jika perlu.')
+  } catch {
+    toast.error('Gagal memuat template.')
+  } finally {
+    templatePickerLoading.value = false
+  }
+}
+// --- End template state ---
+
 const resetForm = () => {
   form.id_truck = ''
   form.id_driver = ''
@@ -1893,9 +2039,31 @@ watch(
   { immediate: true },
 )
 
+// Auto-populate delivery stops when area changes (edit mode guard)
+watch(
+  () => form.id_area,
+  async (newAreaId, oldAreaId) => {
+    if (!newAreaId || newAreaId === oldAreaId || props.mode === 'edit' || areaAutoPopulating.value) return
+    if (!isStopsDefault()) return  // Don't overwrite user's existing stops
+    areaAutoPopulating.value = true
+    try {
+      const data = await salesCostService.fetchAreaRouteSteps(newAreaId)
+      if (data?.stops?.length > 0) {
+        applyTemplateStops(data.stops, null)
+        toast.info('Jadwal diisi dari rute area. Silakan lengkapi tanggal dan jam.')
+      }
+    } catch {
+      // silent fail
+    } finally {
+      areaAutoPopulating.value = false
+    }
+  }
+)
+
 onMounted(async () => {
   await loadOptions()
   void loadGeofences()
+  void loadTemplates()
   if (props.mode === 'create') {
     resetForm()
     applyInitialData({})

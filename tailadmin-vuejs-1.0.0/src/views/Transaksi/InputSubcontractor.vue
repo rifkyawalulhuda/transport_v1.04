@@ -50,7 +50,16 @@ const handleSubmit = async (payload: Record<string, unknown>) => {
   formError.value = ''
   isSubmitting.value = true
   try {
-    await subcontractorService.createSubcontractor(payload)
+    const result = await subcontractorService.createSubcontractor(payload)
+    // save DN items (non-blocking)
+    const dnItems = payload._dnItems
+    if (Array.isArray(dnItems) && result?.id) {
+      try {
+        await subcontractorService.saveDNList(Number(result.id), dnItems)
+      } catch {
+        toast.warning('Data DN gagal disimpan, data utama tersimpan.')
+      }
+    }
     toast.success('Data berhasil disimpan')
     router.push('/subcontractor')
   } catch (error: unknown) {
