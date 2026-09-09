@@ -138,6 +138,50 @@ router.get("/dashboard", async (req, res) => {
       other: Math.round((Number(risk.other_risk || 0) / riskTotal) * 100)
     };
 
+    const [adasRows] = await db.query(
+      `SELECT plate_number, alarm_type, COUNT(*) AS total
+       FROM bbs_observations
+       WHERE source = 'adas' AND date >= ? AND date <= ?
+       GROUP BY plate_number, alarm_type
+       ORDER BY plate_number ASC`,
+      [firstDay, endDay]
+    );
+    const scoreConfig = {
+      fatigue: { aggWeight: 0.3, types: [{ match: 'eyes closed', points: 6 }, { match: 'yawn', points: 4 }] },
+      distraction: { aggWeight: 0.2, types: [{ match: 'distract', points: 5 }] },
+      collision: { aggWeight: 0.2, types: [{ match: 'forward collision', points: 4 }, { match: 'pedestrian collision', points: 4 }, { match: 'headway monitoring', points: 4 }] },
+      lane: { aggWeight: 0.15, types: [{ match: 'lane departure', points: 3 }] },
+      speed: { aggWeight: 0.15, types: [{ match: 'speed', points: 3 }, { match: 'overspeed', points: 3 }] }
+    };
+    const truckScores = new Map();
+    const getScoreRecord = (plate) => {
+      if (!truckScores.has(plate)) {
+        truckScores.set(plate, { plate_number: plate, total_alarms: 0, points: { fatigue: 0, distraction: 0, collision: 0, lane: 0, speed: 0 } });
+      }
+      return truckScores.get(plate);
+    };
+    (adasRows || []).forEach((row) => {
+      const plate = String(row.plate_number || '').trim() || 'Tidak diketahui';
+      const record = getScoreRecord(plate);
+      const count = Number(row.total || 0);
+      const alarmType = String(row.alarm_type || '').toLowerCase();
+      record.total_alarms += count;
+      Object.entries(scoreConfig).forEach(([category, config]) => {
+        const matched = config.types.find((item) => alarmType.includes(item.match));
+        if (matched) record.points[category] += count * matched.points;
+      });
+    });
+    const adasScores = Array.from(truckScores.values()).map((record) => {
+      const categoryScores = Object.fromEntries(Object.entries(scoreConfig).map(([category, config]) => [
+        category,
+        Math.max(0, Math.round(100 - record.points[category]))
+      ]));
+      const score = Math.max(0, Math.round(
+        Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
+      ));
+      return { ...record, score, status: score >= 80 ? 'aman' : score >= 60 ? 'perlu_perhatian' : 'berisiko', category_scores: categoryScores };
+    }).sort((a, b) => a.score - b.score || b.total_alarms - a.total_alarms);
+
     res.json({
       summary: {
         safe_behavior_rate: safeRate,
@@ -170,7 +214,8 @@ router.get("/dashboard", async (req, res) => {
         { label: "Tidak pakai sabuk", value: riskCategories.seatbelt },
         { label: "Penggunaan HP saat berkendara", value: riskCategories.phone },
         { label: "Jarak aman tidak terjaga", value: riskCategories.distance }
-      ]
+      ],
+      adas_scores: adasScores
     });
   } catch (err) {
     console.error("BBS dashboard error:", err);
@@ -650,6 +695,43 @@ router.delete("/incidents/:id", async (req, res) => {
     res.json({ message: "Insiden dihapus" });
   } catch (err) {
     console.error("BBS delete incident error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/alarm-breakdown", async (req, res) => {
+  try {
+    const monthParam = String(req.query.month || "").trim();
+    let year, month;
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [y, m] = monthParam.split("-").map(Number);
+      year = y;
+      month = m;
+    } else {
+      const now = new Date();
+      year = now.getFullYear();
+      month = now.getMonth() + 1;
+    }
+    const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
+    const lastDayDate = new Date(year, month, 0);
+    const endDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDayDate.getDate()).padStart(2, "0")}`;
+
+    const [rows] = await db.query(
+      `SELECT alarm_type, COUNT(*) AS total
+       FROM bbs_observations
+       WHERE source = 'adas'
+         AND DATE(begin_time) >= ? AND DATE(begin_time) <= ?
+       GROUP BY alarm_type
+       ORDER BY total DESC`,
+      [firstDay, endDay]
+    );
+
+    const labels = (rows || []).map((r) => String(r.alarm_type || "Unknown"));
+    const data = (rows || []).map((r) => Number(r.total || 0));
+
+    res.json({ labels, data, month: `${year}-${String(month).padStart(2, "0")}` });
+  } catch (err) {
+    console.error("BBS alarm-breakdown error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });
