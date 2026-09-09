@@ -1483,6 +1483,26 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
   - Dedup burst + unique key guard
   - `mapAlarm()` — maps ADAS alarm type to BBS observation key + risk value
 
+### BBS Dashboard — Wialon Overspeed Integration
+
+- `bbs.js GET /dashboard` sekarang juga menarik data overspeed dari Wialon untuk memperkaya skor kecepatan ADAS.
+- **Flow:**
+  1. Query `truck` untuk mapping `no_police → wialon_unit_id` (active trucks only).
+  2. Panggil `fetchOverspeedCountsByUnits({ unitIds, timeFrom, timeTo })` dari `wialonService.js` dengan 8-detik timeout (`Promise.race`). Jika Wialon unavailable/timeout, dashboard tetap lanjut tanpa data overspeed.
+  3. Untuk setiap truk di `adas_scores`: ambil `wialon_overspeed` count dari Wialon map, terapkan penalty tambahan ke `categoryScores.speed`: `penalty = min(wialonOverspeed × 2, 40)` (max −40 poin). Final score dihitung ulang.
+  4. Response `adas_scores` kini include field `wialon_overspeed: number`.
+
+### wialonService.js — `fetchOverspeedCountsByUnits`
+
+- Fungsi baru: `fetchOverspeedCountsByUnits({ unitIds, timeFrom, timeTo })` — return `Map<unitId, count>`.
+- Menggunakan isolated Wialon session per unit (`loginIsolatedSession` / `logoutIsolatedSession`).
+- **Concurrency:** `_OVERSPEED_CONCURRENCY = 5` parallel sessions via worker queue pattern.
+- **Cache:** module-level `_overspeedCache` keyed by `timeFrom_timeTo`, TTL 5 menit — menghindari repeated full scan dalam window dashboard refresh yang sama.
+- Keyword matching: `["overspeed", "over speed", "speed limit", "speeding", "превышение скорости"]` (case-insensitive di field `tp_n / text / t_n / d` setiap message).
+- Fetch via `messages/load_interval` (flags `0x0600`, flagsMask `0xFF00`) → `messages/get_messages`. Count messages yang match keywords.
+- Error per-unit: return `0` (tidak throw), session selalu di-logout/unload di `finally`.
+- Exported dari `module.exports`.
+
 ### Important Routes (tambahan)
 
 - `POST /api/bbs/alarms/import` — import alarm ADAS dari file CSV/XLSX (admin/CS only)
