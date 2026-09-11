@@ -123,13 +123,6 @@ const validateStructuredRouteSteps = (routeSteps) => {
       };
     }
 
-    if (!step.wialon_resource_id || !step.wialon_zone_id || !step.wialon_zone_name) {
-      return {
-        ok: false,
-        message: `Geofence Wialon pada langkah rute ke-${expectedOrder} wajib dipilih.`
-      };
-    }
-
     if (seenStepOrder.has(step.step_order)) {
       return {
         ok: false,
@@ -137,16 +130,19 @@ const validateStructuredRouteSteps = (routeSteps) => {
       };
     }
 
-    const zoneKey = `${step.wialon_resource_id}:${step.wialon_zone_id}`;
-    if (seenZoneKeys.has(zoneKey)) {
-      return {
-        ok: false,
-        message: "Geofence yang sama tidak boleh dipakai lebih dari sekali pada satu rute."
-      };
+    // Hanya cek duplikat geofence jika geofence diisi
+    if (step.wialon_resource_id && step.wialon_zone_id) {
+      const zoneKey = `${step.wialon_resource_id}:${step.wialon_zone_id}`;
+      if (seenZoneKeys.has(zoneKey)) {
+        return {
+          ok: false,
+          message: "Geofence yang sama tidak boleh dipakai lebih dari sekali pada satu rute."
+        };
+      }
+      seenZoneKeys.add(zoneKey);
     }
 
     seenStepOrder.add(step.step_order);
-    seenZoneKeys.add(zoneKey);
   }
 
   return {

@@ -2048,9 +2048,15 @@ watch(
     areaAutoPopulating.value = true
     try {
       const data = await salesCostService.fetchAreaRouteSteps(newAreaId)
-      if (data?.stops?.length > 0) {
-        applyTemplateStops(data.stops, null)
-        toast.info('Jadwal diisi dari rute area. Silakan lengkapi tanggal dan jam.')
+        if (data?.stops?.length > 0) {
+          const stopsWithoutGeofence = data.stops.map((s: any) => ({
+            ...s,
+            wialon_resource_id: null,
+            wialon_zone_id: null,
+            wialon_zone_name: null,
+          }))
+          applyTemplateStops(stopsWithoutGeofence, null)
+          toast.info('Jadwal diisi dari rute area. Silakan lengkapi tanggal dan jam.')
       }
     } catch {
       // silent fail
