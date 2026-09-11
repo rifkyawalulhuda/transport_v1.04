@@ -983,7 +983,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import DatePickerInput from '@/components/DatePickerInput.vue'
 import AddressAutocomplete from '@/components/common/AddressAutocomplete.vue'
@@ -1045,6 +1045,7 @@ type SalesCostFormData = {
   tgl_order: string
   nik_admin: string
   id_print: string
+  is_manual_mode?: number | boolean
   dnItems?: DnItem[]
 }
 
@@ -1586,6 +1587,7 @@ const templateBaseDate = ref('')
 const templatePickerLoading = ref(false)
 const selectedTemplateId = ref<number | null>(null)
 const areaAutoPopulating = ref(false)
+const isInitializing = ref(false)
 
 const loadTemplates = async () => {
   try {
@@ -1692,7 +1694,10 @@ const resetForm = () => {
 }
 
 const applyInitialData = (data: Partial<SalesCostFormData>) => {
-  useManualMode.value = false // reset ke GPS mode setiap kali form dibuka
+  isInitializing.value = true
+  // Ikuti mode tersimpan: SPK manual tetap Manual (geofence tidak diwajibkan).
+  // Create dengan data kosong -> 0 -> GPS mode.
+  useManualMode.value = Number(data.is_manual_mode) === 1
   form.id_truck = data.id_truck ? String(data.id_truck) : ''
   form.id_driver = data.id_driver ? String(data.id_driver) : ''
   form.id_customer = data.id_customer ? String(data.id_customer) : ''
@@ -1802,6 +1807,10 @@ const applyInitialData = (data: Partial<SalesCostFormData>) => {
 
   // Cek jika ada nilai yang tidak kosong/0 untuk menampilkan opsi
   showOptionalCosts.value = false
+  // Reset isInitializing after next tick so area watcher doesn't trigger during init
+  nextTick(() => {
+    isInitializing.value = false
+  })
 }
 
 const buildPayload = () => {
@@ -2043,7 +2052,7 @@ watch(
 watch(
   () => form.id_area,
   async (newAreaId, oldAreaId) => {
-    if (!newAreaId || newAreaId === oldAreaId || props.mode === 'edit' || areaAutoPopulating.value) return
+    if (!newAreaId || newAreaId === oldAreaId || props.mode === 'edit' || areaAutoPopulating.value || isInitializing.value) return
     if (!isStopsDefault()) return  // Don't overwrite user's existing stops
     areaAutoPopulating.value = true
     try {

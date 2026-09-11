@@ -23,9 +23,6 @@ CREATE TABLE `area` (
   `id_area` int(13) NOT NULL AUTO_INCREMENT,
   `kode_area` varchar(50) DEFAULT NULL,
   `nama_area` varchar(200) NOT NULL,
-  `finish_geofence_resource_id` bigint(20) DEFAULT NULL,
-  `finish_geofence_zone_id` bigint(20) DEFAULT NULL,
-  `finish_geofence_zone_name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id_area`)
 ) ENGINE=InnoDB AUTO_INCREMENT=200 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -36,12 +33,8 @@ CREATE TABLE `area_route_step` (
   `id_area` int(13) NOT NULL,
   `step_order` int(11) NOT NULL,
   `step_name` varchar(100) NOT NULL,
-  `wialon_resource_id` bigint(20) DEFAULT NULL,
-  `wialon_zone_id` bigint(20) DEFAULT NULL,
-  `wialon_zone_name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id_area_route_step`),
   UNIQUE KEY `uniq_area_route_step_order` (`id_area`,`step_order`),
-  UNIQUE KEY `uniq_area_route_step_zone` (`id_area`,`wialon_resource_id`,`wialon_zone_id`),
   KEY `idx_area_route_step_area` (`id_area`),
   CONSTRAINT `fk_area_route_step_area` FOREIGN KEY (`id_area`) REFERENCES `area` (`id_area`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;

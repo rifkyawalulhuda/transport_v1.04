@@ -47,7 +47,7 @@
                     {{ formTitle }}
                   </h3>
                   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Susun langkah rute dan pilih geofence Wialon untuk setiap titik pengiriman.
+                    Susun langkah rute untuk setiap titik pengiriman.
                   </p>
                 </div>
                 <button
@@ -183,91 +183,9 @@
                               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                             />
                           </div>
-                          <div>
-                            <label
-                              class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
-                            >
-                              Geofence Wialon
-                            </label>
-                            <SearchableSelect
-                              :model-value="getStepGeofenceValue(step)"
-                              :options="geofenceSelectOptions"
-                              value-key="value"
-                              label-key="label"
-                              :search-keys="['label', 'resource_name', 'zone_name']"
-                              placeholder="-Pilih geofence-"
-                              search-placeholder="Cari resource atau geofence"
-                              :disabled="isSubmitting || geofenceLoading"
-                              @update:model-value="updateStepGeofence(index, $event)"
-                            />
-                          </div>
-                        </div>
-
-                        <div
-                          v-if="step.wialon_zone_name"
-                          class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300"
-                        >
-                          Geofence terpilih: {{ step.wialon_zone_name }}
-                          <span class="text-gray-400 dark:text-gray-500">
-                            (Resource ID {{ step.wialon_resource_id }}, Zone ID
-                            {{ step.wialon_zone_id }})
-                          </span>
                         </div>
                       </div>
-                    </div>
-
-                    <div
-                      class="mt-5 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
-                    >
-                      <div class="mb-3">
-                        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                          Finish Order Geofence
-                        </h4>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Pilih geofence yang dipakai saat sistem mencatat Finish Order. Nilai ini
-                          tidak masuk ke Nama Area.
-                        </p>
-                      </div>
-
-                      <div class="grid gap-4 lg:grid-cols-2">
-                        <div>
-                          <label
-                            class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200"
-                          >
-                            Geofence Finish Order
-                          </label>
-                          <SearchableSelect
-                            :model-value="getFinishGeofenceValue()"
-                            :options="geofenceSelectOptions"
-                            value-key="value"
-                            label-key="label"
-                            :search-keys="['label', 'resource_name', 'zone_name']"
-                            placeholder="-Pilih finish geofence-"
-                            search-placeholder="Cari resource atau geofence"
-                            :disabled="isSubmitting || geofenceLoading"
-                            @update:model-value="updateFinishGeofence"
-                          />
-                        </div>
-                      </div>
-
-                      <div
-                        v-if="form.finish_geofence_zone_name"
-                        class="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-300"
-                      >
-                        Finish Order terpilih: {{ form.finish_geofence_zone_name }}
-                        <span class="text-gray-400 dark:text-gray-500">
-                          (Resource ID {{ form.finish_geofence_resource_id }}, Zone ID
-                          {{ form.finish_geofence_zone_id }})
-                        </span>
-                      </div>
-                    </div>
-
-                    <p
-                      v-if="geofenceError"
-                      class="mt-4 rounded-lg border border-warning-200 bg-warning-50 px-4 py-2 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
-                    >
-                      {{ geofenceError }}
-                    </p>
+                  </div>
                   </div>
 
                   <div
@@ -427,7 +345,6 @@ import Pagination from '@/components/common/Pagination.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import Modal from '@/components/ui/Modal.vue'
 import MasterImportActions from '@/components/master/MasterImportActions.vue'
-import SearchableSelect from '@/components/SearchableSelect.vue'
 import { filterItemsByQuery, useListQuery } from '@/composables/useListQuery'
 import { useSortableItems } from '@/composables/useSortableItems'
 import { useDialog } from '@/composables/useDialog'
@@ -438,33 +355,21 @@ type RouteStep = {
   id_area_route_step: number | null
   step_order: number
   step_name: string
-  wialon_resource_id: string
-  wialon_zone_id: string
-  wialon_zone_name: string
 }
 
 type AreaItem = {
   id_area: number
   kode_area: string | null
   nama_area: string
-  finish_geofence_resource_id?: number | null
-  finish_geofence_zone_id?: number | null
-  finish_geofence_zone_name?: string | null
   route_steps: Array<{
     id_area_route_step: number
     step_order: number
     step_name: string
-    wialon_resource_id: number
-    wialon_zone_id: number
-    wialon_zone_name: string
   }>
   draft_route_steps?: Array<{
     id_area_route_step: number | null
     step_order: number
     step_name: string
-    wialon_resource_id: number | null
-    wialon_zone_id: number | null
-    wialon_zone_name: string
   }>
 }
 
@@ -472,16 +377,6 @@ type FormState = {
   id: number | null
   kode_area: string
   route_steps: RouteStep[]
-  finish_geofence_resource_id: string
-  finish_geofence_zone_id: string
-  finish_geofence_zone_name: string
-}
-
-type WialonGeofenceRow = {
-  resource_id: number
-  resource_name: string
-  zone_id: number
-  zone_name: string
 }
 
 const currentPageTitle = ref('Master Area')
@@ -492,16 +387,10 @@ const editingId = ref<number | null>(null)
 const formTitle = ref('Tambah Area')
 const isSubmitting = ref(false)
 const deletingId = ref<number | null>(null)
-const geofenceRows = ref<WialonGeofenceRow[]>([])
-const geofenceLoading = ref(false)
-const geofenceError = ref('')
 const form = reactive<FormState>({
   id: null,
   kode_area: '',
   route_steps: [],
-  finish_geofence_resource_id: '',
-  finish_geofence_zone_id: '',
-  finish_geofence_zone_name: '',
 })
 
 const apiBase = API_BASE
@@ -518,15 +407,6 @@ const createEmptyRouteStep = (stepOrder: number): RouteStep => ({
   id_area_route_step: null,
   step_order: stepOrder,
   step_name: '',
-  wialon_resource_id: '',
-  wialon_zone_id: '',
-  wialon_zone_name: '',
-})
-
-const createEmptyFinishGeofence = () => ({
-  finish_geofence_resource_id: '',
-  finish_geofence_zone_id: '',
-  finish_geofence_zone_name: '',
 })
 
 const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
@@ -543,38 +423,8 @@ const normalizeDraftRouteSteps = (item?: AreaItem | null) => {
     id_area_route_step: step.id_area_route_step ?? null,
     step_order: index + 1,
     step_name: step.step_name || '',
-    wialon_resource_id:
-      step.wialon_resource_id === null || step.wialon_resource_id === undefined
-        ? ''
-        : String(step.wialon_resource_id),
-    wialon_zone_id:
-      step.wialon_zone_id === null || step.wialon_zone_id === undefined
-        ? ''
-        : String(step.wialon_zone_id),
-    wialon_zone_name: step.wialon_zone_name || '',
   }))
 }
-
-const normalizeDraftFinishGeofence = (item?: AreaItem | null) => ({
-  finish_geofence_resource_id:
-    item?.finish_geofence_resource_id === null || item?.finish_geofence_resource_id === undefined
-      ? ''
-      : String(item.finish_geofence_resource_id),
-  finish_geofence_zone_id:
-    item?.finish_geofence_zone_id === null || item?.finish_geofence_zone_id === undefined
-      ? ''
-      : String(item.finish_geofence_zone_id),
-  finish_geofence_zone_name: item?.finish_geofence_zone_name || '',
-})
-
-const geofenceSelectOptions = computed(() =>
-  geofenceRows.value.map((row) => ({
-    value: `${row.resource_id}:${row.zone_id}`,
-    label: row.zone_name,
-    resource_name: row.resource_name,
-    zone_name: row.zone_name,
-  })),
-)
 
 const areaNamePreview = computed(() => {
   const parts = []
@@ -650,28 +500,6 @@ const loadData = async () => {
   }
 }
 
-const loadGeofences = async () => {
-  if (geofenceRows.value.length > 0 || geofenceLoading.value) {
-    return
-  }
-
-  geofenceLoading.value = true
-  geofenceError.value = ''
-  try {
-    const res = await authFetch(`${apiBase}/wialon/geofences`)
-    const data = await res.json()
-    geofenceRows.value = Array.isArray(data?.rows) ? data.rows : []
-    if (geofenceRows.value.length === 0) {
-      geofenceError.value = 'Belum ada geofence yang tersedia pada resource Wialon akun ini.'
-    }
-  } catch (error) {
-    console.error(error)
-    geofenceError.value = 'Gagal mengambil daftar geofence Wialon.'
-  } finally {
-    geofenceLoading.value = false
-  }
-}
-
 const handleImported = async () => {
   await loadData()
   setPage(1)
@@ -708,66 +536,22 @@ const moveRouteStep = (index: number, direction: number) => {
   reindexRouteSteps()
 }
 
-const getStepGeofenceValue = (step: RouteStep) => {
-  if (!step.wialon_resource_id || !step.wialon_zone_id) {
-    return ''
-  }
-  return `${step.wialon_resource_id}:${step.wialon_zone_id}`
-}
 
-const updateStepGeofence = (index: number, value: string) => {
-  const selected = geofenceRows.value.find((row) => `${row.resource_id}:${row.zone_id}` === value)
-  if (!selected) {
-    form.route_steps[index].wialon_resource_id = ''
-    form.route_steps[index].wialon_zone_id = ''
-    form.route_steps[index].wialon_zone_name = ''
-    return
-  }
-
-  form.route_steps[index].wialon_resource_id = String(selected.resource_id)
-  form.route_steps[index].wialon_zone_id = String(selected.zone_id)
-  form.route_steps[index].wialon_zone_name = selected.zone_name
-}
-
-const getFinishGeofenceValue = () => {
-  if (!form.finish_geofence_resource_id || !form.finish_geofence_zone_id) {
-    return ''
-  }
-  return `${form.finish_geofence_resource_id}:${form.finish_geofence_zone_id}`
-}
-
-const updateFinishGeofence = (value: string) => {
-  const selected = geofenceRows.value.find((row) => `${row.resource_id}:${row.zone_id}` === value)
-  if (!selected) {
-    form.finish_geofence_resource_id = ''
-    form.finish_geofence_zone_id = ''
-    form.finish_geofence_zone_name = ''
-    return
-  }
-
-  form.finish_geofence_resource_id = String(selected.resource_id)
-  form.finish_geofence_zone_id = String(selected.zone_id)
-  form.finish_geofence_zone_name = selected.zone_name
-}
-
-const openForm = async (item?: AreaItem) => {
+const openForm = (item?: AreaItem) => {
   if (item) {
     formTitle.value = 'Edit Area'
     editingId.value = item.id_area
     form.id = item.id_area
     form.kode_area = item.kode_area || ''
     form.route_steps = normalizeDraftRouteSteps(item)
-    Object.assign(form, normalizeDraftFinishGeofence(item))
   } else {
     formTitle.value = 'Tambah Area'
     editingId.value = null
     form.id = null
     form.kode_area = ''
     form.route_steps = [createEmptyRouteStep(1)]
-    Object.assign(form, createEmptyFinishGeofence())
   }
   showForm.value = true
-  await loadGeofences()
 }
 
 const cancelForm = () => {
@@ -782,20 +566,10 @@ const submitForm = async () => {
 
   const payload = {
     kode_area: form.kode_area.trim(),
-    finish_geofence_resource_id: form.finish_geofence_resource_id
-      ? Number(form.finish_geofence_resource_id)
-      : null,
-    finish_geofence_zone_id: form.finish_geofence_zone_id
-      ? Number(form.finish_geofence_zone_id)
-      : null,
-    finish_geofence_zone_name: form.finish_geofence_zone_name.trim(),
     route_steps: form.route_steps.map((step, index) => ({
       id_area_route_step: step.id_area_route_step,
       step_order: index + 1,
       step_name: step.step_name.trim(),
-      wialon_resource_id: step.wialon_resource_id ? Number(step.wialon_resource_id) : null,
-      wialon_zone_id: step.wialon_zone_id ? Number(step.wialon_zone_id) : null,
-      wialon_zone_name: step.wialon_zone_name.trim(),
     })),
   }
 

@@ -77,48 +77,14 @@ const ensureAreaRouteSchema = async () => {
     console.log("Added missing area.kode_area column");
   }
 
-  const hasFinishGeofenceResourceId = await hasColumn(
-    "area",
-    "finish_geofence_resource_id"
-  );
-  if (!hasFinishGeofenceResourceId) {
-    await db.query(
-      "ALTER TABLE area ADD COLUMN finish_geofence_resource_id bigint(20) NULL DEFAULT NULL AFTER nama_area"
-    );
-    console.log("Added missing area.finish_geofence_resource_id column");
-  }
-
-  const hasFinishGeofenceZoneId = await hasColumn("area", "finish_geofence_zone_id");
-  if (!hasFinishGeofenceZoneId) {
-    await db.query(
-      "ALTER TABLE area ADD COLUMN finish_geofence_zone_id bigint(20) NULL DEFAULT NULL AFTER finish_geofence_resource_id"
-    );
-    console.log("Added missing area.finish_geofence_zone_id column");
-  }
-
-  const hasFinishGeofenceZoneName = await hasColumn(
-    "area",
-    "finish_geofence_zone_name"
-  );
-  if (!hasFinishGeofenceZoneName) {
-    await db.query(
-      "ALTER TABLE area ADD COLUMN finish_geofence_zone_name varchar(255) NULL DEFAULT NULL AFTER finish_geofence_zone_id"
-    );
-    console.log("Added missing area.finish_geofence_zone_name column");
-  }
-
   await db.query(`
     CREATE TABLE IF NOT EXISTS area_route_step (
       id_area_route_step int(13) NOT NULL AUTO_INCREMENT,
       id_area int(13) NOT NULL,
       step_order int(11) NOT NULL,
       step_name varchar(100) NOT NULL,
-      wialon_resource_id bigint(20) DEFAULT NULL,
-      wialon_zone_id bigint(20) DEFAULT NULL,
-      wialon_zone_name varchar(255) DEFAULT NULL,
       PRIMARY KEY (id_area_route_step),
       UNIQUE KEY uniq_area_route_step_order (id_area, step_order),
-      UNIQUE KEY uniq_area_route_step_zone (id_area, wialon_resource_id, wialon_zone_id),
       KEY idx_area_route_step_area (id_area),
       CONSTRAINT fk_area_route_step_area
         FOREIGN KEY (id_area) REFERENCES area (id_area)

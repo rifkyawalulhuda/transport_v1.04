@@ -162,6 +162,44 @@ const ensureTable = async (connection, tableName, createSql) => {
   return true;
 };
 
+const dropColumnIfExists = async (connection, tableName, columnName) => {
+  if (!(await hasColumn(connection, tableName, columnName))) {
+    return false;
+  }
+
+  await connection.query(
+    `ALTER TABLE ${quoteIdentifier(tableName)} DROP COLUMN ${quoteIdentifier(columnName)}`
+  );
+  return true;
+};
+
+const hasIndex = async (connection, tableName, indexName) => {
+  const database = process.env.DB_NAME || "trucking";
+  const [rows] = await connection.query(
+    `
+      SELECT COUNT(*) AS total
+      FROM information_schema.statistics
+      WHERE table_schema = ?
+        AND table_name = ?
+        AND index_name = ?
+    `,
+    [database, tableName, indexName]
+  );
+
+  return Number(rows?.[0]?.total || 0) > 0;
+};
+
+const dropIndexIfExists = async (connection, tableName, indexName) => {
+  if (!(await hasIndex(connection, tableName, indexName))) {
+    return false;
+  }
+
+  await connection.query(
+    `ALTER TABLE ${quoteIdentifier(tableName)} DROP INDEX ${quoteIdentifier(indexName)}`
+  );
+  return true;
+};
+
 const ensureForeignKey = async (connection, tableName, constraintName, alterSql) => {
   if (await hasForeignKey(connection, tableName, constraintName)) {
     return false;
@@ -189,49 +227,33 @@ const upgradeLegacyTrackedSchema = async (connection) => {
     changes.push("Menambahkan kolom area.kode_area.");
   }
 
-  if (
-    await ensureColumn(
-      connection,
-      "area",
-      "finish_geofence_resource_id",
-      `
-        ALTER TABLE ${quoteIdentifier("area")}
-        ADD COLUMN ${quoteIdentifier("finish_geofence_resource_id")} bigint(20) DEFAULT NULL
-        AFTER ${quoteIdentifier("nama_area")}
-      `
-    )
-  ) {
-    changes.push("Menambahkan kolom area.finish_geofence_resource_id.");
+  // Geofence selection moved out of Area into Sales Cost step schedule.
+  // Drop legacy area.finish_geofence_* columns if a pre-removal DB still has them.
+  for (const columnName of [
+    "finish_geofence_resource_id",
+    "finish_geofence_zone_id",
+    "finish_geofence_zone_name"
+  ]) {
+    if (await dropColumnIfExists(connection, "area", columnName)) {
+      changes.push(`Menghapus kolom area.${columnName}.`);
+    }
   }
 
-  if (
-    await ensureColumn(
-      connection,
-      "area",
-      "finish_geofence_zone_id",
-      `
-        ALTER TABLE ${quoteIdentifier("area")}
-        ADD COLUMN ${quoteIdentifier("finish_geofence_zone_id")} bigint(20) DEFAULT NULL
-        AFTER ${quoteIdentifier("finish_geofence_resource_id")}
-      `
-    )
-  ) {
-    changes.push("Menambahkan kolom area.finish_geofence_zone_id.");
+  // area_route_step no longer stores geofence. The zone unique index must be
+  // dropped BEFORE its columns: MySQL keeps a partial index (on id_area) while
+  // dropping columns, and duplicate id_area rows are normal -> ER_DUP_ENTRY.
+  if (await dropIndexIfExists(connection, "area_route_step", "uniq_area_route_step_zone")) {
+    changes.push("Menghapus index area_route_step.uniq_area_route_step_zone.");
   }
 
-  if (
-    await ensureColumn(
-      connection,
-      "area",
-      "finish_geofence_zone_name",
-      `
-        ALTER TABLE ${quoteIdentifier("area")}
-        ADD COLUMN ${quoteIdentifier("finish_geofence_zone_name")} varchar(255) DEFAULT NULL
-        AFTER ${quoteIdentifier("finish_geofence_zone_id")}
-      `
-    )
-  ) {
-    changes.push("Menambahkan kolom area.finish_geofence_zone_name.");
+  for (const columnName of [
+    "wialon_resource_id",
+    "wialon_zone_id",
+    "wialon_zone_name"
+  ]) {
+    if (await dropColumnIfExists(connection, "area_route_step", columnName)) {
+      changes.push(`Menghapus kolom area_route_step.${columnName}.`);
+    }
   }
 
   if (
@@ -259,12 +281,8 @@ const upgradeLegacyTrackedSchema = async (connection) => {
           ${quoteIdentifier("id_area")} int(13) NOT NULL,
           ${quoteIdentifier("step_order")} int(11) NOT NULL,
           ${quoteIdentifier("step_name")} varchar(100) NOT NULL,
-          ${quoteIdentifier("wialon_resource_id")} bigint(20) NOT NULL,
-          ${quoteIdentifier("wialon_zone_id")} bigint(20) NOT NULL,
-          ${quoteIdentifier("wialon_zone_name")} varchar(255) NOT NULL,
           PRIMARY KEY (${quoteIdentifier("id_area_route_step")}),
           UNIQUE KEY ${quoteIdentifier("uniq_area_route_step_order")} (${quoteIdentifier("id_area")}, ${quoteIdentifier("step_order")}),
-          UNIQUE KEY ${quoteIdentifier("uniq_area_route_step_zone")} (${quoteIdentifier("id_area")}, ${quoteIdentifier("wialon_resource_id")}, ${quoteIdentifier("wialon_zone_id")}),
           KEY ${quoteIdentifier("idx_area_route_step_area")} (${quoteIdentifier("id_area")})
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
       `
@@ -415,18 +433,26 @@ const matchesLatestTrackedSchema = async (connection) => {
     return false;
   }
 
-  const checks = await Promise.all([
+  const presentChecks = await Promise.all([
     hasColumn(connection, "area", "kode_area"),
-    hasColumn(connection, "area", "finish_geofence_resource_id"),
-    hasColumn(connection, "area", "finish_geofence_zone_id"),
-    hasColumn(connection, "area", "finish_geofence_zone_name"),
     hasColumn(connection, "driver", "is_active"),
     hasColumn(connection, "truck", "wialon_unit_id"),
     hasColumn(connection, "sales_cost_route_history", "step_key"),
     hasColumn(connection, "sales_cost_route_history", "system_step_code")
   ]);
 
-  return checks.every(Boolean);
+  // Geofence columns were removed from area / area_route_step — schema is only
+  // considered up to date when they are absent.
+  const removedChecks = await Promise.all([
+    hasColumn(connection, "area", "finish_geofence_resource_id"),
+    hasColumn(connection, "area", "finish_geofence_zone_id"),
+    hasColumn(connection, "area", "finish_geofence_zone_name"),
+    hasColumn(connection, "area_route_step", "wialon_resource_id"),
+    hasColumn(connection, "area_route_step", "wialon_zone_id"),
+    hasColumn(connection, "area_route_step", "wialon_zone_name")
+  ]);
+
+  return presentChecks.every(Boolean) && removedChecks.every((present) => !present);
 };
 
 const main = async () => {

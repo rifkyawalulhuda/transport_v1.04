@@ -65,6 +65,15 @@ const hasColumnType = async (conn, tableName, columnName, dataType) => {
   return Number(rows[0].total) > 0;
 };
 
+const isColumnNullable = async (conn, tableName, columnName) => {
+  const db = process.env.DB_NAME || "trucking";
+  const [rows] = await conn.query(
+    "SELECT IS_NULLABLE FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?",
+    [db, tableName, columnName]
+  );
+  return rows.length > 0 && String(rows[0].IS_NULLABLE).toUpperCase() === "YES";
+};
+
 // ─── Migration effect checks ──────────────────────────────────────────────────
 // Setiap fungsi mengembalikan true jika efek migration sudah ada di DB
 // (sehingga migration bisa di-skip / ditandai sebagai applied).
@@ -87,9 +96,25 @@ const migrationChecks = {
     return await hasTable(conn, "area_route_step");
   },
 
-  // Tambah finish geofence ke area
+  // Tambah finish geofence ke area — efek historis. Kolom ini kemudian dihapus
+  // oleh migrasi 20260911043042, jadi keberadaannya tidak lagi jadi penanda.
   "20260401012000": async (conn) => {
-    return await hasColumn(conn, "area", "finish_geofence_resource_id");
+    return true;
+  },
+
+  // Hapus geofence dari area / area_route_step — efek ada bila kolom sudah tidak ada
+  "20260911043042": async (conn) => {
+    return !(await hasColumn(conn, "area", "finish_geofence_resource_id")) &&
+           !(await hasColumn(conn, "area_route_step", "wialon_zone_id"));
+  },
+
+  // Wialon fields area_route_step jadi nullable — efek ada bila sudah nullable
+  // atau bila kolomnya sudah dihapus oleh migrasi 20260911043042.
+  "20260911000001": async (conn) => {
+    if (!(await hasColumn(conn, "area_route_step", "wialon_resource_id"))) {
+      return true;
+    }
+    return await isColumnNullable(conn, "area_route_step", "wialon_resource_id");
   },
 
   // Tambah is_active ke truck

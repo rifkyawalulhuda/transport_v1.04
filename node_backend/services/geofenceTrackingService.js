@@ -1,6 +1,5 @@
 const db = require("../db");
 const {
-  fetchWialonGeofences,
   fetchUnitsInZonesByResource,
   getUnitPositionMap,
   reverseGeocodeCoordinates,
@@ -19,9 +18,6 @@ const DEFAULT_INTERVAL_MS = Number.parseInt(
 const TRACKING_INTERVAL_MS = Number.isFinite(DEFAULT_INTERVAL_MS) && DEFAULT_INTERVAL_MS > 0
   ? DEFAULT_INTERVAL_MS
   : 60000;
-const DEFAULT_FINISH_GEOFENCE_NAME = String(
-  process.env.DEFAULT_FINISH_GEOFENCE_NAME || "Sankyu"
-).trim();
 const DEFAULT_FINISH_STEP_CODE = "finish_order";
 const DEFAULT_FINISH_STEP_KEY = `system:${DEFAULT_FINISH_STEP_CODE}`;
 
@@ -176,9 +172,9 @@ const DEFAULT_REQUIRE_PREVIOUS_STOP =
 const DEFAULT_REQUIRE_ALL_STOPS_BEFORE_FINISH =
   String(process.env.GEOFENCE_REQUIRE_ALL_STOPS_BEFORE_FINISH || "0").trim() === "1";
 
-// Same-zone finish (Departure=Finish=Sankyu): require meaningful leave so ignition/GPS
-// blips at base do not complete the SPK (#44390). Leave evidence may start up to
-// LOOKBACK before planned departure so early trip+return still finishes (#44394).
+// Same-zone finish (finish geofence = departure geofence): require meaningful leave
+// so ignition/GPS blips at base do not complete the SPK (#44390). Leave evidence may
+// start up to LOOKBACK before planned departure so early trip+return still finishes (#44394).
 const FINISH_MIN_AWAY_SEC = (() => {
   const n = Number.parseInt(process.env.GEOFENCE_FINISH_MIN_AWAY_SEC || "1200", 10);
   return Number.isFinite(n) && n >= 0 ? n : 1200; // 20 min
@@ -452,9 +448,9 @@ const analyzeBaseExit = ({
 
 /**
  * Resolve finish GPS hit (actual entry time, not ETA).
- * Same-zone finish (dep=finish Sankyu): require meaningful leave within lookback
- * before planned departure OR a middle-stop hit — blocks ignition false finish
- * (#44390) while allowing early trip+return finish (#44394).
+ * Same-zone finish (finish zone = departure zone): require meaningful leave within
+ * lookback before planned departure OR a middle-stop hit — blocks ignition false
+ * finish (#44390) while allowing early trip+return finish (#44394).
  * Hard gate: now must be >= planned departure before finish may be recorded.
  *
  * @returns {{ entryTs: number, lat: number|null, lon: number|null, source: string }|null}
@@ -712,13 +708,9 @@ const getActiveSalesCostCandidates = async () => {
       sc.departure_datetime,
       sc.arrival_datetime,
       sc.finish_order_datetime,
-      t.wialon_unit_id,
-      a.finish_geofence_resource_id,
-      a.finish_geofence_zone_id,
-      a.finish_geofence_zone_name
+      t.wialon_unit_id
     FROM sales_cost sc
     INNER JOIN truck t ON sc.id_truck = t.id_truck
-    INNER JOIN area a ON sc.id_area = a.id_area
     INNER JOIN sales_cost_step_schedule scss ON scss.id_sales_cost = sc.id_sales_cost
     WHERE sc.id_truck IS NOT NULL
       AND t.wialon_unit_id IS NOT NULL
@@ -747,10 +739,7 @@ const getActiveSalesCostCandidates = async () => {
       departure_datetime: row.departure_datetime ?? null,
       arrival_datetime: row.arrival_datetime ?? null,
       finish_order_datetime: row.finish_order_datetime ?? null,
-      wialon_unit_id: normalizePositiveIntString(row.wialon_unit_id),
-      finish_geofence_resource_id: row.finish_geofence_resource_id ?? null,
-      finish_geofence_zone_id: row.finish_geofence_zone_id ?? null,
-      finish_geofence_zone_name: row.finish_geofence_zone_name ?? null
+      wialon_unit_id: normalizePositiveIntString(row.wialon_unit_id)
     }));
 };
 
@@ -896,30 +885,10 @@ const fetchHistoryRowsForAssignment = async (salesCostIds) => {
   return bySc;
 };
 
-const findDefaultFinishGeofence = async () => {
-  const geofences = await fetchWialonGeofences();
-  const normalizedTarget = DEFAULT_FINISH_GEOFENCE_NAME.toLowerCase();
-  return (
-    geofences.find((row) => row.zone_name.trim().toLowerCase() === normalizedTarget) ||
-    geofences.find((row) => row.zone_name.trim().toLowerCase().includes(normalizedTarget)) ||
-    null
-  );
-};
-
-const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence, scssFinishStop = null) => {
-  const resourceId = normalizePositiveIntString(salesCost.finish_geofence_resource_id);
-  const zoneId = normalizePositiveIntString(salesCost.finish_geofence_zone_id);
-  const zoneName = String(salesCost.finish_geofence_zone_name || "").trim();
-
-  if (resourceId && zoneId) {
-    return {
-      resource_id: Number(resourceId),
-      zone_id: Number(zoneId),
-      zone_name: zoneName || String(scssFinishStop?.wialon_zone_name || "Finish").trim() || "Finish"
-    };
-  }
-
-  // Prefer explicit Finish stop geofence from sales_cost_step_schedule when area cols are empty
+const resolveFinishGeofenceForSalesCost = (scssFinishStop = null) => {
+  // Finish geofence comes exclusively from the Sales Cost step schedule
+  // (is_finish=1 stop). There is no global fallback: when the finish stop has no
+  // geofence, GPS finish tracking is skipped for that SPK (enforced in the form).
   const scssRes = normalizePositiveIntString(scssFinishStop?.wialon_resource_id);
   const scssZone = normalizePositiveIntString(scssFinishStop?.wialon_zone_id);
   if (scssRes && scssZone) {
@@ -928,14 +897,6 @@ const resolveFinishGeofenceForSalesCost = (salesCost, fallbackFinishGeofence, sc
       zone_id: Number(scssZone),
       zone_name: String(scssFinishStop.wialon_zone_name || "Finish").trim() || "Finish"
     };
-  }
-
-  if (
-    fallbackFinishGeofence?.resource_id &&
-    fallbackFinishGeofence?.zone_id &&
-    fallbackFinishGeofence?.zone_name
-  ) {
-    return fallbackFinishGeofence;
   }
 
   return null;
@@ -961,8 +922,6 @@ const syncGeofenceRouteHistory = async () => {
   let inserted = 0;
   try {
 
-  const fallbackFinishGeofence = await findDefaultFinishGeofence();
-
   const activeScIds = activeSalesCosts.map((salesCost) => salesCost.id_sales_cost);
   const existingHistoryKeys = await fetchExistingHistoryKeys(activeScIds);
   const historyRowsBySc = await fetchHistoryRowsForAssignment(activeScIds);
@@ -980,7 +939,7 @@ const syncGeofenceRouteHistory = async () => {
     ORDER BY id_sales_cost ASC, stop_order ASC
   `, scIds);
 
-  // Finish rows (is_finish=1) supply geofence when area.finish_geofence_* is null
+  // Finish rows (is_finish=1) are the sole source of the finish geofence
   const [finishStopRows] = await db.query(`
     SELECT id, id_sales_cost, stop_order, stop_name,
            wialon_resource_id, wialon_zone_id, wialon_zone_name,
@@ -1028,8 +987,6 @@ const syncGeofenceRouteHistory = async () => {
       resourceMap.get(resourceId).add(zoneId);
     }
     const finishGeofence = resolveFinishGeofenceForSalesCost(
-      sc,
-      fallbackFinishGeofence,
       finishStopBySalesCost.get(sc.id_sales_cost) || null
     );
     if (finishGeofence?.resource_id && finishGeofence?.zone_id) {
@@ -1114,8 +1071,6 @@ const syncGeofenceRouteHistory = async () => {
     const unitId = normalizePositiveIntString(salesCost.wialon_unit_id);
     const position = positionMap.get(unitId) || null;
     const finishGeofence = resolveFinishGeofenceForSalesCost(
-      salesCost,
-      fallbackFinishGeofence,
       finishStopBySalesCost.get(salesCost.id_sales_cost) || null
     );
 
@@ -1965,11 +1920,9 @@ const runBackfill = async (fromTs, toTs) => {
   const [salesCosts] = await db.query(`
     SELECT sc.id_sales_cost, sc.id_area, sc.id_truck,
            sc.departure_datetime, sc.finish_order_datetime,
-           t.wialon_unit_id,
-           a.finish_geofence_resource_id, a.finish_geofence_zone_id, a.finish_geofence_zone_name
+           t.wialon_unit_id
     FROM sales_cost sc
     INNER JOIN truck t ON sc.id_truck = t.id_truck
-    INNER JOIN area a ON sc.id_area = a.id_area
     WHERE sc.id_truck IS NOT NULL
       AND t.wialon_unit_id IS NOT NULL AND t.wialon_unit_id <> ''
       AND t.is_active = 1
@@ -2058,10 +2011,8 @@ const runBackfill = async (fromTs, toTs) => {
   };
 
   let sid = null;
-  let fallbackFinishGeofence = null;
   try {
     sid = await loginIsolatedSession();
-    fallbackFinishGeofence = await findDefaultFinishGeofence();
   } catch (err) {
     console.warn('[geofence-backfill] cannot create Wialon session:', err.message);
     return summary;
@@ -2095,8 +2046,6 @@ const runBackfill = async (fromTs, toTs) => {
         );
         const scIdNum = Number(sc.id_sales_cost);
         const finishGeofencePreview = resolveFinishGeofenceForSalesCost(
-          sc,
-          fallbackFinishGeofence,
           finishStopBySalesCost.get(scIdNum) || null
         );
         if (finishGeofencePreview?.resource_id) {

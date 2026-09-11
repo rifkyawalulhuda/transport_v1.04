@@ -71,27 +71,8 @@ const normalizeRouteSteps = (routeSteps) => {
   return routeSteps.map((step, index) => ({
     id_area_route_step: normalizePositiveInt(step?.id_area_route_step),
     step_order: normalizePositiveInt(step?.step_order) || index + 1,
-    step_name: normalizeText(step?.step_name),
-    wialon_resource_id: normalizePositiveInt(step?.wialon_resource_id),
-    wialon_zone_id: normalizePositiveInt(step?.wialon_zone_id),
-    wialon_zone_name: normalizeText(step?.wialon_zone_name)
+    step_name: normalizeText(step?.step_name)
   }));
-};
-
-const normalizeFinishGeofence = (finishGeofence) => {
-  if (!finishGeofence || typeof finishGeofence !== "object") {
-    return {
-      finish_geofence_resource_id: null,
-      finish_geofence_zone_id: null,
-      finish_geofence_zone_name: ""
-    };
-  }
-
-  return {
-    finish_geofence_resource_id: normalizePositiveInt(finishGeofence.finish_geofence_resource_id),
-    finish_geofence_zone_id: normalizePositiveInt(finishGeofence.finish_geofence_zone_id),
-    finish_geofence_zone_name: normalizeText(finishGeofence.finish_geofence_zone_name)
-  };
 };
 
 const validateStructuredRouteSteps = (routeSteps) => {
@@ -104,7 +85,6 @@ const validateStructuredRouteSteps = (routeSteps) => {
 
   const orderedSteps = [...routeSteps].sort((a, b) => a.step_order - b.step_order);
   const seenStepOrder = new Set();
-  const seenZoneKeys = new Set();
 
   for (let index = 0; index < orderedSteps.length; index += 1) {
     const step = orderedSteps[index];
@@ -130,18 +110,6 @@ const validateStructuredRouteSteps = (routeSteps) => {
       };
     }
 
-    // Hanya cek duplikat geofence jika geofence diisi
-    if (step.wialon_resource_id && step.wialon_zone_id) {
-      const zoneKey = `${step.wialon_resource_id}:${step.wialon_zone_id}`;
-      if (seenZoneKeys.has(zoneKey)) {
-        return {
-          ok: false,
-          message: "Geofence yang sama tidak boleh dipakai lebih dari sekali pada satu rute."
-        };
-      }
-      seenZoneKeys.add(zoneKey);
-    }
-
     seenStepOrder.add(step.step_order);
   }
 
@@ -154,22 +122,6 @@ const validateStructuredRouteSteps = (routeSteps) => {
 const resolveAreaPayload = (body) => {
   const hasStructuredSteps = Object.prototype.hasOwnProperty.call(body || {}, "route_steps");
   const safeKodeArea = normalizeText(body?.kode_area);
-  const normalizedFinishGeofence = normalizeFinishGeofence(body);
-  const finishGeofenceIsFilled =
-    normalizedFinishGeofence.finish_geofence_resource_id &&
-    normalizedFinishGeofence.finish_geofence_zone_id &&
-    normalizedFinishGeofence.finish_geofence_zone_name;
-  const finishGeofenceIsEmpty =
-    !normalizedFinishGeofence.finish_geofence_resource_id &&
-    !normalizedFinishGeofence.finish_geofence_zone_id &&
-    !normalizedFinishGeofence.finish_geofence_zone_name;
-
-  if (!finishGeofenceIsFilled && !finishGeofenceIsEmpty) {
-    return {
-      ok: false,
-      message: "Finish Order Geofence harus dipilih lengkap."
-    };
-  }
 
   if (hasStructuredSteps) {
     const normalizedSteps = normalizeRouteSteps(body?.route_steps);
@@ -185,8 +137,7 @@ const resolveAreaPayload = (body) => {
         kodeArea: safeKodeArea,
         routeSteps: validation.routeSteps
       }),
-      routeSteps: validation.routeSteps,
-      finishGeofence: finishGeofenceIsFilled ? normalizedFinishGeofence : null
+      routeSteps: validation.routeSteps
     };
   }
 
@@ -203,8 +154,7 @@ const resolveAreaPayload = (body) => {
     ok: true,
     kodeArea: safeKodeArea || parsedLegacy.kode_area || null,
     namaArea,
-    routeSteps: [],
-    finishGeofence: finishGeofenceIsFilled ? normalizedFinishGeofence : null
+    routeSteps: []
   };
 };
 
@@ -227,10 +177,7 @@ const fetchAreaRouteStepsMap = async (areaIds, queryable = db) => {
         id_area_route_step,
         id_area,
         step_order,
-        step_name,
-        wialon_resource_id,
-        wialon_zone_id,
-        wialon_zone_name
+        step_name
       FROM area_route_step
       WHERE id_area IN (${placeholders})
       ORDER BY id_area ASC, step_order ASC
@@ -251,10 +198,7 @@ const fetchAreaRouteStepsMap = async (areaIds, queryable = db) => {
     routeStepsMap.get(key).push({
       id_area_route_step: Number(row.id_area_route_step),
       step_order: Number(row.step_order),
-      step_name: row.step_name || "",
-      wialon_resource_id: Number(row.wialon_resource_id),
-      wialon_zone_id: Number(row.wialon_zone_id),
-      wialon_zone_name: row.wialon_zone_name || ""
+      step_name: row.step_name || ""
     });
   });
 
@@ -283,7 +227,6 @@ module.exports = {
   buildAreaName,
   fetchAreaRouteStepsMap,
   normalizeRouteSteps,
-  normalizeFinishGeofence,
   parseLegacyAreaName,
   resolveAreaPayload
 };
