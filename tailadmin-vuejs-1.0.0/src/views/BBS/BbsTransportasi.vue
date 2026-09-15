@@ -58,6 +58,7 @@
           <BbsInsidenTab v-else-if="activeTab === 'insiden'" :key="'inc'" @saved="onSaved" />
           <BbsRiwayatTab v-else-if="activeTab === 'riwayat'" :key="'his'" :refresh-trigger="historyRefresh" @select="openDetail" />
           <BbsAlarmTab v-else-if="activeTab === 'alarm'" :key="'alarm'" />
+          <BbsSpeedTab v-else-if="activeTab === 'speed'" :key="'speed'" :is-admin="userLevel === 'admin'" />
         </div>
       </div>
     </div>
@@ -81,6 +82,7 @@ import BbsChecklistTab from './BbsChecklistTab.vue'
 import BbsInsidenTab from './BbsInsidenTab.vue'
 import BbsRiwayatTab from './BbsRiwayatTab.vue'
 import BbsAlarmTab from './BbsAlarmTab.vue'
+import BbsSpeedTab from './BbsSpeedTab.vue'
 import BbsDetailDrawer from './BbsDetailDrawer.vue'
 import { useAuthUser } from '@/services/auth'
 import { useBbsLang } from '@/composables/useBbsLang'
@@ -102,6 +104,7 @@ const allTabs: { key: string; labelKey: BbsTranslationKey; label: string; icon: 
   { key: 'insiden', labelKey: 'tabInsiden', label: 'Insiden', icon: AlertTriangleIcon },
   { key: 'riwayat', labelKey: 'tabRiwayat', label: 'Riwayat', icon: ListIcon },
   { key: 'alarm', labelKey: 'tabAlarm', label: 'Alarm ADAS', icon: AlertTriangleIcon },
+  { key: 'speed', labelKey: 'tabSpeed', label: 'Kecepatan', icon: AlertTriangleIcon },
 ]
 
 const tabs = computed(() => {

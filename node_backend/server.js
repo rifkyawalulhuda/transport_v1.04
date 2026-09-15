@@ -29,6 +29,9 @@ const addressBookRouter = require("./routes/addressBook");
 const monitoringKendaraanRouter = require("./routes/monitoringKendaraan");
 const bbsRouter = require("./routes/bbs");
 const bbsAlarmRouter = require("./routes/bbsAlarm");
+const bbsSpeedRouter = require("./routes/bbsSpeed");
+const bbsSettingsRouter = require("./routes/bbsSettings");
+const bbsRetentionRouter = require("./routes/bbsRetention");
 const deliveryNotificationsRouter = require("./routes/deliveryNotifications");
 const deliveryTemplateRouter = require("./routes/deliveryTemplate");
 const { ensureTrackingSchema } = require("./services/schemaSyncService");
@@ -95,6 +98,11 @@ app.use("/api/wialon", wialonRouter);
 app.use("/api/address-book", addressBookRouter);
 app.use("/api/monitoring-kendaraan", monitoringKendaraanRouter);
 app.use("/api/bbs/alarms", bbsAlarmRouter);
+// Daftarkan SEBELUM /api/bbs supaya /api/bbs/speed dan /api/bbs/settings
+// tidak tertelan handler generik di router utama.
+app.use("/api/bbs/speed", bbsSpeedRouter);
+app.use("/api/bbs/settings", bbsSettingsRouter);
+app.use("/api/bbs/retention", bbsRetentionRouter);
 app.use("/api/bbs", bbsRouter);
 app.use("/api/delivery-templates", deliveryTemplateRouter);
 

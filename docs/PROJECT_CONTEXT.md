@@ -1432,9 +1432,103 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - **Dibuat Oleh**: `created_by_name (created_by_nik)`; `-` if `nik_admin` 0 / missing admin.
 - Optional list of planned stops when `delivery_stops` present.
 
----
+## Updates (2026-09-15 — BBS Speed Telemetry Storage Policy)
 
-## Updates (2026-09-09 — BBS ADAS Alarm Module)
+### Modul BBS Speed (baru)
+- Tab "Kecepatan" (`tailadmin-vuejs-1.0.0/src/views/BBS/BbsSpeedTab.vue`) — import CSV/XLSX, ringkasan bulanan, tren, daftar event overspeed.
+- `node_backend/routes/bbsSpeed.js` (mounted `/api/bbs/speed`) + `node_backend/services/speedService.js` + `node_backend/routes/bbsSettings.js`.
+- Tabel: `bbs_speed_telemetry` (points), `bbs_speed_events` (burst overspeed), `bbs_speed_daily` (agregat harian — sumber dashboard), `bbs_settings`.
+
+### Kebijakan Penyimpanan — Downsampling (hanya baris berarti yang masuk DB)
+Sebelumnya SELURUH baris tracking tersimpan → 1 truk ≈ 12.391 baris (≈2,5 MB) untuk 14 hari.
+Sekarang `selectStorageRows()` di `speedService.js` memilih baris yang disimpan:
+
+1. Semua baris bergerak dengan speed > threshold (`speed.overspeed_threshold_kmh`, default 60 km/h) —**resolusi penuh**.
+2. Maksimal SATU sampel baris bergerak per bucket interval (`speed.sample_interval_seconds`, default 180 detik), diambil baris pertama — deterministik (anchor epoch UTC), aman untuk re-import file yang tumpang tindih.
+3. Baris idle (ACC off / speed ≤ 0,5 km/h) TIDAK disimpan.
+
+Efek pada data nyata (`docs/Speed_2590000898_*.csv`): **12.378 → 1.562 baris (87,4% lebih kecil)**.
+- `moving_seconds`, `overspeed_seconds`, `max_speed`, `event_count` tetap **identik**.
+- `avg_moving_speed_kmh` (metrik dashboard berbobot) +1,3%; `distance_km` −4,9% (toleransi granularitas sampling).
+
+### Kolom `moving_seconds` (migration `20260915100000_add_moving_seconds_to_bbs_speed_telemetry.sql`)
+Arti: berapa detik moving-time yang diwakili satu baris tersimpan.
+- Baris overspeed & data lama (default) = 30 (satu slot tracker).
+- Baris sampel bucket = seluruh moving-time bucket-nya (mis. 180 detik).
+Tujuannya agar recompute dari data tersampel menghasilkan `moving_seconds` harian yang **sama persis** (penyebut rumus skor tidak rusak).
+
+### Backfill data lama
+- `node_backend/scripts/backfill-speed-telemetry-storage.js` — idempotent, default **dry-run**,
+  dukung filter `--month=` / `--device=`, override `--threshold=` (default: setting aktif),
+  dan `--optimize` untuk rebuild (OPTIMIZE TABLE) tabel Speed setelah selesai.
+- `node scripts/backfill-speed-telemetry-storage.js` → lihat ringkasan → `node scripts/backfill-speed-telemetry-storage.js --confirm`.
+- Idempotensi dijamin karena total moving-time bucket diambil dari nilai `moving_seconds`
+  yang sudah tersimpan (bukan jumlah baris tersisa) — menjalankan ulang tidak menyusutkan data.
+- `node_backend/scripts/restore-speed-telemetry-from-file.js` — mengembalikan seluruh baris
+  dari file sumber (mis. setelah salah pilih threshold saat backfill):
+  `node scripts/restore-speed-telemetry-from-file.js <file.csv|xlsx> --confirm`.
+- Endpoint `POST /api/bbs/speed/purge` & `DELETE /api/bbs/speed/import/:month` menerima flag
+  opsional `optimize=true` (body/query) untuk rebuild tabel setelah pembersihan besar.
+- Catatan InnoDB: `DELETE` hanya menandai halaman bebas-pakai-ulang; ukuran file tabel tidak
+  menyusut sampai di-rebuild (`OPTIMIZE TABLE`). Tool (phpMyAdmin/DBeaver/dsb) membaca
+  `information_schema` yang di-cache 24 jam (`information_schema_stats_expiry`) — refresh dengan
+  `SET SESSION information_schema_stats_expiry = 0` atau `ANALYZE TABLE`.
+- TIDAK menyentuh `bbs_speed_events` / `bbs_speed_daily` (agregat akurat tetap dipertahankan).
+
+### Test
+- `node scripts/test-speed-storage-filter.js` — 14 kasus (overspeed penuh, sampel per bucket,
+  determinisme, moving_seconds eksak, idempotensi). Wajib lulus sebelum deploy.
+- Script verifikasi sekali pakai (`verify-speed-storage-reduction.js`) telah dihapus setelah
+  audit; dampak downsampling dapat dicek ulang lewat unit test di atas.
+
+## Updates (2026-09-15 — BBS Retention ADAS & Speed)
+
+### Ringkasan
+- Fitur retensi untuk menghapus data ADAS & Speed oleh **admin**, mode **manual** (tanpa
+  scheduler). Perluas pola endpoint purge Speed yang sudah ada.
+- Keputusan grill: 0 = nonaktif (pengaman); `adas.retention_days` default **90**, validasi **0–3650**.
+
+### Backend
+- `node_backend/services/retentionService.js` *(baru)* — sumber tunggal kebijakan retensi:
+  - Keys: `adas.retention_days` (baru), `speed.retention_days` (reuse speedService).
+  - Semantik: hari > 0 hapus data lebih tua dari N; hari ≤ 0 = nonaktif (modul dilewati).
+  - `getRetentionSettings()` / `previewRetention(modules)` (READ-ONLY) / `purgeRetention(modules, {optimize})`.
+  - ADAS di-delete dari `bbs_observations` dengan filter **WAJIB `source='adas'`** (observasi
+    manual di tabel yang sama terlindungi). Basis umur `begin_time` (0 NULL, terverifikasi).
+  - Speed: `bbs_speed_telemetry` (creation_time) + `bbs_speed_events` (end_time) +
+    `bbs_speed_daily` (day). Opsional `optimize` → rebuild tabel.
+  - Audit log via `auditLogger` (event `bbs_retention_purge` dengan by_admin, modules, hasil).
+- `node_backend/routes/bbsRetention.js` *(baru)* — mounted `/api/bbs/retention` (sebelum `/api/bbs`):
+  - `GET /` (admin) — settings, bounds, labels, can_edit.
+  - `GET /preview?modules=adas,speed` (admin) — hitungan yang akan dihapus (READ-ONLY).
+  - `POST /purge {modules, confirm, optimize}` (admin) — dua langkah; tanpa `confirm=true`
+    hanya melaporkan dampak.
+- `node_backend/routes/bbsSettings.js` — label + validasi key `adas.retention_days` (0-3650),
+  bounds/defaults ADAS ditambahkan ke respons.
+- `node_backend/routes/bbsSpeed.js` — `/speed/purge` di-delegate ke retentionService (satu
+  sumber kebenaran), bentuk respons lama dipertahankan.
+- Migration `20260915200000_add_adas_retention_setting.sql` — seed `adas.retention_days = 90`.
+
+### Frontend (`BbsSpeedTab.vue`)
+- Kartu **"Retensi Data"** baru (hanya tampil untuk admin, flag `:is-admin` dioper dari
+  `BbsTransportasi.vue` mengikuti pola `:view-only` BbsDetailDrawer).
+- Input hari per modul (ADAS & Speed), tombol **Pratinjau** (read-only), tombol **Hapus Data**
+  dengan konfirmasi dua langkah (klik pertama = pratinjau + minta konfirmasi, klik kedua =
+  eksekusi). Setelah purge Speed, ringkasan/daftar/tren disegarkan.
+- `bbsService.ts` — tipe `BbsRetentionModule` + `fetchRetentionSettings` /
+  `saveRetentionSettings` / `previewRetention` / `runRetentionPurge`.
+- `useBbsLang.ts` — kunci i18n `retention*` (ID & EN).
+
+### Test
+- `node scripts/test-retention-purge.js` — 8 kasus: semantik 0=nonaktif, parseModules,
+  validasi 0-3650/integer, keys/bounds/defaults, pratinjau = SQL langsung, filter ADAS
+  ter-scope `source='adas'`, pengaman dengan menulis sementara 0 lalu memulihkannya.
+- Diverifikasi end-to-end via HTTP (token sintetis): non-admin → 403; preview → 0 baris
+  (retensi 90 hari = no-op hari ini, data termuda 42 hari); purge tanpa confirm →
+  requires_confirmation; purge confirm=true → 0 dihapus. Integritas data setelah uji:
+  ADAS 1035, manual 1, telemetry 1562, events 34, daily 14 — **tidak berubah**.
+
+---
 
 ### BBS — Tab Baru "Alarm ADAS"
 
