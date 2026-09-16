@@ -40,10 +40,7 @@ const loadAreas = async (queryable = db) => {
       SELECT
         id_area,
         kode_area,
-        nama_area,
-        finish_geofence_resource_id,
-        finish_geofence_zone_id,
-        finish_geofence_zone_name
+        nama_area
       FROM area
       ORDER BY id_area ASC
     `
@@ -57,10 +54,7 @@ const loadAreaById = async (id, queryable = db) => {
       SELECT
         id_area,
         kode_area,
-        nama_area,
-        finish_geofence_resource_id,
-        finish_geofence_zone_id,
-        finish_geofence_zone_name
+        nama_area
       FROM area
       WHERE id_area = ?
     `,
@@ -84,10 +78,7 @@ const persistRouteSteps = async (queryable, idArea, routeSteps) => {
   const values = routeSteps.map((step) => [
     idArea,
     step.step_order,
-    step.step_name,
-    step.wialon_resource_id,
-    step.wialon_zone_id,
-    step.wialon_zone_name
+    step.step_name
   ]);
 
   await queryable.query(
@@ -95,10 +86,7 @@ const persistRouteSteps = async (queryable, idArea, routeSteps) => {
       INSERT INTO area_route_step (
         id_area,
         step_order,
-        step_name,
-        wialon_resource_id,
-        wialon_zone_id,
-        wialon_zone_name
+        step_name
       )
       VALUES ?
     `,
@@ -115,10 +103,7 @@ const buildDraftRouteSteps = (area) => {
   return parsed.step_names.map((stepName, index) => ({
     id_area_route_step: null,
     step_order: index + 1,
-    step_name: stepName,
-    wialon_resource_id: null,
-    wialon_zone_id: null,
-    wialon_zone_name: ""
+    step_name: stepName
   }));
 };
 
@@ -146,7 +131,7 @@ router.get("/:id/route-steps", authenticateToken, async (req, res) => {
 
     // Format as delivery stops suitable for SalesCostForm template populate.
     // Each stop maps to the shape of sales_cost_step_schedule.
-    const stops = rawSteps.map((s) => {
+    const mapped = rawSteps.map((s) => {
       const isDeparture = Number(s.step_order) === 0 ||
         String(s.system_step_code || "").toLowerCase().includes("departure");
       const isFinish = Number(s.step_order) === 99 ||
@@ -154,14 +139,24 @@ router.get("/:id/route-steps", authenticateToken, async (req, res) => {
       return {
         stop_order: Number(s.step_order),
         stop_name: s.step_name || (isDeparture ? "Departure" : isFinish ? "Finish" : "Tujuan"),
-        wialon_resource_id: s.wialon_resource_id || null,
-        wialon_zone_id: s.wialon_zone_id || null,
-        wialon_zone_name: s.wialon_zone_name || null,
+        wialon_resource_id: null,
+        wialon_zone_id: null,
+        wialon_zone_name: null,
         is_departure: isDeparture ? 1 : 0,
         is_finish: isFinish ? 1 : 0,
-        time_hhmm: null  // area route steps carry no fixed time — user fills in
+        time_hhmm: null
       };
     });
+
+    // Guarantee exactly one departure and one finish stop.
+    // If none matched by step_order/system_step_code, assign first = departure, last = finish.
+    const hasDeparture = mapped.some(s => s.is_departure === 1);
+    const hasFinish    = mapped.some(s => s.is_finish === 1);
+    if (mapped.length > 0) {
+      if (!hasDeparture) mapped[0].is_departure = 1;
+      if (!hasFinish)    mapped[mapped.length - 1].is_finish = 1;
+    }
+    const stops = mapped;
 
     res.json({
       id_area: area.id_area,
@@ -205,18 +200,12 @@ router.post("/", authenticateToken, async (req, res) => {
       `
         INSERT INTO area (
           kode_area,
-          nama_area,
-          finish_geofence_resource_id,
-          finish_geofence_zone_id,
-          finish_geofence_zone_name
-        ) VALUES (?, ?, ?, ?, ?)
+          nama_area
+        ) VALUES (?, ?)
       `,
       [
         payload.kodeArea,
-        payload.namaArea,
-        payload.finishGeofence?.finish_geofence_resource_id || null,
-        payload.finishGeofence?.finish_geofence_zone_id || null,
-        payload.finishGeofence?.finish_geofence_zone_name || null
+        payload.namaArea
       ]
     );
 
@@ -262,18 +251,12 @@ router.put("/:id", authenticateToken, async (req, res) => {
         UPDATE area
         SET
           kode_area = ?,
-          nama_area = ?,
-          finish_geofence_resource_id = ?,
-          finish_geofence_zone_id = ?,
-          finish_geofence_zone_name = ?
+          nama_area = ?
         WHERE id_area = ?
       `,
       [
         payload.kodeArea,
         payload.namaArea,
-        payload.finishGeofence?.finish_geofence_resource_id || null,
-        payload.finishGeofence?.finish_geofence_zone_id || null,
-        payload.finishGeofence?.finish_geofence_zone_name || null,
         req.params.id
       ]
     );

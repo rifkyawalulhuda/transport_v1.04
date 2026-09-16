@@ -3,6 +3,13 @@ const db = require("../db");
 const ExcelJS = require("exceljs");
 const SalesCostDN = require("../models/SalesCostDN");
 const { authenticateToken } = require("../middleware/auth");
+const {
+  parseDateSafe,
+  resolveScheduleStatus,
+  resolveStopTimelineSummary,
+  detectFinishHit,
+  summarizeStopProgress
+} = require("../services/scheduleSummaryService");
 
 const router = express.Router();
 
@@ -35,14 +42,6 @@ const parsePositiveInt = (value, fallback) => {
 };
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** @returns {Date|null} */
-const parseDateSafe = (value) => {
-  if (value == null || value === "") return null;
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
-};
 
 /**
  * Actual departure → actual finish as "X hari Y jam Z mnt", or "-".
@@ -95,124 +94,6 @@ const formatSignedDurationId = (totalMinutes) => {
 const formatDiffMinutes = (actualVal, estimatedVal) => {
   const n = diffMinutes(actualVal, estimatedVal);
   return formatSignedDurationId(n);
-};
-
-const resolveScheduleStatus = ({
-  departureDatetime,
-  arrivalDatetime,
-  finishOrderDatetime,
-  plannedFinishDatetime,
-  finishHit,
-  visitedStops,
-  totalStops
-}) => {
-  const now = new Date();
-  const departure = departureDatetime ? new Date(departureDatetime) : null;
-  const arrival = arrivalDatetime ? new Date(arrivalDatetime) : null;
-  const plannedFinish = plannedFinishDatetime ? new Date(plannedFinishDatetime) : null;
-  const finishCol = finishOrderDatetime ? new Date(finishOrderDatetime) : null;
-
-  // Planned finish ETA: prefer finish-stop estimated_arrival, then sc.finish_order_datetime (often planned at create), then arrival
-  const overdueDeadline =
-    (plannedFinish && !Number.isNaN(plannedFinish.getTime()) ? plannedFinish : null) ||
-    (finishCol && !Number.isNaN(finishCol.getTime()) ? finishCol : null) ||
-    arrival;
-
-  // Actual completion = system:finish_order only (not sc.finish_order_datetime)
-  if (finishHit) {
-    return {
-      schedule_status: "completed",
-      has_incomplete_finish: false
-    };
-  }
-
-  // Overdue: planned finish ETA passed and not GPS/manual finished yet
-  if (overdueDeadline && !Number.isNaN(overdueDeadline.getTime()) && overdueDeadline < now && !finishHit) {
-    return {
-      schedule_status: "overdue",
-      has_incomplete_finish: false
-    };
-  }
-
-  if (departure && !Number.isNaN(departure.getTime()) && departure <= now) {
-    return {
-      schedule_status: "on_trip",
-      has_incomplete_finish: false
-    };
-  }
-
-  return {
-    schedule_status: "waiting",
-    has_incomplete_finish: false
-  };
-};
-
-const resolveStopTimelineSummary = ({ deliveryStops, historyRows }) => {
-  const historyByStopId = new Map(
-    historyRows
-      .filter((h) => h.id_sc_stop)
-      .map((h) => [Number(h.id_sc_stop), h])
-  );
-
-  // system:finish_order is stored with id_sc_stop = NULL — find it via step_key as fallback
-  const finishOrderHistory = historyRows.find((h) => h.step_key === 'system:finish_order') || null;
-
-  const now = new Date();
-
-  const baseStops = deliveryStops.map((stop) => {
-    // For is_finish stops, also check system:finish_order history entry as fallback
-    const historyEntry = historyByStopId.get(Number(stop.id))
-      || (Number(stop.is_finish) === 1 ? finishOrderHistory : null);
-    const hit = !!historyEntry;
-    const overdue = !hit && !!stop.estimated_arrival && new Date(stop.estimated_arrival) < now;
-
-    return {
-      id: Number(stop.id),
-      stop_order: Number(stop.stop_order),
-      stop_name: stop.stop_name || "",
-      wialon_zone_name: stop.wialon_zone_name || null,
-      estimated_arrival: stop.estimated_arrival || null,
-      is_departure: Number(stop.is_departure) === 1,
-      is_finish: Number(stop.is_finish) === 1,
-      hit,
-      actual_arrival: hit ? historyEntry?.gps_time || null : null,
-      is_manual: historyEntry?.is_manual === 1,
-      gps_lat: hit ? (historyEntry?.lat || null) : null,
-      gps_lon: hit ? (historyEntry?.lon || null) : null,
-      inferred_passed: false,
-      incomplete_finish: false,
-      geofence_skipped: false,
-      overdue
-    };
-  });
-
-  const hasAnyVisitedAfterDeparture = baseStops.some((stop) => !stop.is_departure && stop.hit);
-  const finishHit = !!finishOrderHistory || baseStops.some((stop) => stop.is_finish && stop.hit);
-
-  return baseStops.map((stop) => {
-    if (stop.is_departure && !stop.hit && hasAnyVisitedAfterDeparture) {
-      return {
-        ...stop,
-        inferred_passed: true
-      };
-    }
-
-    // Middle stop never GPS-hit after SPK finished (loose finish / skip tujuan)
-    if (
-      finishHit &&
-      !stop.hit &&
-      !stop.is_departure &&
-      !stop.is_finish
-    ) {
-      return {
-        ...stop,
-        geofence_skipped: true,
-        overdue: false
-      };
-    }
-
-    return stop;
-  });
 };
 
 const resolveDateRange = (startParam, endParam) => {
@@ -363,7 +244,6 @@ router.get("/export", authenticateToken, async (req, res) => {
       if (s === "overdue") return "Terlambat";
       if (s === "on_trip") return "Dalam Perjalanan";
       if (s === "waiting") return "Menunggu";
-      if (s === "incomplete_finish") return "Belum Lengkap";
       return s || "-";
     };
 
@@ -382,9 +262,7 @@ router.get("/export", authenticateToken, async (req, res) => {
 
       // Compute schedule_status using resolveStopTimelineSummary
       const timeline = resolveStopTimelineSummary({ deliveryStops: stops, historyRows: history });
-      const finishHit = timeline.some((s) => s.is_finish && s.hit);
-      const visitedStops = timeline.filter((s) => !s.is_departure && !s.is_finish && s.hit).length;
-      const totalStops = timeline.filter((s) => !s.is_departure && !s.is_finish).length;
+      const finishHit = detectFinishHit(timeline, history);
       const plannedFinish =
         timeline.find((s) => s.is_finish)?.estimated_arrival ||
         stops.find((s) => Number(s.is_finish) === 1)?.estimated_arrival ||
@@ -395,8 +273,6 @@ router.get("/export", authenticateToken, async (req, res) => {
         finishOrderDatetime: sc.finish_order_datetime,
         plannedFinishDatetime: plannedFinish,
         finishHit,
-        visitedStops,
-        totalStops,
       });
 
       const groupColor = GROUP_COLORS[groupIndex % 2];
@@ -546,7 +422,7 @@ router.get("/", authenticateToken, async (req, res) => {
 
     const search = String(req.query.search || "").trim();
     const statusFilter = String(req.query.status || "").trim().toLowerCase();
-    const validStatuses = ["waiting", "on_trip", "overdue", "completed", "incomplete_finish"];
+    const validStatuses = ["waiting", "on_trip", "overdue", "completed"];
     const useStatusFilter = validStatuses.includes(statusFilter);
     // Parse spk_ids param — comma-separated list of sales cost IDs from Monitoring Kendaraan
     const spkIds = req.query.spk_ids
@@ -635,54 +511,6 @@ router.get("/", authenticateToken, async (req, res) => {
         dnMap.set(Number(doc.salesCostId), items);
       });
 
-      const stopSummaryMap = new Map();
-      if (ids.length > 0) {
-        const placeholders = ids.map(() => "?").join(",");
-        const [stopRows] = await db.query(
-          `
-            SELECT
-              id_sales_cost,
-              SUM(CASE WHEN is_departure = 0 AND is_finish = 0 THEN 1 ELSE 0 END) AS total_stops,
-              SUM(CASE WHEN is_finish = 1 THEN 1 ELSE 0 END) AS finish_defined
-            FROM sales_cost_step_schedule
-            WHERE id_sales_cost IN (${placeholders})
-            GROUP BY id_sales_cost
-          `,
-          ids
-        );
-
-        stopRows.forEach((row) => {
-          stopSummaryMap.set(Number(row.id_sales_cost), {
-            total_stops: Number(row.total_stops || 0),
-            finish_defined: Number(row.finish_defined || 0) > 0
-          });
-        });
-      }
-
-      const historySummaryMap = new Map();
-      if (ids.length > 0) {
-        const placeholders = ids.map(() => "?").join(",");
-        const [historyRows] = await db.query(
-          `
-            SELECT
-              id_sales_cost,
-              SUM(CASE WHEN id_sc_stop IS NOT NULL THEN 1 ELSE 0 END) AS visited_stops,
-              SUM(CASE WHEN step_key = 'system:finish_order' THEN 1 ELSE 0 END) AS finish_hit
-            FROM sales_cost_route_history
-            WHERE id_sales_cost IN (${placeholders})
-            GROUP BY id_sales_cost
-          `,
-          ids
-        );
-
-        historyRows.forEach((row) => {
-          historySummaryMap.set(Number(row.id_sales_cost), {
-            visited_stops: Number(row.visited_stops || 0),
-            finish_hit: Number(row.finish_hit || 0) > 0
-          });
-        });
-      }
-
       const deliveryStopsMap = new Map();
       if (ids.length > 0) {
         const placeholders = ids.map(() => "?").join(",");
@@ -756,37 +584,31 @@ router.get("/", authenticateToken, async (req, res) => {
           remarks: item?.remarks ?? null
         }));
 
-        const stopSummary = stopSummaryMap.get(salesCostId) || {
-          total_stops: 0,
-          finish_defined: false
-        };
-
-        const historySummary = historySummaryMap.get(salesCostId) || {
-          visited_stops: 0,
-          finish_hit: false
-        };
-
         const deliveryStops = deliveryStopsMap.get(salesCostId) || [];
         const routeHistory = routeHistoryMap.get(salesCostId) || [];
         const plannedFinish =
           deliveryStops.find((s) => Number(s.is_finish) === 1)?.estimated_arrival || null;
+
+        const timeline = resolveStopTimelineSummary({
+          deliveryStops,
+          historyRows: routeHistory
+        });
+        const progress = summarizeStopProgress(timeline);
+        const finishHit = detectFinishHit(timeline, routeHistory);
 
         const statusSummary = resolveScheduleStatus({
           departureDatetime: row.departure_datetime,
           arrivalDatetime: row.arrival_datetime,
           finishOrderDatetime: row.finish_order_datetime,
           plannedFinishDatetime: plannedFinish,
-          finishHit: historySummary.finish_hit,
-          visitedStops: historySummary.visited_stops,
-          totalStops: stopSummary.total_stops
+          finishHit
         });
 
         return {
           id_sales_cost: salesCostId,
-          departure_datetime: formatDateValue(row.departure_datetime),
+          departure_datetime: row.departure_datetime,
           arrival: formatDateValue(row.arrival_datetime),
           finish_order_datetime: formatDateValue(row.finish_order_datetime),
-          no_spk: row.no_spk || salesCostId,
           no_po: row.no_po || null,
           jenis_pengiriman: row.jenis_trip || null,
           trip: row.trip || null,
@@ -812,14 +634,10 @@ router.get("/", authenticateToken, async (req, res) => {
           detailUrl: `/sales-cost/${salesCostId}`,
 
           schedule_status: statusSummary.schedule_status,
-          visited_stops: historySummary.visited_stops,
-          total_stops: stopSummary.total_stops,
-          finish_hit: historySummary.finish_hit,
-          has_incomplete_finish: statusSummary.has_incomplete_finish,
-          delivery_stops_summary: resolveStopTimelineSummary({
-            deliveryStops,
-            historyRows: routeHistory
-          })
+          visited_stops: progress.visited_stops,
+          total_stops: progress.total_stops,
+          finish_hit: finishHit,
+          delivery_stops_summary: timeline
         };
       });
     };

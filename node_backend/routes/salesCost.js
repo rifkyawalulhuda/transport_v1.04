@@ -36,10 +36,6 @@ const polygonCentroid = (points) => {
   return { lon: sx / points.length, lat: sy / points.length };
 };
 
-const DEFAULT_FINISH_GEOFENCE_NAME = String(
-  process.env.DEFAULT_FINISH_GEOFENCE_NAME || "Sankyu"
-).trim();
-
 const GPS_TRAIL_PRE_BUFFER_SEC = (() => {
   const n = Number.parseInt(process.env.GPS_TRAIL_PRE_BUFFER_SEC || "7200", 10);
   return Number.isFinite(n) && n >= 0 ? n : 7200;
@@ -1674,9 +1670,6 @@ router.get("/:id", async (req, res) => {
           driver.nama_driver,
           area.nama_area,
           area.kode_area,
-          area.finish_geofence_resource_id,
-          area.finish_geofence_zone_id,
-          area.finish_geofence_zone_name,
           customer.nama_customer,
           admin.nama_admin AS created_by_name
         FROM sales_cost
@@ -1695,9 +1688,6 @@ router.get("/:id", async (req, res) => {
     const detail = rows[0];
     const routeStepsMap = await fetchAreaRouteStepsMap([detail.id_area]);
     const plannedSteps = routeStepsMap.get(Number(detail.id_area)) || [];
-    const finishGeofenceName = String(
-      detail.finish_geofence_zone_name || DEFAULT_FINISH_GEOFENCE_NAME
-    ).trim();
     const [historyRows] = await db.query(
       `
         SELECT
@@ -1736,6 +1726,12 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
+    // Build finish_step from the scss finish stop (is_finish=1) — no global fallback
+    const scssFinishStop = deliveryStopRows.find(r => Number(r.is_finish) === 1) || null;
+    const finishGeofenceName = String(
+      scssFinishStop?.wialon_zone_name || "Finish"
+    ).trim();
+
     res.json({
       ...detail,
         route_steps: plannedSteps,
@@ -1745,11 +1741,11 @@ router.get("/:id", async (req, res) => {
           system_step_code: "finish_order",
           step_order: plannedSteps.length + 1,
           step_name: "Finish Order",
-          wialon_resource_id: detail.finish_geofence_resource_id
-            ? Number(detail.finish_geofence_resource_id)
+          wialon_resource_id: scssFinishStop?.wialon_resource_id
+            ? Number(scssFinishStop.wialon_resource_id)
             : null,
-          wialon_zone_id: detail.finish_geofence_zone_id
-            ? Number(detail.finish_geofence_zone_id)
+          wialon_zone_id: scssFinishStop?.wialon_zone_id
+            ? Number(scssFinishStop.wialon_zone_id)
             : null,
           wialon_zone_name: finishGeofenceName
         },
@@ -1925,77 +1921,99 @@ router.post("/", authenticateToken, async (req, res) => {
       containerSize = null;
     }
 
-    const [result] = await db.query(
-      "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, departure_datetime, arrival_datetime, finish_order_datetime, is_manual_mode, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        tglOrder,
-        idTruck,
-        idDriver,
-        idArea,
-        idCustomer,
-        idAdmin,
-        departureDatetime,
-        arrivalDatetime,
-        finishOrderDatetime,
-        isManualMode,
-        bills,
-        liftOn,
-        liftOf,
-        containerDepot,
-        noPo,
-        noAju,
-        noContainer,
-        tax,
-        adminCharge,
-        materai,
-        trip,
-        jenisTrip,
-        containerSize,
-        price,
-        containerRepair,
-        demurrageChargers,
-        detentionChargers,
-        extendGatePass,
-        additionalCost,
-        opsCost,
-        total,
-        margin,
-        idPrint
-      ]
-    );
+    const conn = await db.getConnection();
+    let newId;
+    try {
+      await conn.beginTransaction();
 
-    // Save delivery stops
-    const deliveryStops = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
-    for (const stop of deliveryStops) {
-      if (stop.stop_order === undefined || stop.stop_order === null) continue;
-      const estimatedArrival = stop.estimated_arrival || null;
-      if (estimatedArrival && !isValidIsoDateTime(String(estimatedArrival))) continue;
-      await db.query(
-        `INSERT INTO sales_cost_step_schedule
-          (id_sales_cost, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      const [result] = await conn.query(
+        "INSERT INTO sales_cost (tgl_order, id_truck, id_driver, id_area, id_customer, id_admin, departure_datetime, arrival_datetime, finish_order_datetime, is_manual_mode, bills, lift_on, lift_of, container_depot, no_po, no_aju, no_container, tax, admin_charge, materai, trip, jenis_trip, container_size, price, container_repair, demurrage_chargers, detention_chargers, extend_gate_pass, additional_cost, ops_cost, total, margin, id_print) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
-          result.insertId,
-          Number(stop.stop_order),
-          String(stop.stop_name || ''),
-          stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
-          stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
-          stop.wialon_zone_name || null,
-          stop.is_departure ? 1 : 0,
-          stop.is_finish ? 1 : 0,
-          estimatedArrival || null
+          tglOrder,
+          idTruck,
+          idDriver,
+          idArea,
+          idCustomer,
+          idAdmin,
+          departureDatetime,
+          arrivalDatetime,
+          finishOrderDatetime,
+          isManualMode,
+          bills,
+          liftOn,
+          liftOf,
+          containerDepot,
+          noPo,
+          noAju,
+          noContainer,
+          tax,
+          adminCharge,
+          materai,
+          trip,
+          jenisTrip,
+          containerSize,
+          price,
+          containerRepair,
+          demurrageChargers,
+          detentionChargers,
+          extendGatePass,
+          additionalCost,
+          opsCost,
+          total,
+          margin,
+          idPrint
         ]
       );
+      newId = result.insertId;
+
+      // Save delivery stops — normalize stop_order by sorted position to prevent duplicate key errors
+      const rawDeliveryStops = Array.isArray(body.delivery_stops) ? body.delivery_stops : [];
+      // Filter valid stops first, then sort by original stop_order
+      const validDeliveryStops = rawDeliveryStops
+        .filter(stop => stop.stop_order !== undefined && stop.stop_order !== null)
+        .filter(stop => {
+          const ea = stop.estimated_arrival || null;
+          return !ea || isValidIsoDateTime(String(ea));
+        })
+        .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+      // Re-assign stop_order as 0,1,2,... based on sorted position to guarantee uniqueness
+      for (let i = 0; i < validDeliveryStops.length; i++) {
+        const stop = validDeliveryStops[i];
+        const estimatedArrival = stop.estimated_arrival || null;
+        await conn.query(
+          `INSERT INTO sales_cost_step_schedule
+            (id_sales_cost, stop_order, stop_name, wialon_resource_id, wialon_zone_id, wialon_zone_name, is_departure, is_finish, estimated_arrival)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newId,
+            i,
+            String(stop.stop_name || ''),
+            stop.wialon_resource_id ? Number(stop.wialon_resource_id) : null,
+            stop.wialon_zone_id ? Number(stop.wialon_zone_id) : null,
+            stop.wialon_zone_name || null,
+            stop.is_departure ? 1 : 0,
+            stop.is_finish ? 1 : 0,
+            estimatedArrival || null
+          ]
+        );
+      }
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      throw txErr;
+    } finally {
+      conn.release();
     }
 
     const [rows] = await db.query(
       "SELECT sales_cost.id_sales_cost, sales_cost.tgl_order, sales_cost.departure_datetime, sales_cost.arrival_datetime, sales_cost.finish_order_datetime, sales_cost.price, sales_cost.ops_cost, sales_cost.margin, sales_cost.id_print, customer.nama_customer FROM sales_cost INNER JOIN customer ON sales_cost.id_customer = customer.id_customer WHERE sales_cost.id_sales_cost = ?",
-      [result.insertId]
+      [newId]
     );
 
     res.status(201).json({
       success: true,
-      id: result.insertId,
+      id: newId,
       data: rows[0]
     });
   } catch (err) {

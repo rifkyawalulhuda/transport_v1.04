@@ -47,7 +47,6 @@
                 <option value="on_trip">Dalam Perjalanan</option>
                 <option value="overdue">Terlambat</option>
                 <option value="completed">Selesai</option>
-                <option value="incomplete_finish">Belum Lengkap</option>
               </select>
             </div>
             <div>
@@ -255,6 +254,12 @@
                   {{ resolveProgressLabel(row) }}
                 </span>
                 <span
+                  v-if="row.departure_datetime"
+                  class="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                >
+                  Berangkat: {{ formatDateTime(row.departure_datetime) }}
+                </span>
+                <span
                   v-if="row.finish_hit"
                   class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                 >
@@ -266,13 +271,11 @@
                 v-if="resolveScheduleHint(row)"
                 class="mb-3 text-xs"
                 :class="
-                  row.has_incomplete_finish
-                    ? 'text-warning-700 dark:text-warning-400'
-                    : row.schedule_status === 'completed'
-                      ? 'text-success-700 dark:text-success-400'
-                      : row.schedule_status === 'overdue'
-                        ? 'text-error-700 dark:text-error-400'
-                        : 'text-gray-500 dark:text-gray-400'
+                  row.schedule_status === 'completed'
+                    ? 'text-success-700 dark:text-success-400'
+                    : row.schedule_status === 'overdue'
+                      ? 'text-error-700 dark:text-error-400'
+                      : 'text-gray-500 dark:text-gray-400'
                 "
               >
                 {{ resolveScheduleHint(row) }}
@@ -294,21 +297,19 @@
                     <div
                       class="absolute -left-8 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-white dark:ring-gray-900"
                       :class="
-                        stop.incomplete_finish
-                          ? 'bg-warning-500'
-                          : stop.hit
-                            ? 'bg-success-500'
-                            : stop.geofence_skipped
-                              ? 'bg-warning-500'
-                              : stop.inferred_passed
-                                ? 'bg-success-500'
-                                : stop.overdue
-                                  ? 'bg-error-500'
-                                  : stop.is_departure
-                                    ? 'bg-brand-500'
-                                    : stop.is_finish
-                                      ? 'bg-gray-500'
-                                      : 'bg-gray-300 dark:bg-gray-600'
+                        stop.hit
+                          ? 'bg-success-500'
+                          : stop.geofence_skipped
+                            ? 'bg-warning-500'
+                            : stop.inferred_passed
+                              ? 'bg-success-500'
+                              : stop.overdue
+                                ? 'bg-error-500'
+                                : stop.is_departure
+                                  ? 'bg-brand-500'
+                                  : stop.is_finish
+                                    ? 'bg-gray-500'
+                                    : 'bg-gray-300 dark:bg-gray-600'
                       "
                     >
                       <span class="text-[10px] font-bold text-white">
@@ -321,15 +322,13 @@
                     <!-- Stop content -->
                     <div class="rounded-lg border px-3 py-2"
                       :class="
-                        stop.incomplete_finish
-                          ? 'border-warning-200 bg-warning-50/50 dark:border-warning-500/30 dark:bg-warning-500/10'
-                          : stop.hit || stop.inferred_passed
-                            ? 'border-success-200 bg-success-50/50 dark:border-success-500/20 dark:bg-success-500/5'
-                            : stop.geofence_skipped
-                              ? 'border-warning-200 bg-warning-50/50 dark:border-warning-500/30 dark:bg-warning-500/10'
-                              : stop.overdue
-                                ? 'border-error-200 bg-error-50/50 dark:border-error-500/30 dark:bg-error-500/10'
-                                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+                        stop.hit || stop.inferred_passed
+                          ? 'border-success-200 bg-success-50/50 dark:border-success-500/20 dark:bg-success-500/5'
+                          : stop.geofence_skipped
+                            ? 'border-warning-200 bg-warning-50/50 dark:border-warning-500/30 dark:bg-warning-500/10'
+                            : stop.overdue
+                              ? 'border-error-200 bg-error-50/50 dark:border-error-500/30 dark:bg-error-500/10'
+                              : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
                       "
                     >
                       <div class="flex flex-wrap items-start justify-between gap-2">
@@ -361,13 +360,7 @@
                           </div>
 
                           <p
-                            v-if="stop.incomplete_finish"
-                            class="mt-1 text-[11px] text-warning-700 dark:text-warning-400"
-                          >
-                            Masih ada tujuan yang belum dikunjungi.
-                          </p>
-                          <p
-                            v-else-if="stop.geofence_skipped"
+                            v-if="stop.geofence_skipped"
                             class="mt-1 text-[11px] text-warning-700 dark:text-warning-400"
                           >
                             Geofence dilewati — SPK selesai tanpa hit GPS di stop ini.
@@ -748,7 +741,6 @@ type DeliveryStopSummary = {
   actual_arrival: string | null
   is_manual: boolean
   inferred_passed: boolean
-  incomplete_finish: boolean
   geofence_skipped?: boolean
   overdue: boolean
 }
@@ -758,7 +750,6 @@ type ScheduleRow = {
   departure_datetime: string | null
   arrival: string | null
   finish_order_datetime: string | null
-  no_spk: string | number
   no_po: string | null
   jenis_pengiriman: string | null
   trip: string | null
@@ -770,11 +761,10 @@ type ScheduleRow = {
   dnItems: DnItem[]
   detailUrl: string
 
-  schedule_status: 'waiting' | 'on_trip' | 'overdue' | 'incomplete_finish' | 'completed'
+  schedule_status: 'waiting' | 'on_trip' | 'overdue' | 'completed'
   visited_stops: number
   total_stops: number
   finish_hit: boolean
-  has_incomplete_finish: boolean
   delivery_stops_summary: DeliveryStopSummary[]
 }
 
@@ -836,7 +826,7 @@ const confirmCompleteRow = ref<any>(null)
 
 const hasPendingStops = (row: any): boolean => {
   const stops = row.delivery_stops_summary || []
-  return stops.some((s: any) => !s.is_departure && !s.hit)
+  return stops.some((s: any) => !s.is_departure && !s.hit && !s.geofence_skipped && !s.inferred_passed)
 }
 
 const handleCompleteAll = async (row: any) => {
@@ -1009,8 +999,6 @@ const resolveStatus = (row: ScheduleRow): { label: string; color: string } => {
   switch (row.schedule_status) {
     case 'completed':
       return { label: 'Selesai', color: 'success' }
-    case 'incomplete_finish':
-      return { label: 'Belum Lengkap', color: 'warning' }
     case 'overdue':
       return { label: 'Terlambat', color: 'error' }
     case 'on_trip':
@@ -1028,9 +1016,6 @@ const resolveProgressLabel = (row: ScheduleRow) => {
 }
 
 const resolveScheduleHint = (row: ScheduleRow) => {
-  if (row.has_incomplete_finish) {
-    return 'Finish sudah tercapai, tapi masih ada tujuan yang belum lengkap.'
-  }
   if (row.schedule_status === 'completed') {
     return 'Semua tujuan sudah tercapai.'
   }
@@ -1047,9 +1032,6 @@ const toggleCard = (id: number) => {
 }
 
 const resolveStopBadge = (stop: DeliveryStopSummary): { label: string; color: string } => {
-  if (stop.incomplete_finish) {
-    return { label: 'Belum Lengkap', color: 'warning' }
-  }
   if (stop.hit) {
     return { label: 'Sudah Tiba', color: 'success' }
   }
@@ -1087,6 +1069,10 @@ const doExportSP = async () => {
     // 'all' → no date params
     const url = `${API_BASE}/schedule-pengiriman/export${params.toString() ? `?${params}` : ''}`
     const res = await authFetch(url)
+    if (res.status === 404) {
+      toast.info('Tidak ada data untuk periode ini.')
+      return
+    }
     if (!res.ok) {
       toast.error('Gagal export data.')
       return
@@ -1190,7 +1176,7 @@ const loadData = async () => {
       delete expandedCards[Number(key)]
     })
     rows.value.forEach((row) => {
-      if (row.schedule_status === 'overdue' || row.schedule_status === 'incomplete_finish') {
+      if (row.schedule_status === 'overdue') {
         expandedCards[row.id_sales_cost] = true
       }
     })

@@ -43,7 +43,8 @@ export default defineConfig({
           { text: 'Dashboard Overview', link: '/guide/dashboard' },
           { text: 'User Guide', link: '/guide/user-guide' },
           { text: 'Admin Guide', link: '/guide/admin-guide' },
-          { text: 'BBS (Safety)', link: '/guide/bbs-guide' }
+          { text: 'BBS (Safety)', link: '/guide/bbs-guide' },
+          { text: 'BBS — Rumus & Skor', link: '/guide/bbs-scoring' }
         ]
       },
       {

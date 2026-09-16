@@ -135,21 +135,19 @@
                   <!-- Node dot -->
                   <div
                     class="absolute -left-10 top-2 z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ring-4"
-                    :class="stop.incomplete_finish
-                      ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
-                      : stop.hit
-                        ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
-                        : stop.geofence_skipped
-                          ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
-                          : stop.inferred_passed
-                            ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
-                            : stop.overdue
-                              ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
-                              : stop.is_departure
-                                ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
-                                : stop.is_finish
-                                  ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
-                                  : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
+                    :class="stop.hit
+                      ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
+                      : stop.geofence_skipped
+                        ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                        : stop.inferred_passed
+                          ? 'bg-success-500 ring-success-100 dark:ring-success-500/20'
+                          : stop.overdue
+                            ? 'bg-warning-500 ring-warning-100 dark:ring-warning-500/20'
+                            : stop.is_departure
+                              ? 'bg-brand-500 ring-brand-100 dark:ring-brand-500/20'
+                              : stop.is_finish
+                                ? 'bg-gray-600 ring-gray-100 dark:bg-gray-500 dark:ring-gray-900'
+                                : 'border-2 border-gray-300 bg-white ring-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:ring-gray-900'"
                   >
                     <!-- Departure icon -->
                     <svg v-if="stop.is_departure" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -158,10 +156,6 @@
                     <!-- Finish icon -->
                     <svg v-else-if="stop.is_finish" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
-                    </svg>
-                    <!-- Incomplete finish warning -->
-                    <svg v-else-if="stop.incomplete_finish" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                     <!-- Hit checkmark -->
                     <svg v-else-if="stop.hit" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -186,21 +180,19 @@
                   <!-- Card -->
                   <div
                     class="rounded-xl border p-4 transition-all"
-                    :class="stop.incomplete_finish
-                      ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
-                      : stop.hit
-                        ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
-                        : stop.geofence_skipped
-                          ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
-                          : stop.inferred_passed
-                            ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
-                            : stop.overdue
-                              ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
-                              : stop.is_departure
-                                ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
-                                : stop.is_finish
-                                  ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
-                                  : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
+                    :class="stop.hit
+                      ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
+                      : stop.geofence_skipped
+                        ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                        : stop.inferred_passed
+                          ? 'border-success-200 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/5 dark:to-gray-900'
+                          : stop.overdue
+                            ? 'border-warning-200 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/20 dark:from-warning-500/5 dark:to-gray-900'
+                            : stop.is_departure
+                              ? 'border-brand-200 bg-gradient-to-br from-brand-50 to-white dark:border-brand-500/30 dark:from-brand-500/5 dark:to-gray-900'
+                              : stop.is_finish
+                                ? 'border-gray-200 bg-gradient-to-br from-gray-50 to-white dark:border-gray-700 dark:from-gray-800/50 dark:to-gray-900'
+                                : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'"
                   >
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0 flex-1">
@@ -253,19 +245,14 @@
                             </span>
                           </div>
                           <p v-if="!stop.estimated_arrival && !stop.actual_arrival" class="text-xs italic text-gray-400 dark:text-gray-500">Tidak ada estimasi waktu</p>
-                          <p v-if="stop.incomplete_finish" class="mt-1 text-xs text-warning-700 dark:text-warning-400">Masih ada tujuan yang belum dikunjungi.</p>
-                          <p v-else-if="stop.geofence_skipped" class="mt-1 text-xs text-warning-700 dark:text-warning-400">Geofence dilewati — SPK selesai tanpa hit GPS di stop ini.</p>
+                          <p v-if="stop.geofence_skipped" class="mt-1 text-xs text-warning-700 dark:text-warning-400">Geofence dilewati — SPK selesai tanpa hit GPS di stop ini.</p>
                           <p v-else-if="stop.inferred_passed" class="mt-1 text-xs text-success-700 dark:text-success-400">Keberangkatan dianggap sudah terlampaui karena tujuan berikutnya sudah visited.</p>
                         </div>
                       </div>
 
                       <!-- Status badge -->
                       <div class="flex flex-shrink-0 flex-col items-end gap-2">
-                        <span v-if="stop.incomplete_finish" class="inline-flex items-center gap-1 rounded-full bg-warning-100 px-2.5 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-500/20 dark:text-warning-400">
-                          <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-                          Belum Lengkap
-                        </span>
-                        <span v-else-if="stop.hit" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
+                        <span v-if="stop.hit" class="inline-flex items-center gap-1 rounded-full bg-success-100 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/20 dark:text-success-400">
                           <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                           Sudah Tiba
                         </span>
@@ -1372,8 +1359,7 @@ const deliveryStopsWithHistory = computed(() => {
       overdue,
       actual_arrival: hit ? historyEntry?.gps_time : null,
       is_manual: historyEntry?.is_manual === true,
-      inferred_passed: false,
-      incomplete_finish: false
+      inferred_passed: false
     }
   })
 
