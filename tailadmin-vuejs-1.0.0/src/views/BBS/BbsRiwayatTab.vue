@@ -3,6 +3,10 @@
     <h4 class="text-sm font-semibold text-gray-800 dark:text-white/90 mb-1">{{ t.hisTitle }}</h4>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t.hisSub }}</p>
 
+    <p class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+      {{ t.hisExcludeNote }}
+    </p>
+
     <div class="flex gap-1.5 mb-4">
       <button
         v-for="tab in historyTabs"

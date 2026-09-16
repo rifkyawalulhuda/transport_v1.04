@@ -1432,9 +1432,208 @@ Major session work on Schedule Pengiriman / Monitoring / geofence tracking. Plan
 - **Dibuat Oleh**: `created_by_name (created_by_nik)`; `-` if `nik_admin` 0 / missing admin.
 - Optional list of planned stops when `delivery_stops` present.
 
----
+## Updates (2026-09-15 — BBS Speed Telemetry Storage Policy)
 
-## Updates (2026-09-09 — BBS ADAS Alarm Module)
+### Modul BBS Speed (baru)
+- Tab "Kecepatan" (`tailadmin-vuejs-1.0.0/src/views/BBS/BbsSpeedTab.vue`) — import CSV/XLSX, ringkasan bulanan, tren, daftar event overspeed.
+- `node_backend/routes/bbsSpeed.js` (mounted `/api/bbs/speed`) + `node_backend/services/speedService.js` + `node_backend/routes/bbsSettings.js`.
+- Tabel: `bbs_speed_telemetry` (points), `bbs_speed_events` (burst overspeed), `bbs_speed_daily` (agregat harian — sumber dashboard), `bbs_settings`.
+
+### Kebijakan Penyimpanan — Downsampling (hanya baris berarti yang masuk DB)
+Sebelumnya SELURUH baris tracking tersimpan → 1 truk ≈ 12.391 baris (≈2,5 MB) untuk 14 hari.
+Sekarang `selectStorageRows()` di `speedService.js` memilih baris yang disimpan:
+
+1. Semua baris bergerak dengan speed > threshold (`speed.overspeed_threshold_kmh`, default 60 km/h) —**resolusi penuh**.
+2. Maksimal SATU sampel baris bergerak per bucket interval (`speed.sample_interval_seconds`, default 180 detik), diambil baris pertama — deterministik (anchor epoch UTC), aman untuk re-import file yang tumpang tindih.
+3. Baris idle (ACC off / speed ≤ 0,5 km/h) TIDAK disimpan.
+
+Efek pada data nyata (`docs/Speed_2590000898_*.csv`): **12.378 → 1.562 baris (87,4% lebih kecil)**.
+- `moving_seconds`, `overspeed_seconds`, `max_speed`, `event_count` tetap **identik**.
+- `avg_moving_speed_kmh` (metrik dashboard berbobot) +1,3%; `distance_km` −4,9% (toleransi granularitas sampling).
+
+### Kolom `moving_seconds` (migration `20260915100000_add_moving_seconds_to_bbs_speed_telemetry.sql`)
+Arti: berapa detik moving-time yang diwakili satu baris tersimpan.
+- Baris overspeed & data lama (default) = 30 (satu slot tracker).
+- Baris sampel bucket = seluruh moving-time bucket-nya (mis. 180 detik).
+Tujuannya agar recompute dari data tersampel menghasilkan `moving_seconds` harian yang **sama persis** (penyebut rumus skor tidak rusak).
+
+### Backfill data lama
+- `node_backend/scripts/backfill-speed-telemetry-storage.js` — idempotent, default **dry-run**,
+  dukung filter `--month=` / `--device=`, override `--threshold=` (default: setting aktif),
+  dan `--optimize` untuk rebuild (OPTIMIZE TABLE) tabel Speed setelah selesai.
+- `node scripts/backfill-speed-telemetry-storage.js` → lihat ringkasan → `node scripts/backfill-speed-telemetry-storage.js --confirm`.
+- Idempotensi dijamin karena total moving-time bucket diambil dari nilai `moving_seconds`
+  yang sudah tersimpan (bukan jumlah baris tersisa) — menjalankan ulang tidak menyusutkan data.
+- `node_backend/scripts/restore-speed-telemetry-from-file.js` — mengembalikan seluruh baris
+  dari file sumber (mis. setelah salah pilih threshold saat backfill):
+  `node scripts/restore-speed-telemetry-from-file.js <file.csv|xlsx> --confirm`.
+- Endpoint `POST /api/bbs/speed/purge` & `DELETE /api/bbs/speed/import/:month` menerima flag
+  opsional `optimize=true` (body/query) untuk rebuild tabel setelah pembersihan besar.
+- Catatan InnoDB: `DELETE` hanya menandai halaman bebas-pakai-ulang; ukuran file tabel tidak
+  menyusut sampai di-rebuild (`OPTIMIZE TABLE`). Tool (phpMyAdmin/DBeaver/dsb) membaca
+  `information_schema` yang di-cache 24 jam (`information_schema_stats_expiry`) — refresh dengan
+  `SET SESSION information_schema_stats_expiry = 0` atau `ANALYZE TABLE`.
+- TIDAK menyentuh `bbs_speed_events` / `bbs_speed_daily` (agregat akurat tetap dipertahankan).
+
+### Test
+- `node scripts/test-speed-storage-filter.js` — 14 kasus (overspeed penuh, sampel per bucket,
+  determinisme, moving_seconds eksak, idempotensi). Wajib lulus sebelum deploy.
+- Script verifikasi sekali pakai (`verify-speed-storage-reduction.js`) telah dihapus setelah
+  audit; dampak downsampling dapat dicek ulang lewat unit test di atas.
+
+## Updates (2026-09-15 — BBS Retention ADAS & Speed)
+
+### Ringkasan
+- Fitur retensi untuk menghapus data ADAS & Speed oleh **admin**, mode **manual** (tanpa
+  scheduler). Perluas pola endpoint purge Speed yang sudah ada.
+- Keputusan grill: 0 = nonaktif (pengaman); `adas.retention_days` default **90**, validasi **0–3650**.
+
+### Backend
+- `node_backend/services/retentionService.js` *(baru)* — sumber tunggal kebijakan retensi:
+  - Keys: `adas.retention_days` (baru), `speed.retention_days` (reuse speedService).
+  - Semantik: hari > 0 hapus data lebih tua dari N; hari ≤ 0 = nonaktif (modul dilewati).
+  - `getRetentionSettings()` / `previewRetention(modules)` (READ-ONLY) / `purgeRetention(modules, {optimize})`.
+  - ADAS di-delete dari `bbs_observations` dengan filter **WAJIB `source='adas'`** (observasi
+    manual di tabel yang sama terlindungi). Basis umur `begin_time` (0 NULL, terverifikasi).
+  - Speed: `bbs_speed_telemetry` (creation_time) + `bbs_speed_events` (end_time) +
+    `bbs_speed_daily` (day). Opsional `optimize` → rebuild tabel.
+  - Audit log via `auditLogger` (event `bbs_retention_purge` dengan by_admin, modules, hasil).
+- `node_backend/routes/bbsRetention.js` *(baru)* — mounted `/api/bbs/retention` (sebelum `/api/bbs`):
+  - `GET /` (admin) — settings, bounds, labels, can_edit.
+  - `GET /preview?modules=adas,speed` (admin) — hitungan yang akan dihapus (READ-ONLY).
+  - `POST /purge {modules, confirm, optimize}` (admin) — dua langkah; tanpa `confirm=true`
+    hanya melaporkan dampak.
+- `node_backend/routes/bbsSettings.js` — label + validasi key `adas.retention_days` (0-3650),
+  bounds/defaults ADAS ditambahkan ke respons.
+- `node_backend/routes/bbsSpeed.js` — `/speed/purge` di-delegate ke retentionService (satu
+  sumber kebenaran), bentuk respons lama dipertahankan.
+- Migration `20260915200000_add_adas_retention_setting.sql` — seed `adas.retention_days = 90`.
+
+### Frontend (`BbsSpeedTab.vue`)
+- Kartu **"Retensi Data"** baru (hanya tampil untuk admin, flag `:is-admin` dioper dari
+  `BbsTransportasi.vue` mengikuti pola `:view-only` BbsDetailDrawer).
+- Input hari per modul (ADAS & Speed), tombol **Pratinjau** (read-only), tombol **Hapus Data**
+  dengan konfirmasi dua langkah (klik pertama = pratinjau + minta konfirmasi, klik kedua =
+  eksekusi). Setelah purge Speed, ringkasan/daftar/tren disegarkan.
+- `bbsService.ts` — tipe `BbsRetentionModule` + `fetchRetentionSettings` /
+  `saveRetentionSettings` / `previewRetention` / `runRetentionPurge`.
+- `useBbsLang.ts` — kunci i18n `retention*` (ID & EN).
+
+### Test
+- `node scripts/test-retention-purge.js` — 8 kasus: semantik 0=nonaktif, parseModules,
+  validasi 0-3650/integer, keys/bounds/defaults, pratinjau = SQL langsung, filter ADAS
+  ter-scope `source='adas'`, pengaman dengan menulis sementara 0 lalu memulihkannya.
+- Diverifikasi end-to-end via HTTP (token sintetis): non-admin → 403; preview → 0 baris
+  (retensi 90 hari = no-op hari ini, data termuda 42 hari); purge tanpa confirm →
+  requires_confirmation; purge confirm=true → 0 dihapus. Integritas data setelah uji:
+  ADAS 1035, manual 1, telemetry 1562, events 34, daily 14 — **tidak berubah**.
+
+## Updates (2026-09-15 — Pisahkan Data Upload dari Tab Riwayat BBS)
+
+### Masalah
+`GET /bbs/history` menarik `bbs_observations` TANPA filter `source`, sehingga 143 baris hasil
+upload ADAS bercampur dengan observasi manual — Riwayat jadi terlalu ramai. Dashboard sudah
+benar (memisahkan `source='manual'` dan `source='adas'`), hanya Riwayat & Export yang bocor.
+
+### Perubahan (`node_backend/routes/bbs.js`)
+- `GET /history` — `buildObsWhere()` menambahkan kondisi tetap `o.source <> 'adas'`
+  (konstanta, bukan filter opsional, agar filter status observasi tetap khusus data manual).
+- `GET /export` — `obsWhere` menambahkan `source <> 'adas'` supaya file Excel konsisten
+  dengan daftar Riwayat (mencegah data 'hantu' bocor lewat export).
+- `GET/PUT/DELETE /observations/:id` — menolak baris `source='adas'` dengan **404**
+  (data hasil upload bersifat read-only; mencegah edit/hapus tak sengaja).
+  PUT memakai cek eksplisit `SELECT source` (bukan `affectedRows`, yang menghitung baris
+  BERUBAH sehingga nilai identik bisa salah dianggap "tidak ditemukan").
+
+### Perubahan (frontend)
+- `BbsRiwayatTab.vue` — catatan kecil di atas daftar: data upload ADAS & Kecepatan tidak
+  ditampilkan di Riwayat; arahkan ke tab ADAS / Kecepatan.
+- `useBbsLang.ts` — kunci `hisExcludeNote` (ID & EN).
+
+### Hasil terukur
+- Riwayat: 144 baris → **1 baris** (143 ADAS dikecualikan). Checklist/Insiden tidak berubah.
+- Data ADAS di DB **tidak dihapus** (tetap 143 baris) — hanya tidak ditampilkan.
+
+### Test
+- `node scripts/test-history-exclusion.js` — self-contained (router dimount in-process):
+  history type=all & type=observasi mengecualikan ADAS, tidak ada id ADAS yang bocor,
+  GET/PUT/DELETE baris ADAS → 404 (data utuh), observasi manual tetap 200, export tetap
+  mengembalikan spreadsheet.
+
+## Updates (2026-09-15 — Breakdown Alarm per Kendaraan)
+
+### Fitur
+Chart "Breakdown Alarm per Tipe" kini bisa difilter per kendaraan (multi-pilih, maks 6),
+dengan chart grouped-bar satu seri per truk + legenda warna untuk membandingkan kendaraan.
+
+### Backend
+- `node_backend/routes/bbs.js`
+  - **`GET /api/bbs/alarm-plates`** *(baru)* — daftar kendaraan yang benar-benar punya data
+    ADAS + jumlah alarm (`{ plates: [{plate_number,total,last_alarm}], max_selectable: 6 }`).
+    Sengaja bukan dari master truck agar tidak ada opsi kosong.
+  - **`GET /api/bbs/alarm-breakdown`** — param baru `plates=A,B,C` (maks 6, `MAX_ALARM_BREAKDOWN_PLATES`).
+    Respons ditambah `series[{plate,total,data}]`, `plates_used`, `truncated`; `data` lama
+    tetap ada (kompatibel). `labels` = union tipe pada hasil terfilter, urut total DESC.
+- `node_backend/routes/bbsAlarm.js` — `GET /api/bbs/alarms` menerima `plates=A,B` (exact IN)
+  untuk kontrol terpadu; param `plate` (LIKE) lama dipertahankan.
+
+### Frontend (`BbsAlarmTab.vue`)
+- Kontrol **multi-pilih kendaraan** (dropdown checkbox + jumlah alarm) menggantikan input plat
+  teks lama; pilihan mengendalikan **chart dan daftar alarm** sekaligus (satu sumber kebenaran).
+- Batas 6 kendaraan dengan peringatan; default terpilih = kendaraan dengan alarm terbanyak
+  (hanya sekali agar tidak menimpa pilihan pengguna).
+- Chart grouped-bar: legend muncul hanya saat multi-kendaraan; tooltip menyebut nama kendaraan.
+- Setelah import, daftar plat disegarkan otomatis (kendaraan baru langsung tersedia).
+- `bbsService.ts` — `fetchAlarmPlates()`, `fetchAlarmBreakdown(month, plates?)`, `plates` di `fetchAlarms`.
+- `useBbsLang.ts` — kunci `alarmVehicleFilter` / `alarmAllVehicles` / `alarmVehiclesSelected` /
+  `alarmClearFilter` / `alarmMaxVehicles` / `alarmVehicleEmpty` / `alarmBreakdownEmpty` (ID & EN).
+
+### Test
+- `node scripts/test-alarm-breakdown.js` — self-contained; menyisipkan kendaraan sintetis kedua
+  untuk membuktikan multi-seri: `/alarm-plates` cocok SQL, breakdown tanpa filter identik
+  perilaku lama, 1 plat → 1 seri, 2 plat → 2 seri dengan angka per kendaraan, >6 plat →
+  `truncated=true` & hanya 6 dipakai, plat tak dikenal → hasil kosong (bukan error),
+  `/alarms?plates=` hanya mengembalikan plat terpilih.
+
+## Updates (2026-09-15 — Filter Kendaraan pada Chart Kecepatan)
+
+### Fitur
+Konsisten dengan modul ADAS: satu **kontrol multi-pilih kendaraan** (maks 6) di tab Kecepatan
+yang mengendalikan **chart Tren**, **chart baru "Pelanggaran per Kendaraan"**, dan
+**daftar pelanggaran**.
+
+### Backend (`node_backend/routes/bbsSpeed.js`)
+- Konstanta `MAX_CHART_PLATES = 6` + helper `parsePlateFilter()` / `plateInClause()`.
+- **`GET /api/bbs/speed/plates`** *(baru)* — kendaraan yang punya pelanggaran + jumlah event
+  (`{ plates: [{plate_number,total,last_month}], max_selectable: 6 }`).
+- **`GET /api/bbs/speed/by-vehicle`** *(baru)* — `SUM(event_count)` per plat dari
+  `bbs_speed_daily` (teragregasi, hemat query), urut terbanyak dulu, maks 6 + `total_vehicles`.
+- **`GET /api/bbs/speed/daily-trend`** — param `plates=A,B,C`; respons ditambah
+  `series[{plate,data,total}]`, `plates_used`, `truncated`; `data` agregat tetap ada.
+- **`GET /api/bbs/speed/events`** — param `plates=A,B` (exact IN) untuk kontrol terpadu;
+  `plate` LIKE lama dipertahankan.
+
+### Frontend (`BbsSpeedTab.vue`)
+- Kontrol multi-pilih kendaraan di kartu Tren (dropdown checkbox + jumlah pelanggaran,
+  opsi "Semua Kendaraan", peringatan maks 6, default = pelanggar terbanyak sekali saja).
+- Chart Tren: **grouped bar** per kendaraan saat >1 dipilih (legenda + tooltip nama truk).
+- Chart baru **"Pelanggaran per Kendaraan"** (sumbu X = plat, 1 batang/truk, tooltip
+  menampilkan jumlah + hari melanggar) — lebih informatif daripada 31 batang harian.
+- Input plat teks di daftar pelanggaran **dihapus** (digantikan kontrol terpadu).
+- Import & purge menyegarkan daftar plat otomatis.
+- `bbsService.ts` — `fetchSpeedPlates()`, `fetchSpeedByVehicle(month, plates?)`,
+  `plates` pada `fetchSpeed` / `fetchSpeedTrend`; tipe `BbsSpeedPlate`/`BbsSpeedByVehicle`.
+- `useBbsLang.ts` — kunci `speedByVehicleTitle` (ID & EN); label filter kendaraan memakai
+  kunci `alarm*` yang sudah ada (label generik, menghindari duplikasi).
+
+### Test
+- `node scripts/test-speed-vehicle-filter.js` — self-contained; menyisipkan plat sintetis
+  (events + daily) untuk membuktikan multi-kendaraan: `/plates` cocok SQL, tren tanpa filter
+  identik perilaku lama, 1 plat → 1 seri, 2 plat → 2 seri dengan angka per truk, `/by-vehicle`
+  = `SUM(event_count)`, >6 plat → `truncated`, plat tak dikenal → kosong (bukan error),
+  `/events?plates=` hanya plat terpilih.
+
+---
 
 ### BBS — Tab Baru "Alarm ADAS"
 

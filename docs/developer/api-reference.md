@@ -255,6 +255,143 @@ Authorization: Bearer <token>
 | GET | `/api/schedule-pengiriman` | Schedule pengiriman (accessible by CS) |
 | GET | `/api/address-book` | Address book |
 
+## BBS (Safety)
+
+Modul Behavior-Based Safety. Seluruh endpoint memerlukan `Authorization: Bearer <token>`.
+Sebagian endpoint hanya untuk level **admin** (ditandai 🔒).
+
+### Observasi, Checklist, Insiden
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | `/api/bbs/dashboard?month=YYYY-MM` | Ringkasan + skor ADAS per truk |
+| POST | `/api/bbs/observations` | Simpan observasi manual |
+| POST | `/api/bbs/checklists` | Simpan checklist kendaraan |
+| POST | `/api/bbs/incidents` | Simpan insiden / near-miss |
+| GET | `/api/bbs/observations/:id` | Detail observasi manual (baris ADAS → **404**) |
+| GET | `/api/bbs/checklists/:id` | Detail checklist |
+| GET | `/api/bbs/incidents/:id` | Detail insiden |
+| GET | `/api/bbs/checklists/today-plates` | Plat yang sudah dichecklist hari ini |
+| PUT | `/api/bbs/observations/:id` | Update observasi manual (baris ADAS → **404**) |
+| PUT | `/api/bbs/checklists/:id` | Update checklist |
+| PUT | `/api/bbs/incidents/:id` | Update insiden |
+| DELETE | `/api/bbs/observations/:id` | Hapus observasi manual (baris ADAS → **404**) |
+| DELETE | `/api/bbs/checklists/:id` | Hapus checklist |
+| DELETE | `/api/bbs/incidents/:id` | Hapus insiden |
+
+::: warning Riwayat mengecualikan data upload
+`GET /api/bbs/history` dan `GET /api/bbs/export` **tidak menyertakan** observasi dengan
+`source = 'adas'`. Endpoint `observations/:id` juga menolak baris ADAS dengan **404** supaya data
+hasil upload tidak bisa dibuka/diedit/dihapus dari jalur Riwayat.
+
+Filter `GET /api/bbs/history`: `type` (`all`/`observasi`/`checklist`/`insiden`), `search`, `month`,
+`driver_id`, `plate_number`, `status`, `limit` (maks 200), `offset`.
+:::
+
+### Alarm ADAS
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| POST | `/api/bbs/alarms/import` | Import CSV/XLSX (maks 10 MB; level `user` ditolak 403) |
+| GET | `/api/bbs/alarms` | Daftar alarm |
+| GET | `/api/bbs/alarm-breakdown?month=YYYY-MM&plates=A,B` | Breakdown alarm per tipe |
+| GET | `/api/bbs/alarm-plates` | Daftar kendaraan yang punya data ADAS + jumlah alarm |
+
+**Filter `GET /api/bbs/alarms`:** `plates=A,B` (cocok persis, untuk kontrol terpadu), `plate` (pencarian sebagian),
+`alarm_type`, `date_from`, `date_to`, `page`, `limit` (maks 100).
+
+**`GET /api/bbs/alarm-plates`** — dipakai mengisi filter chart:
+```json
+{ "plates": [{ "plate_number": "B 9979 SYM", "total": 1776, "last_alarm": "2026-09-16" }], "max_selectable": 6 }
+```
+
+**`GET /api/bbs/alarm-breakdown`** — `plates` opsional (maks **6**, selebihnya `truncated: true`):
+```json
+{
+  "labels": ["Lane Departure Warning", "Headway Monitoring Warning"],
+  "data": [714, 462],
+  "series": [{ "plate": "B 9979 SYM", "total": 1776, "data": [714, 462] }],
+  "plates_used": ["B 9979 SYM"],
+  "truncated": false,
+  "month": "2026-09"
+}
+```
+`labels` = tipe alarm yang muncul pada hasil terfilter, urut **total DESC**. `data` = total per tipe
+(kompatibel dengan klien lama); `series` = rincian per kendaraan untuk *grouped bar*.
+
+## Kecepatan (Speed)
+
+Tab Kecepatan memakai prefix `/api/bbs/speed`. Endpoint 🔒 hanya untuk level **admin**.
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| POST | `/api/bbs/speed/import` | Import CSV/XLSX (maks 10 MB) |
+| GET | `/api/bbs/speed/plates` | Daftar kendaraan yang punya pelanggaran + jumlah event |
+| GET | `/api/bbs/speed/by-vehicle?month=YYYY-MM&plates=A,B` | Total pelanggaran per kendaraan |
+| GET | `/api/bbs/speed/daily-trend?month=YYYY-MM&plates=A,B` | Tren pelanggaran per tanggal (1..31) |
+| GET | `/api/bbs/speed/events?month=YYYY-MM&plates=A,B&plate=` | Daftar event pelanggaran (paginasi) |
+| GET | `/api/bbs/speed/summary?month=YYYY-MM` | Ringkasan bulanan |
+| GET | `/api/bbs/speed?month=YYYY-MM` | Agregat harian (`bbs_speed_daily`) |
+| GET | `/api/bbs/speed/threshold-preview?kmh=60&month=YYYY-MM` 🔒 | Simulasi ambang batas (read-only) |
+| POST | `/api/bbs/speed/recompute` 🔒 | Hitung ulang event + agregat dari data mentah |
+| DELETE | `/api/bbs/speed/import/:month` 🔒 | Hapus seluruh data satu bulan (`optimize=true` opsional) |
+| POST | `/api/bbs/speed/purge` 🔒 | Hapus data kedaluwarsa sesuai retensi Speed |
+
+**Konvensi `plates`:** comma-separated `plates=A,B,C` — maksimum **6** kendaraan (kelebihan dipotong
+dan `truncated: true`). Plate tak dikenal menghasilkan hasil kosong, bukan error.
+
+**`GET /api/bbs/speed/daily-trend`** mengembalikan `labels` (semua tanggal bulan itu, `YYYY-MM-DD`),
+`data` (total per tanggal), dan `series` (satu entri per kendaraan) — pola sama dengan `alarm-breakdown`.
+
+**`GET /api/bbs/speed/by-vehicle`:**
+```json
+{ "rows": [{ "plate_number": "B 9979 SYM", "total": 34, "days": 14, "overspeed_seconds": 2040, "max_speed_kmh": 67.95 }],
+  "total_vehicles": 1, "truncated": false, "month": "2026-09" }
+```
+
+### Retensi Data 🔒
+
+Hanya level **admin**.
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | `/api/bbs/retention` | Pengaturan retensi aktif + bounds + defaults |
+| GET | `/api/bbs/retention/preview?modules=adas,speed&days=90` | Pratinjau (**read-only**); `days` opsional sebagai nilai kandidat |
+| POST | `/api/bbs/retention/purge` | Eksekusi penghapusan |
+
+**Semantik angka retensi:** `days > 0` = hapus data lebih tua dari N hari; `days <= 0` = **nonaktif**
+(modul dilewati). **ADAS** memakai basis `begin_time`; **Speed** memakai `creation_time` / `end_time` / `day`.
+
+**Dua langkah wajib** — tanpa `confirm: true` hanya melaporkan dampak:
+```http
+POST /api/bbs/retention/purge
+{ "modules": ["adas", "speed"], "days": 90, "confirm": false }
+→ 200 { "requires_confirmation": true, "preview": { ... } }
+
+POST /api/bbs/retention/purge
+{ "modules": ["adas", "speed"], "days": 90, "confirm": true, "optimize": false }
+→ 200 { "results": { "adas":  { "days": 90, "enabled": true, "deleted": 0 },
+                     "speed": { "days": 90, "enabled": true,
+                                "deleted": { "telemetry": 0, "events": 0, "daily": 0 } } } }
+```
+Setiap eksekusi dicatat ke audit log dengan event `bbs_retention_purge`.
+
+### Pengaturan BBS
+
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| GET | `/api/bbs/settings` | Nilai tersimpan + nilai efektif + bounds + labels |
+| PUT | `/api/bbs/settings` 🔒 | Simpan sebagian setting (validasi per key) |
+
+Key yang didukung: `speed.overspeed_threshold_kmh` (20–200), `speed.retention_days`,
+`speed.score_penalty_factor`, `speed.weight`, `speed.burst_gap_seconds`,
+`speed.sample_interval_seconds` (60–3600), `adas.retention_days` (**0**–3650).
+
+::: tip Mengapa `adas.retention_days` boleh 0
+Key `speed.*` memakai batas sesuai fungsinya, sedangkan `adas.retention_days` menerima **0** karena
+0 berarti *nonaktif* — bukan nilai tak valid.
+:::
+
 ## GPS & Tracking
 
 ### GPS Trail

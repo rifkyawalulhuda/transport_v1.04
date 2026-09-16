@@ -2,12 +2,15 @@ const express = require("express");
 const db = require("../db");
 const xlsx = require("xlsx");
 const { authenticateToken } = require("../middleware/auth");
-const { fetchOverspeedCountsByUnits } = require("../services/wialonService");
+const speedSvc = require("../services/speedService");
 
 const router = express.Router();
 router.use(authenticateToken);
 
 const pad2 = (value) => String(value).padStart(2, "0");
+
+// Batas jumlah kendaraan pada chart breakdown alarm: grouped-bar masih terbaca.
+const MAX_ALARM_BREAKDOWN_PLATES = 6;
 
 const fmtDate = (value) => {
   if (!value) return "";
@@ -40,11 +43,11 @@ router.get("/dashboard", async (req, res) => {
     const [[obsCount], [safeCount], [nearMissCount], [incidentFree]] =
       await Promise.all([
         db.query(
-          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date <= ?",
+          "SELECT COUNT(*) AS total FROM bbs_observations WHERE source = 'manual' AND date >= ? AND date <= ?",
           [firstDay, endDay]
         ),
         db.query(
-          "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date <= ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
+          "SELECT COUNT(*) AS total FROM bbs_observations WHERE source = 'manual' AND date >= ? AND date <= ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
           [firstDay, endDay]
         ),
         db.query(
@@ -68,11 +71,11 @@ router.get("/dashboard", async (req, res) => {
 
     const [[prevObs], [prevSafeObs], [prevNearMiss]] = await Promise.all([
       db.query(
-        "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date < ?",
+        "SELECT COUNT(*) AS total FROM bbs_observations WHERE source = 'manual' AND date >= ? AND date < ?",
         [prevFirst, firstDay]
       ),
       db.query(
-        "SELECT COUNT(*) AS total FROM bbs_observations WHERE date >= ? AND date < ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
+        "SELECT COUNT(*) AS total FROM bbs_observations WHERE source = 'manual' AND date >= ? AND date < ? AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman'",
         [prevFirst, firstDay]
       ),
       db.query(
@@ -93,7 +96,7 @@ router.get("/dashboard", async (req, res) => {
                 COUNT(*) AS total,
                 SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o1')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o2')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o3')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o4')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) = 'aman' AND JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) = 'aman' THEN 1 ELSE 0 END) AS safe_count
          FROM bbs_observations
-         WHERE date >= DATE_SUB(?, INTERVAL 5 MONTH)
+         WHERE source = 'manual' AND date >= DATE_SUB(?, INTERVAL 5 MONTH)
          GROUP BY m
          ORDER BY m ASC`,
         [firstDay]
@@ -107,7 +110,7 @@ router.get("/dashboard", async (req, res) => {
            SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o5')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o6')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o7')) IN ('berisiko','berbahaya') OR JSON_UNQUOTE(JSON_EXTRACT(scores, '$.o8')) IN ('berisiko','berbahaya') THEN 1 ELSE 0 END) AS other_risk,
            COUNT(*) AS total
          FROM bbs_observations
-         WHERE date >= ? AND date <= ?`,
+         WHERE source = 'manual' AND date >= ? AND date <= ?`,
         [firstDay, endDay]
       )
     ]);
@@ -139,40 +142,31 @@ router.get("/dashboard", async (req, res) => {
       other: Math.round((Number(risk.other_risk || 0) / riskTotal) * 100)
     };
 
-    // Query truck wialon_unit_id mapping (plate_number -> wialon_unit_id)
-    const [truckRows] = await db.query(
-      `SELECT no_police, wialon_unit_id FROM truck WHERE is_active = 1 AND wialon_unit_id IS NOT NULL AND wialon_unit_id != ''`
+    // Ambil skor Speed per plat dari agregat harian (sumber: bbs_speed_daily).
+    // Tidak ada jaringan eksternal — query lokal, tidak pernah stall dashboard.
+    const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+    const speedSettings = await speedSvc.getSettings();
+    const [speedDailyRows] = await db.query(
+      `SELECT plate_number,
+              SUM(moving_seconds) AS moving_seconds,
+              SUM(overspeed_seconds) AS overspeed_seconds
+         FROM bbs_speed_daily
+        WHERE DATE_FORMAT(day, '%Y-%m') = ?
+        GROUP BY plate_number`,
+      [monthKey]
     );
-    const plateToUnitId = new Map();
-    const unitIdToPlate = new Map();
-    (truckRows || []).forEach((row) => {
-      const plate = String(row.no_police || "").trim();
-      const unitId = String(row.wialon_unit_id || "").trim();
-      if (plate && unitId) {
-        plateToUnitId.set(plate, unitId);
-        unitIdToPlate.set(unitId, plate);
-      }
-    });
-
-    // Fetch Wialon overspeed counts for the month range
-    // Uses parallel batch fetch + in-memory cache (5 min TTL) in wialonService.
-    // Race against an 8-second timeout so the dashboard never stalls on Wialon.
-    const timeFrom = Math.floor(new Date(firstDay).getTime() / 1000);
-    const timeTo = Math.floor(new Date(endDay + "T23:59:59").getTime() / 1000);
-    const unitIds = Array.from(unitIdToPlate.keys());
-    let wialonOverspeedMap = new Map();
-    try {
-      const WIALON_TIMEOUT_MS = 8000;
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("wialon_timeout")), WIALON_TIMEOUT_MS)
+    // plate_number di bbs_speed_daily memakai huruf besar dengan spasi, sama
+    // seperti bbs_observations.plate_number. Normalisasi ke uppercase tanpa
+    // spasi supaya pencocokan tahan beda-format.
+    const normPlate = (p) => String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const speedScoreMap = new Map();
+    (speedDailyRows || []).forEach((row) => {
+      const scoring = speedSvc.computeSpeedScore(
+        { movingSeconds: Number(row.moving_seconds || 0), overspeedSeconds: Number(row.overspeed_seconds || 0) },
+        speedSettings.penaltyFactor
       );
-      wialonOverspeedMap = await Promise.race([
-        fetchOverspeedCountsByUnits({ unitIds, timeFrom, timeTo }),
-        timeoutPromise,
-      ]);
-    } catch {
-      // Wialon unavailable or timed out — continue without overspeed data
-    }
+      speedScoreMap.set(normPlate(row.plate_number), scoring);
+    });
 
     const [adasRows] = await db.query(
       `SELECT plate_number, alarm_type, COUNT(*) AS total
@@ -226,14 +220,11 @@ router.get("/dashboard", async (req, res) => {
         Object.entries(scoreConfig).reduce((sum, [category, config]) => sum + categoryScores[category] * config.aggWeight, 0)
       ));
 
-      // Merge Wialon overspeed count
-      const unitId = plateToUnitId.get(record.plate_number);
-      const wialonOverspeed = unitId ? (wialonOverspeedMap.get(unitId) || 0) : 0;
-
-      // Penalize speed score further if Wialon overspeed events exist
-      if (wialonOverspeed > 0) {
-        const wialonPenalty = Math.min(wialonOverspeed * 2, 40); // max -40 pts
-        categoryScores.speed = Math.max(0, categoryScores.speed - wialonPenalty);
+      // Merge Speed score dari bbs_speed_daily (lokal, tanpa jaringan eksternal)
+      const speedData = speedScoreMap.get(normPlate(record.plate_number));
+      if (speedData !== undefined) {
+        // Override skor speed kategori dengan skor dari speedService
+        categoryScores.speed = speedData.score;
       }
 
       // Recalculate final score with updated speed score
@@ -247,7 +238,8 @@ router.get("/dashboard", async (req, res) => {
         score: finalScore,
         status: finalScore >= 80 ? 'aman' : finalScore >= 60 ? 'perlu_perhatian' : 'berisiko',
         category_scores: categoryScores,
-        wialon_overspeed: wialonOverspeed
+        speed_score: speedData ? speedData.score : null,
+        speed_overspeed_pct: speedData ? speedData.overspeedRate : null
       };
     }).sort((a, b) => a.score - b.score || b.total_alarms - a.total_alarms);
 
@@ -463,6 +455,10 @@ router.get("/history", async (req, res) => {
     const buildObsWhere = () => {
       const conds = [];
       const params = [];
+      // Data hasil upload ADAS TIDAK ditampilkan di Riwayat (lihat tab ADAS).
+      // Sengaja konstanta, bukan filter opsional, supaya filter status observasi
+      // (aman/perlu_perhatian) tetap berlaku hanya untuk observasi manual.
+      conds.push("o.source <> 'adas'");
       if (search) { conds.push("(o.observer_name LIKE ? OR o.driver_id LIKE ? OR o.location LIKE ? OR d.nama_driver LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
       if (month) { conds.push("DATE_FORMAT(o.date, '%Y-%m') = ?"); params.push(month); }
       if (driverId) { conds.push("o.driver_id = ?"); params.push(driverId); }
@@ -609,8 +605,9 @@ const computeObsStatus = (scores) => {
 
 router.get("/observations/:id", async (req, res) => {
   try {
+    // Data hasil upload ADAS bersifat read-only dan hanya diakses dari tab ADAS.
     const [rows] = await db.query(
-      "SELECT o.*, d.nama_driver FROM bbs_observations o LEFT JOIN driver d ON o.driver_id = d.id_driver WHERE o.id_observation = ?",
+      "SELECT o.*, d.nama_driver FROM bbs_observations o LEFT JOIN driver d ON o.driver_id = d.id_driver WHERE o.id_observation = ? AND o.source <> 'adas'",
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ message: "Observasi tidak ditemukan" });
@@ -629,14 +626,24 @@ router.put("/observations/:id", async (req, res) => {
     if (!driver_id || !date || !scores) {
       return res.status(400).json({ message: "Driver ID, tanggal, dan skor wajib diisi" });
     }
+    // Pastikan baris ini observasi manual, bukan hasil upload ADAS (read-only).
+    // Dicek eksplisit supaya tidak bergantung pada affectedRows (MySQL menghitung
+    // baris yang BERUBAH, sehingga nilai identik bisa tampak "tidak ditemukan").
+    const [targetRows] = await db.query(
+      "SELECT source FROM bbs_observations WHERE id_observation = ?",
+      [req.params.id]
+    );
+    if (!targetRows.length) return res.status(404).json({ message: "Observasi tidak ditemukan" });
+    if (String(targetRows[0].source || "").toLowerCase() === "adas") {
+      return res.status(404).json({ message: "Observasi tidak ditemukan" });
+    }
     const scoresJson = JSON.stringify(scores);
     const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
     const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
-    const [result] = await db.query(
+    await db.query(
       `UPDATE bbs_observations SET driver_id=?, date=?, location=?, latitude=?, longitude=?, vehicle_type=?, scores=?, feedback=?, follow_up=? WHERE id_observation=?`,
       [String(driver_id).trim(), fmtDate(date), location || null, lat, lng, vehicle_type || null, scoresJson, feedback || null, follow_up || null, req.params.id]
     );
-    if (!result.affectedRows) return res.status(404).json({ message: "Observasi tidak ditemukan" });
     res.json({ id: Number(req.params.id), driver_id, date });
   } catch (err) {
     console.error("BBS update observation error:", err);
@@ -737,7 +744,11 @@ router.put("/incidents/:id", async (req, res) => {
 
 router.delete("/observations/:id", async (req, res) => {
   try {
-    const [result] = await db.query("DELETE FROM bbs_observations WHERE id_observation = ?", [req.params.id]);
+    // Guard: baris hasil upload ADAS tidak boleh dihapus dari jalur Riwayat.
+    const [result] = await db.query(
+      "DELETE FROM bbs_observations WHERE id_observation = ? AND source <> 'adas'",
+      [req.params.id]
+    );
     if (!result.affectedRows) return res.status(404).json({ message: "Observasi tidak ditemukan" });
     res.json({ message: "Observasi dihapus" });
   } catch (err) {
@@ -768,6 +779,34 @@ router.delete("/incidents/:id", async (req, res) => {
   }
 });
 
+/**
+ * Daftar kendaraan yang BENAR-BENAR punya data alarm ADAS beserta jumlahnya.
+ * Dipakai mengisi filter chart — sengaja bukan dari master truck supaya tidak
+ * ada opsi yang selalu kosong.
+ */
+router.get("/alarm-plates", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT plate_number, COUNT(*) AS total, MAX(DATE(begin_time)) AS last_alarm
+         FROM bbs_observations
+        WHERE source = 'adas' AND plate_number IS NOT NULL AND TRIM(plate_number) <> ''
+        GROUP BY plate_number
+        ORDER BY total DESC, plate_number ASC`
+    );
+    res.json({
+      plates: (rows || []).map((r) => ({
+        plate_number: r.plate_number,
+        total: Number(r.total || 0),
+        last_alarm: r.last_alarm || null
+      })),
+      max_selectable: MAX_ALARM_BREAKDOWN_PLATES
+    });
+  } catch (err) {
+    console.error("BBS alarm-plates error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.get("/alarm-breakdown", async (req, res) => {
   try {
     const monthParam = String(req.query.month || "").trim();
@@ -785,20 +824,72 @@ router.get("/alarm-breakdown", async (req, res) => {
     const lastDayDate = new Date(year, month, 0);
     const endDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDayDate.getDate()).padStart(2, "0")}`;
 
-    const [rows] = await db.query(
-      `SELECT alarm_type, COUNT(*) AS total
-       FROM bbs_observations
-       WHERE source = 'adas'
-         AND DATE(begin_time) >= ? AND DATE(begin_time) <= ?
-       GROUP BY alarm_type
-       ORDER BY total DESC`,
-      [firstDay, endDay]
+    // Filter kendaraan: `plates=A,B,C` (maks MAX_ALARM_BREAKDOWN_PLATES).
+    // Tanpa parameter -> perilaku lama (agregat semua kendaraan).
+    const requestedPlates = String(req.query.plates || "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const truncated = requestedPlates.length > MAX_ALARM_BREAKDOWN_PLATES;
+    const platesUsed = requestedPlates.slice(0, MAX_ALARM_BREAKDOWN_PLATES);
+
+    const conditions = ["source = 'adas'", "DATE(begin_time) >= ?", "DATE(begin_time) <= ?"];
+    const params = [firstDay, endDay];
+    if (platesUsed.length) {
+      conditions.push(`plate_number IN (${platesUsed.map(() => "?").join(",")})`);
+      params.push(...platesUsed);
+    }
+    const where = conditions.join(" AND ");
+
+    // Ambil agregat per (plat, tipe) sekaligus — satu query, lalu dirakit di memori.
+    const [cells] = await db.query(
+      `SELECT plate_number, alarm_type, COUNT(*) AS total
+         FROM bbs_observations
+        WHERE ${where}
+        GROUP BY plate_number, alarm_type`,
+      params
     );
 
-    const labels = (rows || []).map((r) => String(r.alarm_type || "Unknown"));
-    const data = (rows || []).map((r) => Number(r.total || 0));
+    // Urutan tipe: total DESC (lintas kendaraan terpilih), tie-break nama.
+    const typeTotals = new Map();
+    const plateTotals = new Map();
+    (cells || []).forEach((cell) => {
+      const type = String(cell.alarm_type || "Unknown");
+      typeTotals.set(type, (typeTotals.get(type) || 0) + Number(cell.total || 0));
+      const plate = String(cell.plate_number || "");
+      plateTotals.set(plate, (plateTotals.get(plate) || 0) + Number(cell.total || 0));
+    });
 
-    res.json({ labels, data, month: `${year}-${String(month).padStart(2, "0")}` });
+    const labels = [...typeTotals.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([type]) => type);
+
+    const plateKeys = platesUsed.length
+      ? platesUsed.filter((p) => plateTotals.has(p))
+      : [...plateTotals.keys()].sort((a, b) => (plateTotals.get(b) || 0) - (plateTotals.get(a) || 0));
+
+    const cellMap = new Map();
+    (cells || []).forEach((cell) => {
+      cellMap.set(`${String(cell.plate_number || "")}||${String(cell.alarm_type || "Unknown")}`, Number(cell.total || 0));
+    });
+
+    const series = plateKeys.map((plate) => ({
+      plate,
+      total: plateTotals.get(plate) || 0,
+      data: labels.map((type) => cellMap.get(`${plate}||${type}`) || 0)
+    }));
+
+    // `data` = total per tipe (kompatibel dengan frontend versi lama).
+    const data = labels.map((type) => typeTotals.get(type) || 0);
+
+    res.json({
+      labels,
+      data,
+      series,
+      plates_used: platesUsed,
+      truncated,
+      month: `${year}-${String(month).padStart(2, "0")}`
+    });
   } catch (err) {
     console.error("BBS alarm-breakdown error:", err);
     res.status(500).json({ message: "Internal server error" });
@@ -822,7 +913,9 @@ router.get("/export", async (req, res) => {
       dateParams.push(year);
     }
 
-    const obsWhere = dateCond ? `WHERE ${dateCond}` : "";
+    // Export harus konsisten dengan daftar Riwayat: data hasil upload ADAS
+    // tidak ikut diekspor ke sheet Observasi.
+    const obsWhere = dateCond ? `WHERE source <> 'adas' AND ${dateCond}` : "WHERE source <> 'adas'";
     const chkWhere = dateCond ? `WHERE ${dateCond}` : "";
     const incWhere = dateCond ? `WHERE ${dateCond}` : "";
 

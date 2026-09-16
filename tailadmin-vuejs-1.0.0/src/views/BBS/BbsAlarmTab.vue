@@ -36,16 +36,73 @@
         <span class="text-gray-400 transition-transform" :class="chartOpen ? 'rotate-180' : ''">▼</span>
       </button>
       <div v-show="chartOpen" class="px-5 pb-5">
-        <div class="mb-3 flex flex-wrap gap-2">
+        <div class="mb-3 flex flex-wrap items-center gap-2">
           <input
             v-model="breakdownMonth"
             type="month"
             class="h-9 rounded-lg border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
             @change="loadBreakdown"
           />
+
+          <!-- Filter kendaraan (multi-pilih) — mengendalikan chart & daftar -->
+          <div class="relative">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              @click="plateDropdownOpen = !plateDropdownOpen"
+            >
+              {{ t.alarmVehicleFilter }}:
+              <span class="font-medium">
+                {{ selectedPlates.length ? selectedPlates.length + ' ' + t.alarmVehiclesSelected : t.alarmAllVehicles }}
+              </span>
+              <span class="ml-1 text-gray-400">▾</span>
+            </button>
+            <div
+              v-if="plateDropdownOpen"
+              class="absolute z-30 mt-1 max-h-64 w-64 overflow-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+            >
+              <button
+                type="button"
+                class="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
+                @click="clearPlates()"
+              >
+                {{ t.alarmAllVehicles }}
+              </button>
+              <label
+                v-for="p in platesList"
+                :key="p.plate_number"
+                class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-gray-50 dark:hover:bg-white/5"
+              >
+                <input
+                  type="checkbox"
+                  class="h-3.5 w-3.5"
+                  :checked="selectedPlates.includes(p.plate_number)"
+                  @change="togglePlate(p.plate_number)"
+                />
+                <span class="flex-1 truncate text-gray-700 dark:text-gray-200">{{ p.plate_number }}</span>
+                <span class="text-gray-400">{{ p.total }}</span>
+              </label>
+              <p v-if="!platesList.length" class="px-2 py-1 text-xs text-gray-400">{{ t.alarmVehicleEmpty }}</p>
+            </div>
+          </div>
+
+          <button
+            v-if="selectedPlates.length"
+            type="button"
+            class="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400"
+            @click="clearPlates()"
+          >
+            {{ t.alarmClearFilter }}
+          </button>
         </div>
+
+        <p v-if="plateWarning" class="mb-2 text-xs text-orange-600 dark:text-orange-400">{{ plateWarning }}</p>
+        <p v-else-if="selectedPlates.length" class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+          {{ selectedPlates.join(' · ') }}
+        </p>
+
         <div v-if="loadingBreakdown" class="py-8 text-center text-sm text-gray-500">{{ t.loading }}</div>
-        <div v-else-if="!breakdown || !breakdown.labels.length" class="py-8 text-center text-sm text-gray-400">Tidak ada data alarm untuk bulan ini.</div>
+        <div v-else-if="!breakdown || !breakdown.labels.length" class="py-8 text-center text-sm text-gray-400">{{ t.alarmBreakdownEmpty }}</div>
         <div v-else class="relative h-64">
           <canvas ref="breakdownCanvas"></canvas>
         </div>
@@ -56,7 +113,6 @@
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4 dark:border-gray-800">
         <h3 class="font-semibold text-gray-800 dark:text-white/90">{{ t.alarmListTitle }}</h3>
         <div class="flex flex-wrap gap-2">
-          <input v-model="filters.plate" class="h-9 rounded-lg border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30" :placeholder="t.alarmPlate" @keyup.enter="loadAlarms" />
           <DatePickerInput v-model="filters.date_from" :placeholder="t.alarmSelectDate" @update:model-value="loadAlarms" />
           <select v-model="filters.alarm_type" class="h-9 rounded-lg border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90" @change="loadAlarms">
             <option value="">{{ t.alarmAllTypes }}</option>
@@ -85,7 +141,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { Chart, registerables } from 'chart.js'
-import { bbsService, type BbsAlarmBreakdown, type BbsAlarmImportResult, type BbsAlarmRow } from '@/services/bbsService'
+import { bbsService, type BbsAlarmBreakdown, type BbsAlarmImportResult, type BbsAlarmPlate, type BbsAlarmRow } from '@/services/bbsService'
 import { useBbsLang } from '@/composables/useBbsLang'
 import DatePickerInput from '@/components/DatePickerInput.vue'
 
@@ -100,8 +156,58 @@ const result = ref<BbsAlarmImportResult | null>(null)
 const rows = ref<BbsAlarmRow[]>([])
 const page = ref(1)
 const pagination = reactive({ limit: 25, total: 0 })
-const filters = reactive({ plate: '', date_from: '', alarm_type: '' })
+const filters = reactive({ alarm_type: '', date_from: '' })
 const alarmTypes = ['Eyes Closed', 'Yawning', 'Distracted Driving', 'Lane Departure Warning', 'Pedestrian Collision Warning', 'Forward Collision Warning', 'Headway Monitoring Warning']
+
+// ── Filter kendaraan (multi-pilih) — mengendalikan chart DAN daftar alarm ──
+const MAX_SELECTABLE = 6
+const platesList = ref<BbsAlarmPlate[]>([])
+const selectedPlates = ref<string[]>([])
+const plateDropdownOpen = ref(false)
+const plateWarning = ref('')
+let userTouchedPlates = false
+
+/** Kode plat default = plat dengan alarm terbanyak (hanya sekali, agar tidak menimpa pilihan). */
+async function loadPlates() {
+  try {
+    const data = await bbsService.fetchAlarmPlates()
+    platesList.value = data.plates || []
+    if (!userTouchedPlates && platesList.value.length) {
+      selectedPlates.value = [platesList.value[0].plate_number]
+    }
+  } catch {
+    platesList.value = []
+  }
+}
+
+function togglePlate(plate: string) {
+  plateWarning.value = ''
+  userTouchedPlates = true
+  const current = selectedPlates.value
+  if (current.includes(plate)) {
+    selectedPlates.value = current.filter((p) => p !== plate)
+  } else {
+    if (current.length >= MAX_SELECTABLE) {
+      plateWarning.value = `${t.value.alarmMaxVehicles.replace('{n}', String(MAX_SELECTABLE))}`
+      return
+    }
+    selectedPlates.value = [...current, plate]
+  }
+  void reloadAll()
+}
+
+function clearPlates() {
+  userTouchedPlates = true
+  selectedPlates.value = []
+  plateWarning.value = ''
+  void reloadAll()
+}
+
+/** Muat ulang chart + daftar dengan pilihan kendaraan yang sama. */
+async function reloadAll() {
+  page.value = 1
+  await Promise.all([loadBreakdown(), loadAlarms()])
+}
 
 // Breakdown chart
 const chartOpen = ref(false)
@@ -119,7 +225,7 @@ const breakdownMonth = ref(currentMonth())
 async function loadBreakdown() {
   loadingBreakdown.value = true
   try {
-    breakdown.value = await bbsService.fetchAlarmBreakdown(breakdownMonth.value)
+    breakdown.value = await bbsService.fetchAlarmBreakdown(breakdownMonth.value, selectedPlates.value)
   } catch {
     breakdown.value = null
   } finally {
@@ -138,11 +244,20 @@ function renderBreakdownChart() {
     '#FF5722', '#00BCD4', '#795548', '#607D8B', '#F06292'
   ]
 
-  breakdownChart = new Chart(breakdownCanvas.value, {
-    type: 'bar',
-    data: {
-      labels: breakdown.value.labels,
-      datasets: [
+  const series = breakdown.value.series || []
+  const multi = series.length > 0
+
+  // Satu dataset per kendaraan (grouped bar) — atau satu dataset agregat bila
+  // tidak ada kendaraan terpilih.
+  const datasets = multi
+    ? series.map((s) => ({
+        label: s.plate,
+        data: s.data,
+        backgroundColor: colors[series.indexOf(s) % colors.length],
+        borderRadius: 4,
+        borderWidth: 0,
+      }))
+    : [
         {
           label: 'Jumlah Alarm',
           data: breakdown.value.data,
@@ -150,14 +265,21 @@ function renderBreakdownChart() {
           borderRadius: 4,
           borderWidth: 0,
         },
-      ],
-    },
+      ]
+
+  breakdownChart = new Chart(breakdownCanvas.value, {
+    type: 'bar',
+    data: { labels: breakdown.value.labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} kejadian` } },
+        legend: { display: multi, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} kejadian`,
+          },
+        },
       },
       scales: {
         y: { beginAtZero: true, ticks: { precision: 0 } },
@@ -167,9 +289,9 @@ function renderBreakdownChart() {
   })
 }
 
-// Load breakdown when chart section is opened
+// Muat ulang chart saat dibuka (mis. setelah import baru).
 watch(chartOpen, (open) => {
-  if (open && !breakdown.value) loadBreakdown()
+  if (open) loadBreakdown()
 })
 
 async function onFileChange(event: Event) {
@@ -181,7 +303,9 @@ async function onFileChange(event: Event) {
   try {
     result.value = await bbsService.importAlarms(file)
     page.value = 1
-    await loadAlarms()
+    // Import bisa menambah kendaraan baru -> segarkan daftar plat, lalu muat ulang.
+    await loadPlates()
+    await reloadAll()
   } finally {
     uploading.value = false
     input.value = ''
@@ -191,7 +315,12 @@ async function onFileChange(event: Event) {
 async function loadAlarms() {
   loading.value = true
   try {
-    const data = await bbsService.fetchAlarms({ page: page.value, limit: pagination.limit, ...filters })
+    const data = await bbsService.fetchAlarms({
+      page: page.value,
+      limit: pagination.limit,
+      ...filters,
+      plates: selectedPlates.value.join(','),
+    })
     rows.value = data.rows
     pagination.total = data.pagination.total
   } finally {
@@ -203,5 +332,8 @@ function formatTime(value: string) {
   return value ? new Date(value).toLocaleString('id-ID') : '-'
 }
 
-onMounted(loadAlarms)
+onMounted(async () => {
+  await loadPlates()
+  await Promise.all([loadAlarms(), loadBreakdown()])
+})
 </script>

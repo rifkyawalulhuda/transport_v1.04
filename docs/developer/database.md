@@ -226,3 +226,90 @@ npm run migrate:adopt-existing
 4. **Test migration down** sebelum push untuk memastikan rollback berfungsi
 5. **Gunakan `is_active` flag** untuk soft delete, bukan `DELETE FROM`
 6. **Date handling**: Simpan sebagai `DATE` type, parse sebagai local date (bukan UTC)
+
+---
+
+## Tabel Modul BBS
+
+Modul BBS (Behavior-Based Safety) memakai tabel-tabel berikut.
+
+| Tabel | Isi |
+|-------|-----|
+| `bbs_observations` | Observasi perilaku **manual** *dan* alarm **ADAS** (dibedakan kolom `source`) |
+| `bbs_checklists` | Checklist kendaraan |
+| `bbs_incidents` | Insiden & near-miss |
+| `bbs_settings` | Pengaturan global BBS (key-value string) |
+| `bbs_speed_telemetry` | Titik GPS untuk pelanggaran kecepatan |
+| `bbs_speed_events` | Event overspeed (burst, bukan per baris) |
+| `bbs_speed_daily` | Agregat harian — sumber utama dashboard & chart |
+
+### `bbs_observations` — kolom ADAS
+
+Ditambahkan oleh `20260909010000_add_adas_alarm_columns_to_bbs_observations.sql`:
+
+| Kolom | Tipe | Keterangan |
+|-------|------|------------|
+| `source` | `VARCHAR(20)` | `'manual'` (default) atau `'adas'` |
+| `device_id` | `VARCHAR(40)` | ID perangkat GPS |
+| `alarm_type` | `VARCHAR(60)` | Jenis alarm ADAS |
+| `begin_time` | `DATETIME` | Waktu mulai alarm — **basis retensi ADAS** |
+| `fleet` | `VARCHAR(60)` | Nama fleet |
+| `plate_number` | `VARCHAR(20)` | Plat kendaraan (dari kolom *Device Name*) |
+
+Ada **unique key** `uq_adas_alarm (device_id, begin_time, alarm_type)` untuk mencegah duplikat import.
+
+::: warning Data manual & ADAS berbagi satu tabel
+Karena keduanya ada di `bbs_observations`, setiap query yang bermaksud menyasar salah satunya
+**wajib** memfilter `source`. Data ADAS juga bersifat *read-only*: endpoint observasi menolak baris
+ADAS dengan `404`, dan Riwayat/Export mengecualikannya.
+:::
+
+### `bbs_speed_telemetry` — kolom `moving_seconds`
+
+Ditambahkan oleh `20260915100000_add_moving_seconds_to_bbs_speed_telemetry.sql`:
+
+| Kolom | Tipe | Default | Keterangan |
+|-------|------|---------|------------|
+| `moving_seconds` | `INT` | `30` | Berapa detik *moving time* yang diwakili satu baris |
+
+Arti nilainya:
+
+- **30** — satu slot tracker (baris resolusi penuh, termasuk baris overspeed & seluruh data lama)
+- **> 30** — baris **sampel** yang mewakili seluruh waktu bergerak pada bucket sampling-nya (mis. 180 detik)
+
+Tujuan kolom ini: memastikan `moving_seconds` harian tetap **sama persis** meskipun dihitung ulang
+dari data yang sudah didownsample — karena nilai itu adalah penyebut rumus skor.
+
+**Migration BBS yang relevan:**
+
+| File | Isi |
+|------|-----|
+| `20260617010000_create_bbs_tables.sql` | Tabel dasar observasi/checklist/insiden |
+| `20260909010000_add_adas_alarm_columns_to_bbs_observations.sql` | Kolom ADAS + unique key |
+| `20260915090000_create_bbs_speed_tables.sql` | `bbs_speed_telemetry` / `_events` / `_daily` / `bbs_settings` |
+| `20260915100000_add_moving_seconds_to_bbs_speed_telemetry.sql` | Kolom `moving_seconds` + seed `speed.sample_interval_seconds` |
+| `20260915200000_add_adas_retention_setting.sql` | Seed `adas.retention_days = 90` |
+
+### Catatan InnoDB (penting untuk operasi hapus)
+
+1. **`DELETE` tidak mengecilkan file tabel.** InnoDB hanya menandai halaman sebagai *bebas-pakai-ulang*.
+   Ukuran file baru berkurang setelah tabel **dibangun ulang**:
+
+   ```sql
+   OPTIMIZE TABLE bbs_speed_telemetry;   -- InnoDB melakukan recreate + analyze
+   ```
+
+   Jalankan hanya setelah pembersihan besar (purge / hapus per bulan), bukan setiap import.
+
+2. **Statistik `information_schema` di-cache 24 jam** (`information_schema_stats_expiry` default `86400`).
+   Karena itu `information_schema.tables.data_length` dan `SHOW TABLE STATUS` bisa menampilkan ukuran
+   & jumlah baris **basi** setelah operasi besar. Untuk membaca nilai terkini:
+
+   ```sql
+   SET SESSION information_schema_stats_expiry = 0;   -- baca statistik real-time
+   ANALYZE TABLE bbs_speed_telemetry;                 -- refresh statistik tabel
+   SELECT COUNT(*) FROM bbs_speed_telemetry;          -- angka otoritatif jumlah baris
+   ```
+
+3. **`SHOW TABLE STATUS.Rows` adalah estimasi**, bukan jumlah pasti — jangan dipakai sebagai patokan
+   jumlah data. Gunakan `COUNT(*)`.
