@@ -1,9 +1,10 @@
 name: OpenWiki Update
 
 on:
+  # Pemicu terjadwal (cron) DIHAPUS atas permintaan: workflow ini dulu berjalan
+  # otomatis setiap hari (08:00 UTC) dan membuat PR dokumentasi otomatis.
+  # Sekarang hanya bisa dijalankan manual dari tab Actions (Run workflow).
   workflow_dispatch:
-  schedule:
-    - cron: "0 8 * * *"
 
 permissions:
   contents: write
