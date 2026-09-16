@@ -8,6 +8,14 @@ export default defineConfig({
   srcExclude: ['PROJECT_CONTEXT.md', '**/PROJECT_CONTEXT.md'],
 
   themeConfig: {
+    // Logo Sankyu — versi terang & gelap dipilih otomatis mengikuti tema.
+    // Judul teks di header diganti logo, jadi siteTitle dimatikan.
+    logo: {
+      light: '/images/logo/sankyu-icon.svg',
+      dark: '/images/logo/sankyu-icon-dark.svg'
+    },
+    siteTitle: false,
+
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Developer', link: '/developer/tech-stack' },

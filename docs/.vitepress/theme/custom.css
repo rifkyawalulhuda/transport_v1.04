@@ -1,0 +1,24 @@
+/* ---------------------------------------------------------------------------
+ * Logo Sankyu di header (menggantikan judul teks "Transport Management System").
+ *
+ * Logo berupa lockup horizontal (viewBox 264,75 x 73,5 ≈ rasio 3,6:1), bukan
+ * ikon persegi. Tinggi default VitePress (24px) membuat teks di dalam logo
+ * terlalu kecil, jadi dinaikkan — tetap menyisakan ruang di nav bar 64px.
+ * --------------------------------------------------------------------------- */
+
+:root {
+  --vp-nav-logo-height: 36px;
+}
+
+/* Beri sedikit ruang agar logo tidak menempel ke sisi kiri/kanan. */
+.VPNavBarTitle .title {
+  padding-right: 8px;
+}
+
+/* Di layar sempit, ruang nav bar terbatas — perkecil logo agar tidak mendorong
+   tombol menu keluar layar. */
+@media (max-width: 640px) {
+  :root {
+    --vp-nav-logo-height: 28px;
+  }
+}
