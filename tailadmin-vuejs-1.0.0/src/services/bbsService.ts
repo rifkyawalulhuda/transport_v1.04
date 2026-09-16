@@ -130,10 +130,31 @@ export interface BbsAlarmListResponse {
   pagination: { page: number; limit: number; total: number }
 }
 
+export interface BbsAlarmBreakdownSeries {
+  plate: string
+  total: number
+  data: number[]
+}
+
 export interface BbsAlarmBreakdown {
   labels: string[]
   data: number[]
+  /** Satu seri per kendaraan (untuk grouped bar). */
+  series?: BbsAlarmBreakdownSeries[]
+  plates_used?: string[]
+  truncated?: boolean
   month: string
+}
+
+export interface BbsAlarmPlate {
+  plate_number: string
+  total: number
+  last_alarm?: string | null
+}
+
+export interface BbsAlarmPlatesResponse {
+  plates: BbsAlarmPlate[]
+  max_selectable: number
 }
 
 export interface BbsAlarmImportResult {
@@ -309,7 +330,7 @@ export const bbsService = {
     return handleJson(res)
   },
 
-  async fetchAlarms(params?: { page?: number; limit?: number; plate?: string; alarm_type?: string; date_from?: string; date_to?: string }): Promise<BbsAlarmListResponse> {
+  async fetchAlarms(params?: { page?: number; limit?: number; plate?: string; plates?: string; alarm_type?: string; date_from?: string; date_to?: string }): Promise<BbsAlarmListResponse> {
     const searchParams = new URLSearchParams()
     Object.entries(params || {}).forEach(([key, value]) => {
       if (value !== undefined && value !== '') searchParams.set(key, String(value))
@@ -319,9 +340,18 @@ export const bbsService = {
     return handleJson(res)
   },
 
-  async fetchAlarmBreakdown(month?: string): Promise<BbsAlarmBreakdown> {
-    const qs = month ? `?month=${month}` : ''
-    const res = await authFetch(`${API_BASE}/bbs/alarm-breakdown${qs}`)
+  async fetchAlarmBreakdown(month?: string, plates?: string[]): Promise<BbsAlarmBreakdown> {
+    const searchParams = new URLSearchParams()
+    if (month) searchParams.set('month', month)
+    if (plates && plates.length) searchParams.set('plates', plates.join(','))
+    const qs = searchParams.toString()
+    const res = await authFetch(`${API_BASE}/bbs/alarm-breakdown${qs ? `?${qs}` : ''}`)
+    return handleJson(res)
+  },
+
+  /** Daftar kendaraan yang punya data alarm ADAS (untuk filter multi-pilih). */
+  async fetchAlarmPlates(): Promise<BbsAlarmPlatesResponse> {
+    const res = await authFetch(`${API_BASE}/bbs/alarm-plates`)
     return handleJson(res)
   },
 

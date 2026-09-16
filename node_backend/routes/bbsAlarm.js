@@ -229,6 +229,15 @@ router.get("", async (req, res) => {
   const dateFrom = normalize(req.query.date_from);
   const dateTo = normalize(req.query.date_to);
   if (plate) { conditions.push("o.plate_number LIKE ?"); params.push(`%${plate}%`); }
+  // Filter kendaraan terpilih (exact, dari kontrol multi-select di UI).
+  const platesSelected = String(req.query.plates || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (platesSelected.length) {
+    conditions.push(`o.plate_number IN (${platesSelected.map(() => "?").join(",")})`);
+    params.push(...platesSelected);
+  }
   if (alarmType) { conditions.push("o.alarm_type = ?"); params.push(alarmType); }
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) { conditions.push("o.date >= ?"); params.push(dateFrom); }
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) { conditions.push("o.date <= ?"); params.push(dateTo); }

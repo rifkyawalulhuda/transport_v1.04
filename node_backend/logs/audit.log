@@ -196,3 +196,9 @@
 {"timestamp":"15/09/2026 20:31:48","event":"bbs_retention_purge","by_admin":2,"modules":["speed"],"days_used":{"speed":7},"results":{"speed":{"days":7,"enabled":true,"deleted":{"telemetry":538,"events":7,"daily":7}}}}
 {"timestamp":"15/09/2026 20:32:26","event":"bbs_retention_purge","by_admin":2,"modules":["speed"],"days_used":{"speed":1},"results":{"speed":{"days":1,"enabled":true,"deleted":{"telemetry":911,"events":25,"daily":6}}}}
 {"timestamp":"15/09/2026 20:33:12","event":"bbs_retention_purge","by_admin":2,"modules":["adas"],"days_used":{"adas":7},"results":{"adas":{"days":7,"enabled":true,"deleted":892}}}
+{"timestamp":"16/09/2026 17:48:21","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":0},"results":{"adas":{"days":0,"enabled":false,"deleted":0,"skipped":"nonaktif"}}}
+{"timestamp":"16/09/2026 17:48:21","event":"bbs_retention_purge","by_admin":null,"modules":["speed"],"days_used":{"speed":365},"results":{"speed":{"days":365,"enabled":true,"deleted":{"telemetry":1,"events":1,"daily":1}}}}
+{"timestamp":"16/09/2026 17:48:21","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":365},"results":{"adas":{"days":365,"enabled":true,"deleted":1}}}
+{"timestamp":"16/09/2026 18:06:51","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":0},"results":{"adas":{"days":0,"enabled":false,"deleted":0,"skipped":"nonaktif"}}}
+{"timestamp":"16/09/2026 18:06:51","event":"bbs_retention_purge","by_admin":null,"modules":["speed"],"days_used":{"speed":365},"results":{"speed":{"days":365,"enabled":true,"deleted":{"telemetry":1,"events":1,"daily":1}}}}
+{"timestamp":"16/09/2026 18:06:51","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":365},"results":{"adas":{"days":365,"enabled":true,"deleted":1}}}

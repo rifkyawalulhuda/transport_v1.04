@@ -1528,6 +1528,73 @@ Tujuannya agar recompute dari data tersampel menghasilkan `moving_seconds` haria
   requires_confirmation; purge confirm=true → 0 dihapus. Integritas data setelah uji:
   ADAS 1035, manual 1, telemetry 1562, events 34, daily 14 — **tidak berubah**.
 
+## Updates (2026-09-15 — Pisahkan Data Upload dari Tab Riwayat BBS)
+
+### Masalah
+`GET /bbs/history` menarik `bbs_observations` TANPA filter `source`, sehingga 143 baris hasil
+upload ADAS bercampur dengan observasi manual — Riwayat jadi terlalu ramai. Dashboard sudah
+benar (memisahkan `source='manual'` dan `source='adas'`), hanya Riwayat & Export yang bocor.
+
+### Perubahan (`node_backend/routes/bbs.js`)
+- `GET /history` — `buildObsWhere()` menambahkan kondisi tetap `o.source <> 'adas'`
+  (konstanta, bukan filter opsional, agar filter status observasi tetap khusus data manual).
+- `GET /export` — `obsWhere` menambahkan `source <> 'adas'` supaya file Excel konsisten
+  dengan daftar Riwayat (mencegah data 'hantu' bocor lewat export).
+- `GET/PUT/DELETE /observations/:id` — menolak baris `source='adas'` dengan **404**
+  (data hasil upload bersifat read-only; mencegah edit/hapus tak sengaja).
+  PUT memakai cek eksplisit `SELECT source` (bukan `affectedRows`, yang menghitung baris
+  BERUBAH sehingga nilai identik bisa salah dianggap "tidak ditemukan").
+
+### Perubahan (frontend)
+- `BbsRiwayatTab.vue` — catatan kecil di atas daftar: data upload ADAS & Kecepatan tidak
+  ditampilkan di Riwayat; arahkan ke tab ADAS / Kecepatan.
+- `useBbsLang.ts` — kunci `hisExcludeNote` (ID & EN).
+
+### Hasil terukur
+- Riwayat: 144 baris → **1 baris** (143 ADAS dikecualikan). Checklist/Insiden tidak berubah.
+- Data ADAS di DB **tidak dihapus** (tetap 143 baris) — hanya tidak ditampilkan.
+
+### Test
+- `node scripts/test-history-exclusion.js` — self-contained (router dimount in-process):
+  history type=all & type=observasi mengecualikan ADAS, tidak ada id ADAS yang bocor,
+  GET/PUT/DELETE baris ADAS → 404 (data utuh), observasi manual tetap 200, export tetap
+  mengembalikan spreadsheet.
+
+## Updates (2026-09-15 — Breakdown Alarm per Kendaraan)
+
+### Fitur
+Chart "Breakdown Alarm per Tipe" kini bisa difilter per kendaraan (multi-pilih, maks 6),
+dengan chart grouped-bar satu seri per truk + legenda warna untuk membandingkan kendaraan.
+
+### Backend
+- `node_backend/routes/bbs.js`
+  - **`GET /api/bbs/alarm-plates`** *(baru)* — daftar kendaraan yang benar-benar punya data
+    ADAS + jumlah alarm (`{ plates: [{plate_number,total,last_alarm}], max_selectable: 6 }`).
+    Sengaja bukan dari master truck agar tidak ada opsi kosong.
+  - **`GET /api/bbs/alarm-breakdown`** — param baru `plates=A,B,C` (maks 6, `MAX_ALARM_BREAKDOWN_PLATES`).
+    Respons ditambah `series[{plate,total,data}]`, `plates_used`, `truncated`; `data` lama
+    tetap ada (kompatibel). `labels` = union tipe pada hasil terfilter, urut total DESC.
+- `node_backend/routes/bbsAlarm.js` — `GET /api/bbs/alarms` menerima `plates=A,B` (exact IN)
+  untuk kontrol terpadu; param `plate` (LIKE) lama dipertahankan.
+
+### Frontend (`BbsAlarmTab.vue`)
+- Kontrol **multi-pilih kendaraan** (dropdown checkbox + jumlah alarm) menggantikan input plat
+  teks lama; pilihan mengendalikan **chart dan daftar alarm** sekaligus (satu sumber kebenaran).
+- Batas 6 kendaraan dengan peringatan; default terpilih = kendaraan dengan alarm terbanyak
+  (hanya sekali agar tidak menimpa pilihan pengguna).
+- Chart grouped-bar: legend muncul hanya saat multi-kendaraan; tooltip menyebut nama kendaraan.
+- Setelah import, daftar plat disegarkan otomatis (kendaraan baru langsung tersedia).
+- `bbsService.ts` — `fetchAlarmPlates()`, `fetchAlarmBreakdown(month, plates?)`, `plates` di `fetchAlarms`.
+- `useBbsLang.ts` — kunci `alarmVehicleFilter` / `alarmAllVehicles` / `alarmVehiclesSelected` /
+  `alarmClearFilter` / `alarmMaxVehicles` / `alarmVehicleEmpty` / `alarmBreakdownEmpty` (ID & EN).
+
+### Test
+- `node scripts/test-alarm-breakdown.js` — self-contained; menyisipkan kendaraan sintetis kedua
+  untuk membuktikan multi-seri: `/alarm-plates` cocok SQL, breakdown tanpa filter identik
+  perilaku lama, 1 plat → 1 seri, 2 plat → 2 seri dengan angka per kendaraan, >6 plat →
+  `truncated=true` & hanya 6 dipakai, plat tak dikenal → hasil kosong (bukan error),
+  `/alarms?plates=` hanya mengembalikan plat terpilih.
+
 ---
 
 ### BBS — Tab Baru "Alarm ADAS"

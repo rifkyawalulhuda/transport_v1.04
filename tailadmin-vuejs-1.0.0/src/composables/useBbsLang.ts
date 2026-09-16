@@ -39,6 +39,13 @@ const translations = {
       alarmNoData: 'Belum ada alarm ADAS',
       alarmRecords: 'data',
       alarmBreakdownTitle: 'Breakdown Alarm per Tipe',
+    alarmBreakdownEmpty: 'Tidak ada data alarm untuk kendaraan/bulan ini.',
+    alarmVehicleFilter: 'Kendaraan',
+    alarmAllVehicles: 'Semua Kendaraan',
+    alarmVehiclesSelected: 'kendaraan dipilih',
+    alarmClearFilter: 'Hapus filter kendaraan',
+    alarmMaxVehicles: 'Maksimal {n} kendaraan — kurangi pilihan agar chart tetap terbaca.',
+    alarmVehicleEmpty: 'Belum ada data kendaraan',
 
     // Dashboard
     dashTitle: 'Ringkasan Keselamatan',
@@ -188,6 +195,7 @@ const translations = {
     hisInc: 'Insiden',
     hisSearch: 'Cari...',
     hisMonth: 'Bulan',
+    hisExcludeNote: 'Data hasil upload ADAS & Kecepatan tidak ditampilkan di Riwayat ini agar daftar tetap ringkas. Lihat tab ADAS untuk alarm dan tab Kecepatan untuk pelanggaran kecepatan.',
     hisStatus: 'Status',
     hisExport: 'Export',
     hisPerPage: '/halaman',
@@ -394,6 +402,13 @@ const translations = {
       alarmNoData: 'No ADAS alarms',
       alarmRecords: 'records',
       alarmBreakdownTitle: 'Alarm Breakdown by Type',
+    alarmBreakdownEmpty: 'No alarm data for these vehicles/this month.',
+    alarmVehicleFilter: 'Vehicles',
+    alarmAllVehicles: 'All Vehicles',
+    alarmVehiclesSelected: 'vehicles selected',
+    alarmClearFilter: 'Clear vehicle filter',
+    alarmMaxVehicles: 'Maximum {n} vehicles — reduce the selection to keep the chart readable.',
+    alarmVehicleEmpty: 'No vehicle data yet',
 
     // Dashboard
     dashTitle: 'Safety Summary',
@@ -543,6 +558,7 @@ const translations = {
     hisInc: 'Incident',
     hisSearch: 'Search...',
     hisMonth: 'Month',
+    hisExcludeNote: 'ADAS & Speed upload data is not shown in this History to keep the list concise. See the ADAS tab for alarms and the Speed tab for speeding violations.',
     hisStatus: 'Status',
     hisExport: 'Export',
     hisPerPage: '/page',

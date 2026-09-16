@@ -9,6 +9,9 @@ router.use(authenticateToken);
 
 const pad2 = (value) => String(value).padStart(2, "0");
 
+// Batas jumlah kendaraan pada chart breakdown alarm: grouped-bar masih terbaca.
+const MAX_ALARM_BREAKDOWN_PLATES = 6;
+
 const fmtDate = (value) => {
   if (!value) return "";
   const d = value instanceof Date ? value : new Date(value);
@@ -452,6 +455,10 @@ router.get("/history", async (req, res) => {
     const buildObsWhere = () => {
       const conds = [];
       const params = [];
+      // Data hasil upload ADAS TIDAK ditampilkan di Riwayat (lihat tab ADAS).
+      // Sengaja konstanta, bukan filter opsional, supaya filter status observasi
+      // (aman/perlu_perhatian) tetap berlaku hanya untuk observasi manual.
+      conds.push("o.source <> 'adas'");
       if (search) { conds.push("(o.observer_name LIKE ? OR o.driver_id LIKE ? OR o.location LIKE ? OR d.nama_driver LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`); }
       if (month) { conds.push("DATE_FORMAT(o.date, '%Y-%m') = ?"); params.push(month); }
       if (driverId) { conds.push("o.driver_id = ?"); params.push(driverId); }
@@ -598,8 +605,9 @@ const computeObsStatus = (scores) => {
 
 router.get("/observations/:id", async (req, res) => {
   try {
+    // Data hasil upload ADAS bersifat read-only dan hanya diakses dari tab ADAS.
     const [rows] = await db.query(
-      "SELECT o.*, d.nama_driver FROM bbs_observations o LEFT JOIN driver d ON o.driver_id = d.id_driver WHERE o.id_observation = ?",
+      "SELECT o.*, d.nama_driver FROM bbs_observations o LEFT JOIN driver d ON o.driver_id = d.id_driver WHERE o.id_observation = ? AND o.source <> 'adas'",
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ message: "Observasi tidak ditemukan" });
@@ -618,14 +626,24 @@ router.put("/observations/:id", async (req, res) => {
     if (!driver_id || !date || !scores) {
       return res.status(400).json({ message: "Driver ID, tanggal, dan skor wajib diisi" });
     }
+    // Pastikan baris ini observasi manual, bukan hasil upload ADAS (read-only).
+    // Dicek eksplisit supaya tidak bergantung pada affectedRows (MySQL menghitung
+    // baris yang BERUBAH, sehingga nilai identik bisa tampak "tidak ditemukan").
+    const [targetRows] = await db.query(
+      "SELECT source FROM bbs_observations WHERE id_observation = ?",
+      [req.params.id]
+    );
+    if (!targetRows.length) return res.status(404).json({ message: "Observasi tidak ditemukan" });
+    if (String(targetRows[0].source || "").toLowerCase() === "adas") {
+      return res.status(404).json({ message: "Observasi tidak ditemukan" });
+    }
     const scoresJson = JSON.stringify(scores);
     const lat = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
     const lng = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
-    const [result] = await db.query(
+    await db.query(
       `UPDATE bbs_observations SET driver_id=?, date=?, location=?, latitude=?, longitude=?, vehicle_type=?, scores=?, feedback=?, follow_up=? WHERE id_observation=?`,
       [String(driver_id).trim(), fmtDate(date), location || null, lat, lng, vehicle_type || null, scoresJson, feedback || null, follow_up || null, req.params.id]
     );
-    if (!result.affectedRows) return res.status(404).json({ message: "Observasi tidak ditemukan" });
     res.json({ id: Number(req.params.id), driver_id, date });
   } catch (err) {
     console.error("BBS update observation error:", err);
@@ -726,7 +744,11 @@ router.put("/incidents/:id", async (req, res) => {
 
 router.delete("/observations/:id", async (req, res) => {
   try {
-    const [result] = await db.query("DELETE FROM bbs_observations WHERE id_observation = ?", [req.params.id]);
+    // Guard: baris hasil upload ADAS tidak boleh dihapus dari jalur Riwayat.
+    const [result] = await db.query(
+      "DELETE FROM bbs_observations WHERE id_observation = ? AND source <> 'adas'",
+      [req.params.id]
+    );
     if (!result.affectedRows) return res.status(404).json({ message: "Observasi tidak ditemukan" });
     res.json({ message: "Observasi dihapus" });
   } catch (err) {
@@ -757,6 +779,34 @@ router.delete("/incidents/:id", async (req, res) => {
   }
 });
 
+/**
+ * Daftar kendaraan yang BENAR-BENAR punya data alarm ADAS beserta jumlahnya.
+ * Dipakai mengisi filter chart — sengaja bukan dari master truck supaya tidak
+ * ada opsi yang selalu kosong.
+ */
+router.get("/alarm-plates", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT plate_number, COUNT(*) AS total, MAX(DATE(begin_time)) AS last_alarm
+         FROM bbs_observations
+        WHERE source = 'adas' AND plate_number IS NOT NULL AND TRIM(plate_number) <> ''
+        GROUP BY plate_number
+        ORDER BY total DESC, plate_number ASC`
+    );
+    res.json({
+      plates: (rows || []).map((r) => ({
+        plate_number: r.plate_number,
+        total: Number(r.total || 0),
+        last_alarm: r.last_alarm || null
+      })),
+      max_selectable: MAX_ALARM_BREAKDOWN_PLATES
+    });
+  } catch (err) {
+    console.error("BBS alarm-plates error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.get("/alarm-breakdown", async (req, res) => {
   try {
     const monthParam = String(req.query.month || "").trim();
@@ -774,20 +824,72 @@ router.get("/alarm-breakdown", async (req, res) => {
     const lastDayDate = new Date(year, month, 0);
     const endDay = `${year}-${String(month).padStart(2, "0")}-${String(lastDayDate.getDate()).padStart(2, "0")}`;
 
-    const [rows] = await db.query(
-      `SELECT alarm_type, COUNT(*) AS total
-       FROM bbs_observations
-       WHERE source = 'adas'
-         AND DATE(begin_time) >= ? AND DATE(begin_time) <= ?
-       GROUP BY alarm_type
-       ORDER BY total DESC`,
-      [firstDay, endDay]
+    // Filter kendaraan: `plates=A,B,C` (maks MAX_ALARM_BREAKDOWN_PLATES).
+    // Tanpa parameter -> perilaku lama (agregat semua kendaraan).
+    const requestedPlates = String(req.query.plates || "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const truncated = requestedPlates.length > MAX_ALARM_BREAKDOWN_PLATES;
+    const platesUsed = requestedPlates.slice(0, MAX_ALARM_BREAKDOWN_PLATES);
+
+    const conditions = ["source = 'adas'", "DATE(begin_time) >= ?", "DATE(begin_time) <= ?"];
+    const params = [firstDay, endDay];
+    if (platesUsed.length) {
+      conditions.push(`plate_number IN (${platesUsed.map(() => "?").join(",")})`);
+      params.push(...platesUsed);
+    }
+    const where = conditions.join(" AND ");
+
+    // Ambil agregat per (plat, tipe) sekaligus — satu query, lalu dirakit di memori.
+    const [cells] = await db.query(
+      `SELECT plate_number, alarm_type, COUNT(*) AS total
+         FROM bbs_observations
+        WHERE ${where}
+        GROUP BY plate_number, alarm_type`,
+      params
     );
 
-    const labels = (rows || []).map((r) => String(r.alarm_type || "Unknown"));
-    const data = (rows || []).map((r) => Number(r.total || 0));
+    // Urutan tipe: total DESC (lintas kendaraan terpilih), tie-break nama.
+    const typeTotals = new Map();
+    const plateTotals = new Map();
+    (cells || []).forEach((cell) => {
+      const type = String(cell.alarm_type || "Unknown");
+      typeTotals.set(type, (typeTotals.get(type) || 0) + Number(cell.total || 0));
+      const plate = String(cell.plate_number || "");
+      plateTotals.set(plate, (plateTotals.get(plate) || 0) + Number(cell.total || 0));
+    });
 
-    res.json({ labels, data, month: `${year}-${String(month).padStart(2, "0")}` });
+    const labels = [...typeTotals.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([type]) => type);
+
+    const plateKeys = platesUsed.length
+      ? platesUsed.filter((p) => plateTotals.has(p))
+      : [...plateTotals.keys()].sort((a, b) => (plateTotals.get(b) || 0) - (plateTotals.get(a) || 0));
+
+    const cellMap = new Map();
+    (cells || []).forEach((cell) => {
+      cellMap.set(`${String(cell.plate_number || "")}||${String(cell.alarm_type || "Unknown")}`, Number(cell.total || 0));
+    });
+
+    const series = plateKeys.map((plate) => ({
+      plate,
+      total: plateTotals.get(plate) || 0,
+      data: labels.map((type) => cellMap.get(`${plate}||${type}`) || 0)
+    }));
+
+    // `data` = total per tipe (kompatibel dengan frontend versi lama).
+    const data = labels.map((type) => typeTotals.get(type) || 0);
+
+    res.json({
+      labels,
+      data,
+      series,
+      plates_used: platesUsed,
+      truncated,
+      month: `${year}-${String(month).padStart(2, "0")}`
+    });
   } catch (err) {
     console.error("BBS alarm-breakdown error:", err);
     res.status(500).json({ message: "Internal server error" });
@@ -811,7 +913,9 @@ router.get("/export", async (req, res) => {
       dateParams.push(year);
     }
 
-    const obsWhere = dateCond ? `WHERE ${dateCond}` : "";
+    // Export harus konsisten dengan daftar Riwayat: data hasil upload ADAS
+    // tidak ikut diekspor ke sheet Observasi.
+    const obsWhere = dateCond ? `WHERE source <> 'adas' AND ${dateCond}` : "WHERE source <> 'adas'";
     const chkWhere = dateCond ? `WHERE ${dateCond}` : "";
     const incWhere = dateCond ? `WHERE ${dateCond}` : "";
 
