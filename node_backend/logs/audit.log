@@ -202,3 +202,12 @@
 {"timestamp":"16/09/2026 18:06:51","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":0},"results":{"adas":{"days":0,"enabled":false,"deleted":0,"skipped":"nonaktif"}}}
 {"timestamp":"16/09/2026 18:06:51","event":"bbs_retention_purge","by_admin":null,"modules":["speed"],"days_used":{"speed":365},"results":{"speed":{"days":365,"enabled":true,"deleted":{"telemetry":1,"events":1,"daily":1}}}}
 {"timestamp":"16/09/2026 18:06:51","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":365},"results":{"adas":{"days":365,"enabled":true,"deleted":1}}}
+{"timestamp":"16/09/2026 18:21:48","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":0},"results":{"adas":{"days":0,"enabled":false,"deleted":0,"skipped":"nonaktif"}}}
+{"timestamp":"16/09/2026 18:21:48","event":"bbs_retention_purge","by_admin":null,"modules":["speed"],"days_used":{"speed":365},"results":{"speed":{"days":365,"enabled":true,"deleted":{"telemetry":1,"events":1,"daily":1}}}}
+{"timestamp":"16/09/2026 18:21:48","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":365},"results":{"adas":{"days":365,"enabled":true,"deleted":1}}}
+{"timestamp":"16/09/2026 19:23:16","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":0},"results":{"adas":{"days":0,"enabled":false,"deleted":0,"skipped":"nonaktif"}}}
+{"timestamp":"16/09/2026 19:23:17","event":"bbs_retention_purge","by_admin":null,"modules":["speed"],"days_used":{"speed":365},"results":{"speed":{"days":365,"enabled":true,"deleted":{"telemetry":1,"events":1,"daily":1}}}}
+{"timestamp":"16/09/2026 19:23:17","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":365},"results":{"adas":{"days":365,"enabled":true,"deleted":1}}}
+{"timestamp":"16/09/2026 19:30:14","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":0},"results":{"adas":{"days":0,"enabled":false,"deleted":0,"skipped":"nonaktif"}}}
+{"timestamp":"16/09/2026 19:30:15","event":"bbs_retention_purge","by_admin":null,"modules":["speed"],"days_used":{"speed":365},"results":{"speed":{"days":365,"enabled":true,"deleted":{"telemetry":1,"events":1,"daily":1}}}}
+{"timestamp":"16/09/2026 19:30:15","event":"bbs_retention_purge","by_admin":null,"modules":["adas"],"days_used":{"adas":365},"results":{"adas":{"days":365,"enabled":true,"deleted":1}}}

@@ -5,6 +5,70 @@ outline: deep
 
 # Changelog V_1.04 <Badge type="info" text="Latest" />
 
+## 15 September 2026
+
+### Modul BBS — Tab Kecepatan & Penyimpanan Data
+
+Fitur baru untuk mengimpor dan menganalisis pelanggaran kecepatan dari file GPS tracker.
+
+- **Tab "Kecepatan"** — import CSV/XLSX, kartu ringkasan, chart tren, chart pelanggaran per kendaraan, daftar pelanggaran
+- **Downsampling penyimpanan** — sistem hanya menyimpan baris di atas ambang batas + **satu sampel per 3 menit**; baris idle tidak disimpan
+  - Dampak pada data nyata: **±87% lebih sedikit baris** (12.378 → 1.562 untuk 1 truk / 14 hari)
+  - `moving_seconds`, `overspeed_seconds`, `max_speed`, dan `event_count` **tetap identik** sehingga skor tidak berubah
+- **Kolom `moving_seconds`** (migration `20260915100000`) — menjaga akurasi waktu bergerak meski data sudah tersampel
+- **Satu filter bulan master** di tab Kecepatan — mengendalikan ringkasan, kedua chart, dan daftar sekaligus
+- **Filter kendaraan** pada chart tren & daftar pelanggaran (multi-pilih, maks 6)
+- Setting baru `speed.sample_interval_seconds` (default 180 detik, dapat diatur admin)
+
+### Modul BBS — Tab Alarm ADAS
+
+- **Tab "Alarm ADAS"** — import alarm ADAS/DMS, daftar alarm dengan filter plat/tanggal/tipe
+- **Chart Breakdown Alarm per Tipe** kini dapat difilter **per kendaraan** (multi-pilih, maks 6, *grouped bar* per truk)
+- Endpoint baru `GET /api/bbs/alarm-plates` — daftar kendaraan yang benar-benar punya data ADAS
+- Filter kendaraan **terpadu**: satu pilihan mengendalikan chart dan daftar alarm
+
+### Modul BBS — Retensi Data (admin)
+
+Fitur baru untuk menghapus data lama secara terkendali.
+
+- Kartu **Retensi Data** di tab Kecepatan (hanya admin) — atur umur maksimum data **ADAS** dan **Speed** per modul
+- **0 = nonaktif** (tidak ada yang dihapus) — pengaman terhadap penghapusan tak sengaja
+- **Pratinjau** read-only menampilkan jumlah baris yang akan terhapus + total data & umur data tertua
+- **Konfirmasi dua langkah** memakai modal standar aplikasi, dengan peringatan permanen
+- Nilai retensi yang dipakai saat menghapus otomatis tersimpan sebagai kebijakan baru
+- Setiap eksekusi tercatat di **audit log** (`bbs_retention_purge`)
+- Observasi manual **tidak pernah** tersentuh oleh retensi ADAS (filter `source = 'adas'`)
+
+### Modul BBS — Riwayat Dipisahkan dari Data Upload
+
+- Tab **Riwayat** (dan **Export Excel**) tidak lagi menampilkan data hasil upload ADAS & Kecepatan agar daftar tetap ringkas
+- Endpoint `GET/PUT/DELETE /api/bbs/observations/:id` menolak baris ADAS dengan **404** (data upload bersifat read-only di luar tabnya)
+- Catatan penjelasan ditambahkan di halaman Riwayat
+
+### Modul BBS — Perbaikan UI/UX
+
+- Konfirmasi penghapusan memakai **modal `useDialog`** (konsisten dengan modul lain) — menyediakan tombol **Batal** yang jelas
+- **Validasi klien** pada Pengaturan Kecepatan & Retensi Data (nilai di luar batas ditolak tanpa perlu ke server)
+- **Badge "Belum disimpan"** pada kartu pengaturan bila ada perubahan yang belum disimpan
+- Feedback berwarna (hijau sukses / merah error) + notifikasi toast pada kedua kartu
+- Hint **"0 = nonaktif"** saat nilai retensi bernilai 0
+
+### Endpoint Baru & Berubah
+
+| Endpoint | Keterangan |
+|----------|-----------|
+| `GET /api/bbs/alarm-plates` | Daftar kendaraan dengan data ADAS |
+| `GET /api/bbs/alarm-breakdown` | + parameter `plates` & respons `series`, `plates_used`, `truncated` |
+| `GET /api/bbs/alarms` | + parameter `plates` (cocok persis) |
+| `GET /api/bbs/speed/plates` | Daftar kendaraan dengan pelanggaran kecepatan |
+| `GET /api/bbs/speed/by-vehicle` | Total pelanggaran per kendaraan |
+| `GET /api/bbs/speed/daily-trend` | + parameter `plates` & respons `series` |
+| `GET /api/bbs/speed/events` | + parameter `plates` |
+| `/api/bbs/retention` (`GET`, `GET /preview`, `POST /purge`) | Pengaturan, pratinjau, dan eksekusi retensi |
+| `PUT /api/bbs/settings` | + key `adas.retention_days` (0–3650) |
+
+---
+
 ## 27 Juli 2026
 
 ### GPS Trail Playback — Phase 2B: Time Scrubber

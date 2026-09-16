@@ -26,6 +26,30 @@ const upload = multer({
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
+// Batas kendaraan pada chart (kesepakatan: sama dengan modul ADAS).
+const MAX_CHART_PLATES = 6;
+
+/**
+ * Normalisasi parameter `plates=A,B,C` menjadi daftar plat unik (maks MAX_CHART_PLATES).
+ * Mengembalikan { plates, truncated } — `truncated` true bila permintaan melebihi batas.
+ */
+const parsePlateFilter = (value) => {
+  const all = String(value ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const unique = [...new Set(all)];
+  return { plates: unique.slice(0, MAX_CHART_PLATES), truncated: unique.length > MAX_CHART_PLATES };
+};
+
+/** Bangun klausa `plate_number IN (?,?,...)` + param-nya (kosong bila tak ada plat). */
+const plateInClause = (plates, column) => {
+  if (!plates.length) return { clause: "", params: [] };
+  return {
+    clause: `${column} IN (${plates.map(() => "?").join(",")})`,
+    params: [...plates]
+  };
+};
 
 const isAdmin = (req) => String(req.user?.level || "") === "admin";
 const isViewOnly = (req) => String(req.user?.level || "") === "user";
@@ -404,6 +428,13 @@ router.get("/events", async (req, res) => {
       conditions.push("e.plate_number LIKE ?");
       params.push(`%${plate}%`);
     }
+    // Filter kendaraan terpilih (exact, dari kontrol multi-select di UI).
+    const { plates: selectedPlates } = parsePlateFilter(req.query.plates);
+    const platesClause = plateInClause(selectedPlates, "e.plate_number");
+    if (platesClause.clause) {
+      conditions.push(platesClause.clause);
+      params.push(...platesClause.params);
+    }
     const where = conditions.join(" AND ");
 
     const [[countRow], [rows]] = await Promise.all([
@@ -432,31 +463,146 @@ router.get("/events", async (req, res) => {
   }
 });
 
+/**
+ * Daftar kendaraan yang punya data pelanggaran kecepatan + jumlah event.
+ * Dipakai mengisi filter chart; kendaraan tanpa data tidak ditampilkan
+ * supaya tidak ada opsi yang selalu kosong.
+ */
+router.get("/plates", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT plate_number, COUNT(*) AS total, MAX(month_key) AS last_month
+         FROM bbs_speed_events
+        WHERE plate_number IS NOT NULL AND TRIM(plate_number) <> ''
+        GROUP BY plate_number
+        ORDER BY total DESC, plate_number ASC`
+    );
+    res.json({
+      plates: (rows || []).map((row) => ({
+        plate_number: row.plate_number,
+        total: Number(row.total || 0),
+        last_month: row.last_month || null
+      })),
+      max_selectable: MAX_CHART_PLATES
+    });
+  } catch (error) {
+    console.error("BBS speed plates error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/**
+ * Total pelanggaran per kendaraan dalam satu bulan (chart "Pelanggaran per
+ * Kendaraan"). Sumber bbs_speed_daily (sudah teragregasi) — SUM(event_count).
+ * Opsional `plates` untuk membatasi kendaraan tertentu (maks 6).
+ */
+router.get("/by-vehicle", async (req, res) => {
+  try {
+    const monthKey = parseMonth(req.query.month) || currentMonth();
+    const { plates, truncated } = parsePlateFilter(req.query.plates);
+
+    const conditions = ["DATE_FORMAT(day, '%Y-%m') = ?"];
+    const params = [monthKey];
+    const inClause = plateInClause(plates, "plate_number");
+    if (inClause.clause) {
+      conditions.push(inClause.clause);
+      params.push(...inClause.params);
+    }
+
+    const [rows] = await db.query(
+      `SELECT plate_number, SUM(event_count) AS total, COUNT(*) AS days,
+              SUM(overspeed_seconds) AS overspeed_seconds, MAX(max_speed_kmh) AS max_speed_kmh
+         FROM bbs_speed_daily
+        WHERE ${conditions.join(" AND ")}
+        GROUP BY plate_number
+        HAVING SUM(event_count) > 0
+        ORDER BY total DESC, plate_number ASC`,
+      params
+    );
+
+    const all = (rows || []).map((row) => ({
+      plate_number: row.plate_number,
+      total: Number(row.total || 0),
+      days: Number(row.days || 0),
+      overspeed_seconds: Number(row.overspeed_seconds || 0),
+      max_speed_kmh: row.max_speed_kmh == null ? null : Number(row.max_speed_kmh)
+    }));
+
+    res.json({
+      rows: all.slice(0, MAX_CHART_PLATES),
+      total_vehicles: all.length,
+      truncated: truncated || all.length > MAX_CHART_PLATES,
+      month: monthKey
+    });
+  } catch (error) {
+    console.error("BBS speed by-vehicle error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 /** Jumlah event per hari untuk chart batang. */
 router.get("/daily-trend", async (req, res) => {
   try {
     const monthKey = parseMonth(req.query.month) || currentMonth();
+    const { plates, truncated } = parsePlateFilter(req.query.plates);
+
+    const conditions = ["month_key = ?"];
+    const params = [monthKey];
+    const inClause = plateInClause(plates, "plate_number");
+    if (inClause.clause) {
+      conditions.push(inClause.clause);
+      params.push(...inClause.params);
+    }
+
+    // Agregat per (tanggal, plat) lalu deret waktu dirakit di memori.
     const [rows] = await db.query(
-      `SELECT DATE_FORMAT(begin_time, '%Y-%m-%d') AS day, COUNT(*) AS total
+      `SELECT DATE_FORMAT(begin_time, '%Y-%m-%d') AS day, plate_number, COUNT(*) AS total
          FROM bbs_speed_events
-        WHERE month_key = ?
-        GROUP BY day
-        ORDER BY day ASC`,
-      [monthKey]
+        WHERE ${conditions.join(" AND ")}
+        GROUP BY day, plate_number`,
+      params
     );
-    const byDay = new Map((rows || []).map((row) => [row.day, Number(row.total || 0)]));
 
     const [year, month] = monthKey.split("-").map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     const labels = [];
-    const data = [];
     for (let d = 1; d <= daysInMonth; d += 1) {
-      const key = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      labels.push(key);
-      data.push(byDay.get(key) || 0);
+      labels.push(`${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
     }
+    const dayIndex = new Map(labels.map((key, index) => [key, index]));
 
-    res.json({ labels, data, month: monthKey });
+    const perPlate = new Map();
+    const totals = new Array(labels.length).fill(0);
+    (rows || []).forEach((row) => {
+      const index = dayIndex.get(String(row.day));
+      if (index == null) return;
+      const count = Number(row.total || 0);
+      const plate = String(row.plate_number || "");
+      if (!perPlate.has(plate)) perPlate.set(plate, new Array(labels.length).fill(0));
+      perPlate.get(plate)[index] += count;
+      totals[index] += count;
+    });
+
+    // Satu seri per kendaraan (grouped bar). Tanpa filter -> urut terbanyak.
+    const series = plates.length
+      ? plates
+          .filter((plate) => perPlate.has(plate))
+          .map((plate) => {
+            const data = perPlate.get(plate);
+            return { plate, data, total: data.reduce((a, b) => a + b, 0) };
+          })
+      : [...perPlate.entries()]
+          .map(([plate, data]) => ({ plate, data, total: data.reduce((a, b) => a + b, 0) }))
+          .sort((a, b) => b.total - a.total || a.plate.localeCompare(b.plate));
+
+    res.json({
+      labels,
+      data: totals,
+      series,
+      plates_used: plates,
+      truncated,
+      month: monthKey
+    });
   } catch (error) {
     console.error("BBS speed daily-trend error:", error);
     res.status(500).json({ message: "Internal server error" });

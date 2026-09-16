@@ -110,6 +110,62 @@
         <span class="text-gray-400 transition-transform" :class="trendOpen ? 'rotate-180' : ''">▼</span>
       </button>
       <div v-show="trendOpen" class="px-5 pb-5">
+        <!-- Filter kendaraan (multi-pilih) — mengendalikan kedua chart & daftar -->
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <div class="relative">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-gray-200 px-3 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              @click="plateDropdownOpen = !plateDropdownOpen"
+            >
+              {{ t.alarmVehicleFilter }}:
+              <span class="font-medium">
+                {{ selectedPlates.length ? selectedPlates.length + ' ' + t.alarmVehiclesSelected : t.alarmAllVehicles }}
+              </span>
+              <span class="ml-1 text-gray-400">▾</span>
+            </button>
+            <div
+              v-if="plateDropdownOpen"
+              class="absolute z-30 mt-1 max-h-64 w-64 overflow-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+            >
+              <button
+                type="button"
+                class="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
+                @click="clearPlates()"
+              >
+                {{ t.alarmAllVehicles }}
+              </button>
+              <label
+                v-for="p in platesList"
+                :key="p.plate_number"
+                class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-gray-50 dark:hover:bg-white/5"
+              >
+                <input
+                  type="checkbox"
+                  class="h-3.5 w-3.5"
+                  :checked="selectedPlates.includes(p.plate_number)"
+                  @change="togglePlate(p.plate_number)"
+                />
+                <span class="flex-1 truncate text-gray-700 dark:text-gray-200">{{ p.plate_number }}</span>
+                <span class="text-gray-400">{{ p.total }}</span>
+              </label>
+              <p v-if="!platesList.length" class="px-2 py-1 text-xs text-gray-400">{{ t.alarmVehicleEmpty }}</p>
+            </div>
+          </div>
+          <button
+            v-if="selectedPlates.length"
+            type="button"
+            class="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400"
+            @click="clearPlates()"
+          >
+            {{ t.alarmClearFilter }}
+          </button>
+        </div>
+        <p v-if="plateWarning" class="mb-2 text-xs text-orange-600 dark:text-orange-400">{{ plateWarning }}</p>
+        <p v-else-if="selectedPlates.length" class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+          {{ selectedPlates.join(' · ') }}
+        </p>
+
         <div v-if="loadingTrend" class="py-8 text-center text-sm text-gray-500">{{ t.loading }}</div>
         <div v-else-if="!trend || !trend.labels.length" class="py-8 text-center text-sm text-gray-400">{{ t.speedNoData }}</div>
         <div v-else class="relative h-64">
@@ -118,18 +174,20 @@
       </div>
     </div>
 
+    <!-- Chart: Pelanggaran per Kendaraan -->
+    <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+      <h3 class="mb-4 font-semibold text-gray-800 dark:text-white/90">{{ t.speedByVehicleTitle }}</h3>
+      <div v-if="loadingByVehicle" class="py-8 text-center text-sm text-gray-500">{{ t.loading }}</div>
+      <div v-else-if="!byVehicle || !byVehicle.rows.length" class="py-8 text-center text-sm text-gray-400">{{ t.speedNoData }}</div>
+      <div v-else class="relative h-64">
+        <canvas ref="byVehicleCanvas"></canvas>
+      </div>
+    </div>
+
     <!-- Events List -->
     <div class="rounded-xl border border-gray-200 dark:border-gray-800">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4 dark:border-gray-800">
         <h3 class="font-semibold text-gray-800 dark:text-white/90">{{ t.speedListTitle }}</h3>
-        <div class="flex flex-wrap gap-2">
-          <input
-            v-model="filters.plate"
-            class="h-9 rounded-lg border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-            :placeholder="t.speedPlate"
-            @keyup.enter="loadEvents"
-          />
-        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full text-left text-sm">
@@ -187,7 +245,15 @@
         @click="settingsOpen = !settingsOpen"
       >
         <h3 class="font-semibold text-gray-800 dark:text-white/90">{{ t.speedSettingsTitle }}</h3>
-        <span class="text-gray-400 transition-transform" :class="settingsOpen ? 'rotate-180' : ''">▼</span>
+        <span class="flex items-center gap-2">
+          <span
+            v-if="settingsHasChanges"
+            class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+          >
+            {{ t.unsavedChanges }}
+          </span>
+          <span class="text-gray-400 transition-transform" :class="settingsOpen ? 'rotate-180' : ''">▼</span>
+        </span>
       </button>
       <div v-show="settingsOpen" class="border-t border-gray-100 px-5 py-4 dark:border-gray-800">
         <div class="flex flex-wrap items-end gap-4">
@@ -197,7 +263,10 @@
               v-model.number="settingsForm.default_speed_limit"
               type="number"
               min="1"
-              class="h-9 w-full rounded-lg border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              class="h-9 w-full rounded-lg border px-3 text-sm dark:bg-gray-900 dark:text-white/90"
+              :class="settingsError
+                ? 'border-red-400 dark:border-red-500/60'
+                : 'border-gray-200 dark:border-gray-700'"
             />
           </div>
           <button
@@ -208,7 +277,8 @@
             {{ savingSettings ? t.btnSaving : t.speedSaveSettings }}
           </button>
         </div>
-        <p v-if="settingsSavedMsg" class="mt-2 text-xs text-green-600 dark:text-green-400">{{ t.speedSettingsSaved }}</p>
+        <p v-if="settingsError" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ settingsError }}</p>
+        <p v-else-if="settingsSavedMsg" class="mt-2 text-xs text-green-600 dark:text-green-400">{{ t.speedSettingsSaved }}</p>
       </div>
     </div>
 
@@ -219,7 +289,15 @@
         @click="retentionOpen = !retentionOpen"
       >
         <h3 class="font-semibold text-gray-800 dark:text-white/90">{{ t.retentionTitle }}</h3>
-        <span class="text-gray-400 transition-transform" :class="retentionOpen ? 'rotate-180' : ''">▼</span>
+        <span class="flex items-center gap-2">
+          <span
+            v-if="retentionHasChanges"
+            class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+          >
+            {{ t.unsavedChanges }}
+          </span>
+          <span class="text-gray-400 transition-transform" :class="retentionOpen ? 'rotate-180' : ''">▼</span>
+        </span>
       </button>
       <div v-show="retentionOpen" class="border-t border-gray-100 px-5 py-4 dark:border-gray-800">
         <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ t.retentionSub }}</p>
@@ -245,14 +323,16 @@
               {{ t.retentionPreviewBtn }}
             </button>
             <button
-              class="rounded-lg px-3 py-2 text-sm font-medium text-white"
-              :class="purgeConfirm.adas ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'"
+              class="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
               :disabled="retentionLoading"
               @click="runPurge('adas')"
             >
-              {{ purgeConfirm.adas ? t.retentionConfirmBtn : t.retentionPurgeBtn }}
+              {{ t.retentionPurgeBtn }}
             </button>
           </div>
+          <p v-if="retentionZeroHint('adas')" class="mt-2 text-xs text-blue-600 dark:text-blue-400">
+            {{ retentionZeroHint('adas') }}
+          </p>
           <p v-if="retentionPreview.adas" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {{ retentionPreviewText('adas', retentionPreview.adas) }}
           </p>
@@ -282,14 +362,16 @@
               {{ t.retentionPreviewBtn }}
             </button>
             <button
-              class="rounded-lg px-3 py-2 text-sm font-medium text-white"
-              :class="purgeConfirm.speed ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'"
+              class="rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
               :disabled="retentionLoading"
               @click="runPurge('speed')"
             >
-              {{ purgeConfirm.speed ? t.retentionConfirmBtn : t.retentionPurgeBtn }}
+              {{ t.retentionPurgeBtn }}
             </button>
           </div>
+          <p v-if="retentionZeroHint('speed')" class="mt-2 text-xs text-blue-600 dark:text-blue-400">
+            {{ retentionZeroHint('speed') }}
+          </p>
           <p v-if="retentionPreview.speed" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {{ retentionPreviewText('speed', retentionPreview.speed) }}
           </p>
@@ -306,7 +388,17 @@
           >
             {{ retentionSaving ? t.btnSaving : t.retentionSave }}
           </button>
-          <p v-if="retentionMsg" class="text-xs text-gray-600 dark:text-gray-300">{{ retentionMsg }}</p>
+          <p
+            v-if="retentionMsg"
+            class="text-xs"
+            :class="retentionMsgVariant === 'error'
+              ? 'text-red-600 dark:text-red-400'
+              : retentionMsgVariant === 'success'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-gray-600 dark:text-gray-300'"
+          >
+            {{ retentionMsg }}
+          </p>
         </div>
       </div>
     </div>
@@ -320,16 +412,22 @@ import {
   bbsService,
   type BbsRetentionModule,
   type BbsRetentionModuleState,
+  type BbsSpeedByVehicle,
   type BbsSpeedImportResult,
+  type BbsSpeedPlate,
   type BbsSpeedRow,
   type BbsSpeedSummary,
   type BbsSpeedTrend,
 } from '@/services/bbsService'
+import { useDialog } from '@/composables/useDialog'
+import { useToast } from '@/composables/useToast'
 import { useBbsLang } from '@/composables/useBbsLang'
 
 Chart.register(...registerables)
 
 const { t } = useBbsLang()
+const { confirm } = useDialog()
+const toast = useToast()
 
 // Level admin dioper dari BbsTransportasi.vue (satu sumber kebenaran user level,
 // sekaligus menghindari duplikasi pembacaan auth di tiap tab).
@@ -359,6 +457,8 @@ async function onFileChange(event: Event) {
   try {
     importResult.value = await bbsService.importSpeed(file)
     page.value = 1
+    // Import bisa menambah kendaraan baru -> segarkan daftar plat lebih dulu.
+    await loadPlates()
     await reloadData()
   } finally {
     uploading.value = false
@@ -394,7 +494,7 @@ let trendChart: Chart | null = null
 async function loadTrend() {
   loadingTrend.value = true
   try {
-    trend.value = await bbsService.fetchSpeedTrend(selectedMonth.value)
+    trend.value = await bbsService.fetchSpeedTrend(selectedMonth.value, selectedPlates.value)
     trendLoadedMonth.value = selectedMonth.value
   } catch {
     trend.value = null
@@ -408,24 +508,44 @@ async function loadTrend() {
 function renderTrendChart() {
   if (!trend.value?.labels.length || !trendCanvas.value) return
   if (trendChart) { trendChart.destroy(); trendChart = null }
-  trendChart = new Chart(trendCanvas.value, {
-    type: 'bar',
-    data: {
-      labels: trend.value.labels,
-      datasets: [{
+
+  const colors = [
+    '#378ADD', '#E24B4A', '#EF9F27', '#4CAF50', '#9C27B0',
+    '#FF5722', '#00BCD4', '#795548', '#607D8B', '#F06292'
+  ]
+  const series = trend.value.series || []
+  const multi = series.length > 0
+
+  // Satu dataset per kendaraan (grouped bar); tanpa filter -> satu batang agregat.
+  const datasets = multi
+    ? series.map((s, index) => ({
+        label: s.plate,
+        data: s.data,
+        backgroundColor: colors[index % colors.length],
+        borderRadius: 4,
+        borderWidth: 0,
+      }))
+    : [{
         label: 'Pelanggaran',
         data: trend.value.data,
         backgroundColor: '#E24B4A',
         borderRadius: 4,
         borderWidth: 0,
-      }],
-    },
+      }]
+
+  trendChart = new Chart(trendCanvas.value, {
+    type: 'bar',
+    data: { labels: trend.value.labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} pelanggaran` } },
+        legend: { display: multi, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} pelanggaran`,
+          },
+        },
       },
       scales: {
         y: { beginAtZero: true, ticks: { precision: 0 } },
@@ -444,7 +564,6 @@ watch(trendOpen, (open) => {
 const rows = ref<BbsSpeedRow[]>([])
 const page = ref(1)
 const pagination = reactive({ limit: 25, total: 0 })
-const filters = reactive({ plate: '' })
 const loadingEvents = ref(false)
 
 async function loadEvents() {
@@ -453,8 +572,8 @@ async function loadEvents() {
     const data = await bbsService.fetchSpeed({
       page: page.value,
       limit: pagination.limit,
-      plate: filters.plate,
       month: selectedMonth.value,
+      plates: selectedPlates.value.join(','),
     })
     rows.value = data.rows
     pagination.total = data.pagination.total
@@ -463,10 +582,119 @@ async function loadEvents() {
   }
 }
 
+// ── filter kendaraan (multi-pilih) — mengendalikan kedua chart & daftar ────
+const MAX_SELECTABLE = 6
+const platesList = ref<BbsSpeedPlate[]>([])
+const selectedPlates = ref<string[]>([])
+const plateDropdownOpen = ref(false)
+const plateWarning = ref('')
+let userTouchedPlates = false
+
+/** Muat daftar kendaraan; default terpilih = pelanggar terbanyak (sekali saja). */
+async function loadPlates() {
+  try {
+    const data = await bbsService.fetchSpeedPlates()
+    platesList.value = data.plates || []
+    if (!userTouchedPlates && platesList.value.length) {
+      selectedPlates.value = [platesList.value[0].plate_number]
+    }
+  } catch {
+    platesList.value = []
+  }
+}
+
+function togglePlate(plate: string) {
+  plateWarning.value = ''
+  userTouchedPlates = true
+  const current = selectedPlates.value
+  if (current.includes(plate)) {
+    selectedPlates.value = current.filter((p) => p !== plate)
+  } else {
+    if (current.length >= MAX_SELECTABLE) {
+      plateWarning.value = t.value.alarmMaxVehicles.replace('{n}', String(MAX_SELECTABLE))
+      return
+    }
+    selectedPlates.value = [...current, plate]
+  }
+  void reloadVehicles()
+}
+
+function clearPlates() {
+  userTouchedPlates = true
+  selectedPlates.value = []
+  plateWarning.value = ''
+  void reloadVehicles()
+}
+
+/** Muat ulang tren + chart per-kendaraan + daftar dengan pilihan yang sama. */
+async function reloadVehicles() {
+  page.value = 1
+  const jobs = [loadByVehicle(), loadEvents()]
+  if (trendOpen.value) jobs.push(loadTrend())
+  await Promise.all(jobs)
+}
+
+// ── chart: pelanggaran per kendaraan ───────────────────────────────────────
+const byVehicleCanvas = ref<HTMLCanvasElement | null>(null)
+const byVehicle = ref<BbsSpeedByVehicle | null>(null)
+const loadingByVehicle = ref(false)
+let byVehicleChart: Chart | null = null
+
+async function loadByVehicle() {
+  loadingByVehicle.value = true
+  try {
+    byVehicle.value = await bbsService.fetchSpeedByVehicle(selectedMonth.value, selectedPlates.value)
+  } catch {
+    byVehicle.value = null
+  } finally {
+    loadingByVehicle.value = false
+  }
+  await nextTick()
+  renderByVehicleChart()
+}
+
+function renderByVehicleChart() {
+  if (!byVehicle.value?.rows.length || !byVehicleCanvas.value) return
+  if (byVehicleChart) { byVehicleChart.destroy(); byVehicleChart = null }
+  const rows = byVehicle.value.rows
+  byVehicleChart = new Chart(byVehicleCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: rows.map((r) => r.plate_number),
+      datasets: [{
+        label: t.value.speedTotalEvents,
+        data: rows.map((r) => r.total),
+        backgroundColor: '#E24B4A',
+        borderRadius: 4,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const row = rows[ctx.dataIndex]
+              return ` ${row.total} pelanggaran · ${row.days} hari`
+            },
+          },
+        },
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+        x: { grid: { display: false }, ticks: { maxRotation: 30, font: { size: 11 } } },
+      },
+    },
+  })
+}
+
 // ── master filter bulan ────────────────────────────────────────────────────
 /** Muat ulang seluruh bagian tab memakai selectedMonth yang aktif. */
 async function reloadData() {
-  await Promise.all([loadSummary(), loadEvents()])
+  await Promise.all([loadSummary(), loadEvents(), loadByVehicle()])
   if (trendOpen.value) await loadTrend()
 }
 
@@ -480,23 +708,53 @@ const settingsOpen = ref(false)
 const settingsForm = reactive({ default_speed_limit: 60 })
 const savingSettings = ref(false)
 const settingsSavedMsg = ref(false)
+const settingsError = ref('')
+const settingsBounds = ref<{ min: number; max: number } | null>(null)
+const savedThreshold = ref<number | null>(null)
+
+const settingsHasChanges = computed(
+  () => savedThreshold.value != null && settingsForm.default_speed_limit !== savedThreshold.value,
+)
+
+/** Validasi klien: cegah nilai di luar batas sebelum dikirim ke server. */
+function settingsErrorText(): string {
+  const value = Number(settingsForm.default_speed_limit)
+  const bounds = settingsBounds.value
+  if (!Number.isFinite(value)) return t.value.fieldNumberRequired
+  if (bounds && (value < bounds.min || value > bounds.max)) {
+    return t.value.fieldOutOfRange.replace('{min}', String(bounds.min)).replace('{max}', String(bounds.max))
+  }
+  return ''
+}
 
 async function loadSettings() {
   try {
     const s = await bbsService.fetchSpeedSettings()
     settingsForm.default_speed_limit = s.default_speed_limit
+    savedThreshold.value = s.default_speed_limit
+    settingsBounds.value = s.bounds ? { min: s.bounds.min, max: s.bounds.max } : null
   } catch {
     // use default
   }
 }
 
 async function saveSettings() {
+  const errorText = settingsErrorText()
+  if (errorText) {
+    settingsError.value = errorText
+    return
+  }
+  settingsError.value = ''
   savingSettings.value = true
   settingsSavedMsg.value = false
   try {
     await bbsService.saveSpeedSettings({ default_speed_limit: settingsForm.default_speed_limit })
+    savedThreshold.value = settingsForm.default_speed_limit
     settingsSavedMsg.value = true
+    toast.success(t.value.speedSettingsSaved)
     setTimeout(() => { settingsSavedMsg.value = false }, 3000)
+  } catch {
+    settingsError.value = t.value.settingsSaveError
   } finally {
     savingSettings.value = false
   }
@@ -513,6 +771,9 @@ const retentionLoading = ref(false)
 const retentionSaving = ref(false)
 const retentionForm = reactive({ adas: 90, speed: 90 })
 const retentionMsg = ref('')
+const retentionMsgVariant = ref<'info' | 'error' | 'success'>('info')
+const retentionBounds = ref<Record<string, { min: number; max: number }> | null>(null)
+const retentionSaved = reactive<{ adas: number | null; speed: number | null }>({ adas: null, speed: null })
 const retentionPreview = reactive<Record<BbsRetentionModule, BbsRetentionModuleState | null>>({
   adas: null,
   speed: null,
@@ -521,7 +782,35 @@ const retentionResult = reactive<Record<BbsRetentionModule, BbsRetentionModuleSt
   adas: null,
   speed: null,
 })
-const purgeConfirm = reactive<Record<BbsRetentionModule, boolean>>({ adas: false, speed: false })
+
+/** Tampilkan pesan di kartu Retensi dengan warna sesuai jenisnya. */
+function setRetentionMsg(message: string, variant: 'info' | 'error' | 'success' = 'info') {
+  retentionMsg.value = message
+  retentionMsgVariant.value = variant
+}
+
+/** Ada perubahan yang belum disimpan? (dipakai badge peringatan) */
+const retentionHasChanges = computed(
+  () =>
+    (retentionSaved.adas != null && retentionForm.adas !== retentionSaved.adas) ||
+    (retentionSaved.speed != null && retentionForm.speed !== retentionSaved.speed),
+)
+
+/** Validasi klien per modul (0 = nonaktif, dibiarkan valid). */
+function retentionErrorText(module: BbsRetentionModule): string {
+  const value = Number(retentionForm[module])
+  if (!Number.isFinite(value)) return t.value.fieldNumberRequired
+  const bounds = retentionBounds.value?.[module === 'adas' ? 'adas.retention_days' : 'speed.retention_days']
+  if (bounds && (value < bounds.min || value > bounds.max)) {
+    return t.value.fieldOutOfRange.replace('{min}', String(bounds.min)).replace('{max}', String(bounds.max))
+  }
+  return ''
+}
+
+/** Peringatan informatif saat nilai 0 (nonaktif) — bukan error. */
+function retentionZeroHint(module: BbsRetentionModule): string {
+  return Number(retentionForm[module]) === 0 ? t.value.retentionZeroHint : ''
+}
 
 async function loadRetention() {
   retentionLoading.value = true
@@ -530,8 +819,16 @@ async function loadRetention() {
     const data = await bbsService.fetchRetentionSettings()
     retentionForm.adas = data.settings.adas?.days ?? data.defaults['adas.retention_days'] ?? 90
     retentionForm.speed = data.settings.speed?.days ?? data.defaults['speed.retention_days'] ?? 90
+    retentionSaved.adas = retentionForm.adas
+    retentionSaved.speed = retentionForm.speed
+    retentionBounds.value = data.bounds
+      ? {
+          'adas.retention_days': data.bounds['adas.retention_days'],
+          'speed.retention_days': data.bounds['speed.retention_days'],
+        }
+      : null
   } catch {
-    retentionMsg.value = t.value.retentionLoadError
+    setRetentionMsg(t.value.retentionLoadError, 'error')
   } finally {
     retentionLoading.value = false
   }
@@ -542,6 +839,11 @@ watch(retentionOpen, (open) => {
 })
 
 async function saveRetention() {
+  const errorText = retentionErrorText('adas') || retentionErrorText('speed')
+  if (errorText) {
+    setRetentionMsg(errorText, 'error')
+    return
+  }
   retentionSaving.value = true
   retentionMsg.value = ''
   try {
@@ -549,9 +851,12 @@ async function saveRetention() {
       adas_days: retentionForm.adas,
       speed_days: retentionForm.speed,
     })
-    retentionMsg.value = t.value.retentionSaved
+    retentionSaved.adas = retentionForm.adas
+    retentionSaved.speed = retentionForm.speed
+    setRetentionMsg(t.value.retentionSaved, 'success')
+    toast.success(t.value.retentionSaved)
   } catch {
-    retentionMsg.value = t.value.retentionSaveError
+    setRetentionMsg(t.value.retentionSaveError, 'error')
   } finally {
     retentionSaving.value = false
   }
@@ -608,53 +913,80 @@ function retentionPreviewText(module: BbsRetentionModule, state: BbsRetentionMod
 }
 
 async function previewRetentionModule(module: BbsRetentionModule) {
+  const errorText = retentionErrorText(module)
+  if (errorText) {
+    setRetentionMsg(errorText, 'error')
+    return
+  }
   retentionLoading.value = true
   retentionMsg.value = ''
   try {
     const data = await bbsService.previewRetention([module], retentionForm[module])
     retentionPreview[module] = data.preview[module] ?? null
-    retentionMsg.value = retentionPreviewText(module, retentionPreview[module])
+    setRetentionMsg(retentionPreviewText(module, retentionPreview[module]), 'info')
   } catch {
-    retentionMsg.value = t.value.retentionPreviewError
+    setRetentionMsg(t.value.retentionPreviewError, 'error')
     retentionPreview[module] = null
   } finally {
     retentionLoading.value = false
   }
 }
 
+/**
+ * Hapus data kedaluwarsa satu modul.
+ * Konfirmasi memakai modal aplikasi (useDialog) — konsisten dengan seluruh
+ * halaman lain, dan menyediakan tombol Batal yang jelas.
+ */
 async function runPurge(module: BbsRetentionModule) {
+  const errorText = retentionErrorText(module)
+  if (errorText) {
+    setRetentionMsg(errorText, 'error')
+    return
+  }
   retentionLoading.value = true
-  retentionMsg.value = ''
   try {
-    if (!purgeConfirm[module]) {
-      // Langkah 1: pratinjau dengan nilai kandidat + minta konfirmasi.
-      const data = await bbsService.previewRetention([module], retentionForm[module])
-      retentionPreview[module] = data.preview[module] ?? null
+    // 1) Pratinjau dulu supaya isi konfirmasi menampilkan angka nyata.
+    const data = await bbsService.previewRetention([module], retentionForm[module])
+    retentionPreview[module] = data.preview[module] ?? null
+    const empty = retentionIsEmpty(retentionPreview[module])
+    const summary = retentionPreviewText(module, retentionPreview[module])
+
+    if (empty) {
+      // Aman: tidak ada yang memenuhi syarat — jangan tawarkan penghapusan.
       retentionResult[module] = null
-      const empty = retentionIsEmpty(retentionPreview[module])
-      if (empty) {
-        // Aman: pratinjau 0 → jangan beri tombol konfirmasi; jelaskan alasannya.
-        purgeConfirm[module] = false
-        retentionMsg.value = retentionPreviewText(module, retentionPreview[module])
-        return
-      }
-      purgeConfirm[module] = true
-      retentionMsg.value = `${retentionPreviewText(module, retentionPreview[module])}. ${t.value.retentionConfirm}`
+      setRetentionMsg(summary, 'info')
       return
     }
-    // Langkah 2: eksekusi penghapusan (nilai kandidat ikut disimpan di server).
+
+    const label = module === 'adas' ? t.value.retentionAdas : t.value.retentionSpeed
+    const ok = await confirm({
+      title: t.value.retentionConfirmTitle,
+      message:
+        `${label} — ${retentionForm[module]} ${t.value.retentionDaysUnit}. ${summary}. ` +
+        `${t.value.retentionConfirmWarning}`,
+      confirmText: t.value.retentionConfirmBtn,
+      cancelText: t.value.dialogCancel,
+      variant: 'danger',
+    })
+    if (!ok) {
+      setRetentionMsg(summary, 'info')
+      return
+    }
+
+    // 2) Eksekusi (nilai kandidat ikut disimpan di server).
     const res = await bbsService.runRetentionPurge([module], true, retentionForm[module])
     retentionResult[module] = res.results?.[module] ?? null
-    purgeConfirm[module] = false
+    retentionSaved[module] = retentionForm[module]
     retentionPreview[module] = null
-    retentionMsg.value = t.value.retentionDone
+    setRetentionMsg(retentionResultText(module, retentionResult[module]), 'success')
+    toast.success(t.value.retentionDone)
     if (module === 'speed') {
-      await Promise.all([loadSummary(), loadEvents()])
+      await loadPlates()
+      await Promise.all([loadSummary(), loadEvents(), loadByVehicle()])
       if (trendOpen.value) await loadTrend()
     }
   } catch {
-    retentionMsg.value = t.value.retentionPurgeError
-    purgeConfirm[module] = false
+    setRetentionMsg(t.value.retentionPurgeError, 'error')
   } finally {
     retentionLoading.value = false
   }
@@ -662,6 +994,7 @@ async function runPurge(module: BbsRetentionModule) {
 
 // ── init ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  await Promise.all([loadEvents(), loadSummary()])
+  await loadPlates()
+  await Promise.all([loadEvents(), loadSummary(), loadByVehicle()])
 })
 </script>

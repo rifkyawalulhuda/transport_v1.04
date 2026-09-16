@@ -1595,6 +1595,44 @@ dengan chart grouped-bar satu seri per truk + legenda warna untuk membandingkan 
   `truncated=true` & hanya 6 dipakai, plat tak dikenal → hasil kosong (bukan error),
   `/alarms?plates=` hanya mengembalikan plat terpilih.
 
+## Updates (2026-09-15 — Filter Kendaraan pada Chart Kecepatan)
+
+### Fitur
+Konsisten dengan modul ADAS: satu **kontrol multi-pilih kendaraan** (maks 6) di tab Kecepatan
+yang mengendalikan **chart Tren**, **chart baru "Pelanggaran per Kendaraan"**, dan
+**daftar pelanggaran**.
+
+### Backend (`node_backend/routes/bbsSpeed.js`)
+- Konstanta `MAX_CHART_PLATES = 6` + helper `parsePlateFilter()` / `plateInClause()`.
+- **`GET /api/bbs/speed/plates`** *(baru)* — kendaraan yang punya pelanggaran + jumlah event
+  (`{ plates: [{plate_number,total,last_month}], max_selectable: 6 }`).
+- **`GET /api/bbs/speed/by-vehicle`** *(baru)* — `SUM(event_count)` per plat dari
+  `bbs_speed_daily` (teragregasi, hemat query), urut terbanyak dulu, maks 6 + `total_vehicles`.
+- **`GET /api/bbs/speed/daily-trend`** — param `plates=A,B,C`; respons ditambah
+  `series[{plate,data,total}]`, `plates_used`, `truncated`; `data` agregat tetap ada.
+- **`GET /api/bbs/speed/events`** — param `plates=A,B` (exact IN) untuk kontrol terpadu;
+  `plate` LIKE lama dipertahankan.
+
+### Frontend (`BbsSpeedTab.vue`)
+- Kontrol multi-pilih kendaraan di kartu Tren (dropdown checkbox + jumlah pelanggaran,
+  opsi "Semua Kendaraan", peringatan maks 6, default = pelanggar terbanyak sekali saja).
+- Chart Tren: **grouped bar** per kendaraan saat >1 dipilih (legenda + tooltip nama truk).
+- Chart baru **"Pelanggaran per Kendaraan"** (sumbu X = plat, 1 batang/truk, tooltip
+  menampilkan jumlah + hari melanggar) — lebih informatif daripada 31 batang harian.
+- Input plat teks di daftar pelanggaran **dihapus** (digantikan kontrol terpadu).
+- Import & purge menyegarkan daftar plat otomatis.
+- `bbsService.ts` — `fetchSpeedPlates()`, `fetchSpeedByVehicle(month, plates?)`,
+  `plates` pada `fetchSpeed` / `fetchSpeedTrend`; tipe `BbsSpeedPlate`/`BbsSpeedByVehicle`.
+- `useBbsLang.ts` — kunci `speedByVehicleTitle` (ID & EN); label filter kendaraan memakai
+  kunci `alarm*` yang sudah ada (label generik, menghindari duplikasi).
+
+### Test
+- `node scripts/test-speed-vehicle-filter.js` — self-contained; menyisipkan plat sintetis
+  (events + daily) untuk membuktikan multi-kendaraan: `/plates` cocok SQL, tren tanpa filter
+  identik perilaku lama, 1 plat → 1 seri, 2 plat → 2 seri dengan angka per truk, `/by-vehicle`
+  = `SUM(event_count)`, >6 plat → `truncated`, plat tak dikenal → kosong (bukan error),
+  `/events?plates=` hanya plat terpilih.
+
 ---
 
 ### BBS — Tab Baru "Alarm ADAS"

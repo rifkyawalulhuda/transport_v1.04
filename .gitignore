@@ -4,3 +4,8 @@ node_backend/logs/audit.log
 .env.*
 !.env.example
 .cloudflared
+
+# VitePress build output — artefak, dibangun ulang oleh CI (deploy-docs.yml).
+# Jangan di-commit: menghasilkan diff palsu & konflik merge pada file ber-hash.
+docs/.vitepress/dist/
+docs/.vitepress/cache/

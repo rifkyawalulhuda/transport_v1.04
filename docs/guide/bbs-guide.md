@@ -11,11 +11,30 @@ Modul BBS digunakan untuk pencatatan, pemantauan, dan pelaporan keselamatan kerj
 
 | Role | Akses | Tab yang Tersedia | Detail Drawer |
 |------|-------|-------------------|---------------|
-| **Admin** | ✅ Full | Semua (Dashboard, Observasi, Checklist, Insiden, Riwayat) | View + Edit + Hapus |
+| **Admin** | ✅ Full | Semua (Dashboard, Observasi, Checklist, Insiden, Riwayat, Alarm ADAS, Kecepatan) | View + Edit + Hapus |
 | **Patcher** | ✅ Full | Semua | View + Edit + Hapus |
 | **User** | ✅ Terbatas | Dashboard & Riwayat saja | View-only |
 | **Mekanik** | ✅ Full | Semua | View + Edit + Hapus |
 | **CS** | ❌ | Tidak bisa akses | — |
+
+| Tab | Fungsi Singkat |
+|-----|----------------|
+| Dashboard | Ringkasan keselamatan bulan terpilih |
+| Observasi | Input observasi perilaku berkendara |
+| Checklist | Pemeriksaan pra-perjalanan kendaraan |
+| Insiden | Pelaporan insiden & near-miss |
+| Riwayat | Daftar gabungan observasi manual, checklist, insiden |
+| Alarm ADAS | Import & analisis alarm ADAS (dari CSV/XLSX) |
+| Kecepatan | Import & analisis pelanggaran kecepatan (dari CSV/XLSX) |
+
+::: warning Riwayat tidak menampilkan data hasil upload
+Tab **Riwayat** sengaja **tidak** menampilkan data hasil upload ADAS & Kecepatan agar daftar tetap ringkas —
+kedua jenis data itu punya tab sendiri (**Alarm ADAS** dan **Kecepatan**). Export Excel dari Riwayat juga
+tidak menyertakan keduanya.
+
+Konsekuensi lain: baris alarm ADAS tidak bisa dibuka/diedit/dihapus lewat endpoint observasi (dijawab `404`),
+karena data hasil upload bersifat *read-only* di luar tabnya.
+:::
 
 ::: tip Patcher
 Role Patcher hanya melihat menu BBS + User Profile di sidebar. Setelah login langsung diarahkan ke `/bbs`.
@@ -279,4 +298,174 @@ Alamat diperoleh otomatis dari koordinat. Jika layanan geocode tidak tersedia, k
 
 ::: warning
 Pastikan browser mengizinkan akses lokasi jika ingin menggunakan tombol "Lokasi Saya".
+:::
+
+## Tab Alarm ADAS
+
+Tab untuk mengimpor dan menganalisis alarm ADAS/DMS yang berasal dari perangkat kamera
+kendaraan (mengantuk, distraksi, pelanggaran lajur, risiko tabrakan, dsb.).
+
+### Import Alarm
+
+| Field | Keterangan |
+|-------|-----------|
+| Format file | `.csv` atau `.xlsx` (maksimal **10 MB**) |
+| Kolom wajib | `Device ID`, `Device Name`, `Alarm Type`, `Begin Time`, `Start Position` |
+
+- **Device Name** dipakai sebagai **nomor plat** kendaraan.
+- Baris dengan kombinasi `Device ID + Begin Time + Alarm Type` yang sama dianggap **duplikat** dan dilewati.
+- Alarm yang beruntun dengan tipe sama dalam **≤ 60 detik** dihitung sebagai satu burst (`dedup_burst`).
+- Hasil import menampilkan: berhasil diimpor, beruntun (dedup), duplikat, driver belum terdaftar, gagal.
+
+### Daftar Alarm
+
+Kolom yang ditampilkan: **Waktu, Plat, Tipe Alarm, Driver, Lokasi**.
+
+| Filter | Fungsi |
+|--------|--------|
+| Plat kendaraan | Pencarian sebagian (ketik lalu Enter) |
+| Tanggal | Date picker `date_from` |
+| Tipe Alarm | Dropdown 8 tipe standar |
+
+### Chart Breakdown Alarm per Tipe (dengan filter kendaraan)
+
+Diagram batang jumlah alarm per tipe untuk bulan terpilih.
+
+**Filter kendaraan (multi-pilih):**
+1. Klik tombol **Kendaraan** → muncul daftar plat yang **benar-benar punya data ADAS** beserta jumlah alarmnya
+2. Centang kendaraan yang ingin dibandingkan — **maksimal 6 kendaraan**
+3. Chart berubah menjadi *grouped bar*: satu batang berwarna per kendaraan, plus legenda
+4. Klik **Semua Kendaraan** atau **Hapus filter kendaraan** untuk kembali ke tampilan agregat
+
+::: tip Filter terpadu
+Pilihan kendaraan mengendalikan **chart dan daftar alarm sekaligus** — jadi angka di chart dan baris
+di tabel selalu konsisten. Bila memilih lebih dari 6 kendaraan, sistem menampilkan peringatan dan
+menolak pilihan ke-7.
+:::
+
+## Tab Kecepatan
+
+Tab untuk mengimpor dan menganalisis pelanggaran kecepatan (`overspeed`) dari file GPS tracker.
+
+### Import Data Kecepatan
+
+| Field | Keterangan |
+|-------|-----------|
+| Format file | `.csv` atau `.xlsx` (maksimal **10 MB**) |
+| Kolom wajib | `Device ID`, `Device Name`, `Creation Time`, `Speed` |
+
+Setelah import, kartu hasil menampilkan jumlah baris tersimpan, event beruntun, duplikat, driver belum
+terdaftar, dan **persentase penghematan penyimpanan** (lihat [Penyimpanan Data](#penyimpanan-data) di bawah).
+
+### Filter Bulan (satu filter untuk seluruh tab)
+
+Kartu **Ringkasan Kecepatan** memiliki **satu** month picker yang mengendalikan:
+ringkasan, chart Tren, chart Pelanggaran per Kendaraan, **dan** daftar pelanggaran. Mengubah bulan
+sekali akan menyegarkan semuanya.
+
+### Ringkasan Kecepatan
+
+| Kartu | Arti |
+|-------|------|
+| Total Pelanggaran | Jumlah event overspeed pada bulan terpilih |
+| Kendaraan Terlibat | Jumlah kendaraan yang punya event |
+| Rata-rata Kelebihan | Rata-rata `kecepatan maks − batas` (km/j) |
+| Maks. Kelebihan | Kelebihan tertinggi (km/j) |
+| Pelanggar Terbanyak | Plat dengan event terbanyak |
+
+### Chart Tren Pelanggaran Kecepatan
+
+Diagram batang jumlah pelanggaran **per tanggal** dalam bulan terpilih. Bila Anda memilih beberapa
+kendaraan pada filter, chart berubah menjadi *grouped bar* per kendaraan.
+
+### Chart Pelanggaran per Kendaraan
+
+Diagram batang jumlah pelanggaran **per kendaraan** (sumbu X = plat, urut terbanyak). Arahkan kursor
+ke batang untuk melihat jumlah pelanggaran dan **jumlah hari** kendaraan tersebut melanggar.
+
+::: info Perbandingan & batas
+Filter kendaraan pada tab ini juga **terpadu**: pilihan yang sama mengendalikan chart Tren,
+chart Pelanggaran per Kendaraan, dan daftar pelanggaran. Maksimal **6 kendaraan**.
+:::
+
+### Daftar Pelanggaran Kecepatan
+
+Kolom: Waktu, Plat, Driver, Kecepatan (km/j), Batas (km/j), Kelebihan, Lokasi. Baris dengan
+kelebihan > 20 km/j ditandai badge merah.
+
+## Pengaturan Kecepatan <Badge type="warning" text="Admin" />
+
+Kartu *Pengaturan Kecepatan* di tab Kecepatan mengatur ambang batas overspeed global.
+
+| Item | Keterangan |
+|------|-----------|
+| Batas Kecepatan Default | Ambang overspeed dalam **km/j** — rentang **20–200** |
+| Tombol Simpan | Menyimpan ambang baru |
+
+- Perubahan yang belum disimpan ditandai badge **"Belum disimpan"** pada judul kartu.
+- Bila nilai di luar rentang, muncul pesan merah dan penyimpanan dibatalkan (**validasi di klien**, tanpa perlu menunggu server).
+- Setelah tersimpan, muncul notifikasi sukses.
+
+::: warning Ambang batas memengaruhi penyimpanan data
+Ambang batas dipakai saat **import** untuk menentukan baris mana yang disimpan pada resolusi penuh.
+Mengubah ambang batas **tidak otomatis** menghitung ulang data lama — ada proses *recompute* terpisah
+yang hanya akurat pada detail yang masih tersimpan.
+:::
+
+## Retensi Data <Badge type="warning" text="Admin" />
+
+Kartu *Retensi Data* untuk menghapus data lama secara terkendali. **Hanya admin** yang melihat kartu ini.
+
+| Kolom | Arti |
+|-------|------|
+| ADAS (hari) | Umur maksimum data alarm ADAS |
+| Speed (hari) | Umur maksimum data kecepatan |
+| Pratinjau | Menghitung **berapa baris** yang akan terhapus (tidak mengubah apa pun) |
+| Hapus Data | Menjalankan penghapusan untuk modul tersebut |
+
+### Cara Kerja
+
+1. Isi jumlah hari pada modul yang diinginkan (**0 = nonaktif**, tidak ada yang dihapus)
+2. Klik **Pratinjau** untuk melihat dampaknya — angka yang ditampilkan memakai nilai di kotak input
+3. Klik **Hapus Data** → sistem menampilkan **modal konfirmasi** berisi jumlah nyata yang akan terhapus
+   dan peringatan bahwa tindakan ini **permanen**
+4. Tekan **Konfirmasi** untuk mengeksekusi, atau **Batal** untuk membatalkan tanpa efek apa pun
+
+::: info Pratinjau "0" itu normal
+Retensi menghapus data yang **lebih tua dari N hari**. Bila data tertua Anda belum melewati N hari,
+hasilnya **0 baris** — bukan error. Pesan pratinjau akan menyebutkan total data dan umur data tertua
+supaya jelas.
+:::
+
+### Dampak
+
+- **ADAS** — menghapus baris alarm; observasi manual di tabel yang sama **tidak pernah** tersentuh
+- **Speed** — menghapus telemetry, event, dan agregat harian di luar rentang
+- Setiap penghapusan **dicatat di audit log** (`bbs_retention_purge`) berisi admin, modul, dan jumlah baris
+- Nilai retensi yang dipakai saat menghapus **otomatis tersimpan** sebagai kebijakan baru
+
+::: danger Penghapusan bersifat permanen
+Data yang terhapus tidak bisa dikembalikan dari dalam aplikasi. Data Speed masih dapat dipulihkan
+dengan meng-import ulang file sumber aslinya; data ADAS dengan meng-import ulang file alarm.
+Pastikan Anda sudah memeriksa **Pratinjau** sebelum mengonfirmasi.
+:::
+
+## Penyimpanan Data
+
+Agar database tidak membengkak, sistem **tidak menyimpan seluruh titik GPS**. Ringkasannya:
+
+| Aturan | Penjelasan |
+|--------|-----------|
+| Baris di atas ambang batas | Selalu disimpan pada resolusi penuh (setiap titik) |
+| Baris bergerak di bawah ambang | Disimpan **satu sampel per 3 menit** (dapat diatur admin) |
+| Baris idle (ACC mati / kecepatan ~0) | Tidak disimpan sama sekali |
+
+Hasil pada data nyata: **±87% lebih sedikit baris** (contoh: 12.378 → 1.562 baris untuk satu truk
+selama 14 hari) **tanpa mengubah** total durasi pelanggaran, kecepatan maksimum, maupun jumlah event
+yang dipakai untuk skor.
+
+::: tip Ukuran file tidak menyusut otomatis
+`DELETE` di MySQL hanya menandai ruang sebagai dapat dipakai ulang — file tabel baru benar-benar
+menyusut setelah tabel dibangun ulang (`OPTIMIZE TABLE`). Operasi ini dijalankan otomatis sebagai
+bagian dari pembersihan besar, bukan setiap import.
 :::

@@ -208,9 +208,45 @@ export interface BbsSpeedSummary {
   top_offender_count: number | null
 }
 
+export interface BbsSpeedTrendSeries {
+  plate: string
+  data: number[]
+  total: number
+}
+
 export interface BbsSpeedTrend {
   labels: string[]
   data: number[]
+  /** Satu seri per kendaraan (grouped bar) — ada saat difilter/multi-kendaraan. */
+  series?: BbsSpeedTrendSeries[]
+  plates_used?: string[]
+  truncated?: boolean
+  month: string
+}
+
+export interface BbsSpeedPlate {
+  plate_number: string
+  total: number
+  last_month?: string | null
+}
+
+export interface BbsSpeedPlatesResponse {
+  plates: BbsSpeedPlate[]
+  max_selectable: number
+}
+
+export interface BbsSpeedByVehicleRow {
+  plate_number: string
+  total: number
+  days: number
+  overspeed_seconds: number
+  max_speed_kmh: number | null
+}
+
+export interface BbsSpeedByVehicle {
+  rows: BbsSpeedByVehicleRow[]
+  total_vehicles: number
+  truncated: boolean
   month: string
 }
 
@@ -237,6 +273,8 @@ export interface BbsSpeedImportResult {
 
 export interface BbsSpeedSettings {
   default_speed_limit: number
+  /** Batas validasi dari backend (SETTING_BOUNDS) untuk validasi klien. */
+  bounds?: { min: number; max: number; integer: boolean }
 }
 
 // ── Retention (ADAS + Speed) ────────────────────────────────────────────────
@@ -466,6 +504,7 @@ export const bbsService = {
     page?: number
     limit?: number
     plate?: string
+    plates?: string
     month?: string
     day?: string
   }): Promise<BbsSpeedListResponse> {
@@ -532,18 +571,43 @@ export const bbsService = {
     }
   },
 
-  async fetchSpeedTrend(month?: string): Promise<BbsSpeedTrend> {
+  async fetchSpeedTrend(month?: string, plates?: string[]): Promise<BbsSpeedTrend> {
     // Backend route: /daily-trend, bukan /trend
-    const qs = month ? `?month=${month}` : ''
-    const res = await authFetch(`${API_BASE}/bbs/speed/daily-trend${qs}`)
+    const searchParams = new URLSearchParams()
+    if (month) searchParams.set('month', month)
+    if (plates && plates.length) searchParams.set('plates', plates.join(','))
+    const qs = searchParams.toString()
+    const res = await authFetch(`${API_BASE}/bbs/speed/daily-trend${qs ? `?${qs}` : ''}`)
+    return handleJson(res)
+  },
+
+  /** Daftar kendaraan yang punya pelanggaran kecepatan (untuk filter multi-pilih). */
+  async fetchSpeedPlates(): Promise<BbsSpeedPlatesResponse> {
+    const res = await authFetch(`${API_BASE}/bbs/speed/plates`)
+    return handleJson(res)
+  },
+
+  /** Total pelanggaran per kendaraan dalam satu bulan. */
+  async fetchSpeedByVehicle(month?: string, plates?: string[]): Promise<BbsSpeedByVehicle> {
+    const searchParams = new URLSearchParams()
+    if (month) searchParams.set('month', month)
+    if (plates && plates.length) searchParams.set('plates', plates.join(','))
+    const qs = searchParams.toString()
+    const res = await authFetch(`${API_BASE}/bbs/speed/by-vehicle${qs ? `?${qs}` : ''}`)
     return handleJson(res)
   },
 
   async fetchSpeedSettings(): Promise<BbsSpeedSettings> {
     // Settings ada di /api/bbs/settings, bukan /api/bbs/speed/settings
     const res = await authFetch(`${API_BASE}/bbs/settings`)
-    const raw = await handleJson<{ effective: { threshold_kmh: number } }>(res)
-    return { default_speed_limit: raw.effective?.threshold_kmh ?? 60 }
+    const raw = await handleJson<{
+      effective: { threshold_kmh: number }
+      bounds?: Record<string, { min: number; max: number; integer: boolean }>
+    }>(res)
+    return {
+      default_speed_limit: raw.effective?.threshold_kmh ?? 60,
+      bounds: raw.bounds?.['speed.overspeed_threshold_kmh'],
+    }
   },
 
   async saveSpeedSettings(data: BbsSpeedSettings): Promise<{ success: boolean }> {
