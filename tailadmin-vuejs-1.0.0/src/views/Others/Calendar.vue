@@ -261,13 +261,34 @@ import { useToast } from '@/composables/useToast'
 
 const calendarRef = ref(null)
 const isOpen = ref(false)
-const selectedEvent = ref(null)
+/** Satu event pada kalender (bentuk internal yang dipakai komponen ini). */
+interface CalendarEventItem {
+  id: string
+  title: string
+  start: string
+  end: string | null
+  allDay: boolean
+  created_at?: string
+  updated_at?: string
+  extendedProps: {
+    calendar?: string
+    created_by_user_id?: string | number | null
+    created_by_name?: string | null
+    created_by_avatar_url?: string | null
+    description?: string | null
+  }
+  created_by_user_id?: string | number | null
+  created_by_name?: string | null
+  created_by_avatar_url?: string | null
+}
+
+const selectedEvent = ref<CalendarEventItem | null>(null)
 const eventTitle = ref('')
 const eventStartDate = ref('')
 const eventEndDate = ref('')
 const eventLevel = ref('')
 const eventAllDay = ref(true)
-const events = ref([])
+const events = ref<CalendarEventItem[]>([])
 const authUser = useAuthUser()
 const toast = useToast()
 const storageKey = 'calendar_events_shared'
@@ -289,7 +310,7 @@ const currentUserAvatarUrl = computed(() => {
   return gambar ? `${apiBase}/img/${gambar}` : null
 })
 
-const getInitials = (name) => {
+const getInitials = (name: string) => {
   const clean = String(name || '').trim()
   if (!clean) {
     return 'U'
@@ -330,7 +351,7 @@ const modalCreatorAvatarUrl = computed(() => {
 })
 const modalCreatorInitials = computed(() => getInitials(modalCreatorName.value))
 
-const escapeHtml = (value) =>
+const escapeHtml = (value: unknown) =>
   String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -338,11 +359,11 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 
-const formatDateTimeInput = (date) => {
+const formatDateTimeInput = (date: Date) => {
   if (!date) {
     return ''
   }
-  const pad = (value) => String(value).padStart(2, '0')
+  const pad = (value: number) => String(value).padStart(2, '0')
   const year = date.getFullYear()
   const month = pad(date.getMonth() + 1)
   const day = pad(date.getDate())
@@ -351,10 +372,10 @@ const formatDateTimeInput = (date) => {
   return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
-const resolveEventLevel = (level) =>
-  calendarsEvents[level] ? level : 'Primary'
+const resolveEventLevel = (level?: string) =>
+  calendarsEvents[level as keyof typeof calendarsEvents] ? level : 'Primary'
 
-const normalizeEvent = (event) => {
+const normalizeEvent = (event: any): CalendarEventItem => {
   const extendedProps = event.extendedProps || {}
   const calendarKey = resolveEventLevel(extendedProps.calendar || event.calendar)
   return {
@@ -389,11 +410,11 @@ const loadEvents = () => {
   }
 }
 
-const saveEvents = (nextEvents) => {
+const saveEvents = (nextEvents: CalendarEventItem[]) => {
   localStorage.setItem(storageKey, JSON.stringify(nextEvents))
 }
 
-const isOwnerEvent = (event) => {
+const isOwnerEvent = (event: CalendarEventItem) => {
   if (!currentUserId.value) {
     return false
   }
@@ -423,7 +444,7 @@ const resetModalFields = () => {
   selectedEvent.value = null
 }
 
-const handleDateSelect = (selectInfo) => {
+const handleDateSelect = (selectInfo: any) => {
   resetModalFields()
   eventStartDate.value = formatDateTimeInput(selectInfo.start)
   eventEndDate.value = selectInfo.end ? formatDateTimeInput(selectInfo.end) : ''
@@ -431,13 +452,13 @@ const handleDateSelect = (selectInfo) => {
   openModal()
 }
 
-const handleEventClick = (clickInfo) => {
+const handleEventClick = (clickInfo: any) => {
   const event = clickInfo.event
   selectedEvent.value = event
   eventTitle.value = event.title
   eventStartDate.value = formatDateTimeInput(event.start)
   eventEndDate.value = formatDateTimeInput(event.end)
-  eventLevel.value = resolveEventLevel(event.extendedProps.calendar)
+  eventLevel.value = resolveEventLevel(event.extendedProps?.calendar) ?? 'Primary'
   eventAllDay.value = Boolean(event.allDay)
   openModal()
 }
@@ -459,7 +480,7 @@ const handleAddOrUpdateEvent = () => {
   if (selectedEvent.value) {
     // Update existing event
     events.value = events.value.map((event) => {
-      if (event.id !== selectedEvent.value.id) {
+      if (event.id !== selectedEvent.value?.id) {
         return event
       }
       return {
@@ -503,13 +524,13 @@ const handleDeleteEvent = () => {
       toast.error('Anda tidak memiliki izin untuk menghapus event ini.')
       return
     }
-    events.value = events.value.filter((event) => event.id !== selectedEvent.value.id)
+    events.value = events.value.filter((event) => event.id !== selectedEvent.value?.id)
     saveEvents(events.value.map(normalizeEvent))
     closeModal()
   }
 }
 
-const renderEventContent = (eventInfo) => {
+const renderEventContent = (eventInfo: any) => {
   const calendarKey = resolveEventLevel(eventInfo.event.extendedProps.calendar)
   const colorClass = `fc-bg-${String(calendarKey).toLowerCase()}`
   const ownerName = eventInfo.event.extendedProps.created_by_name || 'User'
@@ -536,7 +557,7 @@ const renderEventContent = (eventInfo) => {
   }
 }
 
-const handleEventChange = (changeInfo) => {
+const handleEventChange = (changeInfo: any) => {
   if (!isOwnerEvent(changeInfo.event)) {
     changeInfo.revert()
     toast.error('Anda tidak memiliki izin untuk mengubah event ini.')

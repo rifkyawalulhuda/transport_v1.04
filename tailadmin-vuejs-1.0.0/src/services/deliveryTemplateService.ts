@@ -1,4 +1,4 @@
-import { authFetch } from './auth'
+import { authFetch } from '@/services/auth'
 import { API_BASE } from '@/config/api'
 
 const handleJson = async (response: Response) => {
